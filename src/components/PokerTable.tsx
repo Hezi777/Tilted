@@ -59,8 +59,10 @@ export function PokerTable({
         // Bottom-centre is 90deg; walk anticlockwise so seat order reads around.
         const angle = 90 + (index * 360) / count;
         const radians = (angle * Math.PI) / 180;
-        const x = 50 + 43 * Math.cos(radians);
-        const y = 50 + 45 * Math.sin(radians);
+        // Radius has to leave room for the seat's own box or it hangs off the
+        // edge: a 80px-wide seat on a 360px table needs ~11% of clearance.
+        const x = 50 + 33 * Math.cos(radians);
+        const y = 50 + 34 * Math.sin(radians);
         const selected = selectedPlayerId === player.id;
 
         return (
@@ -71,12 +73,16 @@ export function PokerTable({
             aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}`}
             aria-pressed={onSeatSelect ? selected : undefined}
             className={cn(
-              "absolute flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-2xl p-1.5 transition-transform duration-150",
-              onSeatSelect && "active:scale-95",
+              "absolute flex w-20 flex-col items-center gap-1 rounded-2xl p-1 transition-transform duration-150",
+              onSeatSelect && "active:opacity-80",
               selected && "bg-gold/15 ring-2 ring-gold",
               player.isSettled && "opacity-55",
             )}
-            style={{ insetInlineStart: `${x}%`, top: `${y}%` }}
+            style={{
+              left: `${x}%`,
+              top: `${y}%`,
+              transform: "translate(-50%, -50%)",
+            }}
           >
             <div className="relative">
               <ChipAvatar
@@ -84,7 +90,7 @@ export function PokerTable({
                 personId={player.personId}
                 name={player.name}
                 className={cn(
-                  "size-14",
+                  "size-12",
                   player.isYou && "ring-[3px] ring-gold",
                 )}
               />
