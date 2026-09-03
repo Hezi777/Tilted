@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { AppHeader } from "@/components/AppHeader";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -134,21 +136,23 @@ export default function NewGamePage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[430px] flex-1 flex-col gap-6 p-4">
-      <h1 className="text-2xl font-bold">משחק חדש</h1>
+    <main className="flex flex-1 flex-col">
+      <AppHeader title="משחק חדש" subtitle="קופה משותפת לערב אחד, בלי כאב ראש" />
+      <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col gap-5 p-5 pb-8">
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="game-name">שם המשחק</Label>
+      <div className="flex flex-col gap-2.5">
+        <Label className="text-sm font-bold" htmlFor="game-name">שם המשחק</Label>
         <Input
           id="game-name"
+          className="h-12 rounded-xl border-foreground/15 bg-card px-4"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={defaultGameName()}
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label>כניסה</Label>
+      <div className="flex flex-col gap-2.5">
+        <Label className="text-sm font-bold">כניסה</Label>
         <ToggleGroup
           type="single"
           value={buyInChoice}
@@ -156,7 +160,7 @@ export default function NewGamePage() {
             if (value) setBuyInChoice(value as BuyInChoice);
           }}
           variant="outline"
-          className="w-full"
+          className="w-full rounded-xl bg-muted/50 p-1"
         >
           {BUY_IN_CHIPS.map((chip) => (
             <ToggleGroupItem key={chip} value={chip} className="h-12 flex-1">
@@ -168,7 +172,8 @@ export default function NewGamePage() {
           </ToggleGroupItem>
         </ToggleGroup>
         {buyInChoice === "custom" && (
-          <Input
+            <Input
+              className="h-12 rounded-xl border-foreground/15 bg-card px-4"
             type="number"
             inputMode="decimal"
             min={1}
@@ -179,9 +184,9 @@ export default function NewGamePage() {
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="rebuy-toggle">ריביי בסכום אחר</Label>
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-foreground/10 bg-card/60 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-sm font-bold" htmlFor="rebuy-toggle">ריביי בסכום אחר</Label>
           <Switch
             id="rebuy-toggle"
             checked={rebuyDifferent}
@@ -190,6 +195,7 @@ export default function NewGamePage() {
         </div>
         {rebuyDifferent && (
           <Input
+            className="h-12 rounded-xl border-foreground/15 bg-card px-4"
             type="number"
             inputMode="decimal"
             min={1}
@@ -202,11 +208,11 @@ export default function NewGamePage() {
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <Label>שחקנים</Label>
+          <Label className="text-sm font-bold">שחקנים</Label>
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            className="h-12 rounded-xl text-felt"
             onClick={() => setAddGuestOpen(true)}
           >
             הוסף אורח
@@ -224,15 +230,18 @@ export default function NewGamePage() {
         {loadError && <p className="text-destructive text-sm">{loadError}</p>}
 
         {people !== null && people.length === 0 && !loadError && (
-          <p className="text-muted-foreground text-sm">
-            אין עדיין שחקנים קבועים. הוסיפו אורח כדי להתחיל.
-          </p>
+          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-foreground/15 bg-card/50 p-4">
+            <Image src="/art/empty.png" alt="" width={56} height={56} className="size-14 object-contain" />
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              אין עדיין שחקנים קבועים. הוסיפו אורח כדי להתחיל.
+            </p>
+          </div>
         )}
 
         <ul className="flex flex-col gap-1">
           {people?.map((person) => (
             <li key={person.id}>
-              <Label className="flex min-h-12 items-center gap-3 rounded-md border px-3">
+              <Label className="flex min-h-14 items-center gap-3 rounded-xl border border-foreground/10 bg-card px-4 shadow-[0_4px_12px_-12px_var(--felt)]">
                 <Checkbox
                   checked={selected.has(person.id)}
                   onCheckedChange={(checked) =>
@@ -255,7 +264,7 @@ export default function NewGamePage() {
 
       <Button
         size="lg"
-        className="h-14 text-lg"
+        className="h-14 rounded-xl bg-felt text-lg font-black text-primary-foreground shadow-[0_10px_24px_-16px_var(--felt)] hover:bg-felt-deep"
         disabled={!canSubmit || submitting}
         onClick={handleSubmit}
       >
@@ -268,6 +277,7 @@ export default function NewGamePage() {
             <DialogTitle>הוסף אורח</DialogTitle>
           </DialogHeader>
           <Input
+            className="h-12 rounded-xl"
             autoFocus
             placeholder="שם"
             value={guestName}
@@ -287,6 +297,7 @@ export default function NewGamePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </main>
   );
 }
