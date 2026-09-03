@@ -60,7 +60,8 @@ refused by Postgres rather than by hopeful application code.
 |---|---|---|
 | Framework | Next.js 16 (App Router) | Server routes and screens in one deploy |
 | Language | TypeScript (strict) | — |
-| Styling | Tailwind v4 + shadcn/ui on Radix | RTL via logical properties only; animation comes from Radix `data-state` |
+| Styling | Tailwind v4 + shadcn/ui on Radix | RTL via logical properties only — ESLint fails the build on `ml-`, `pr-`, `text-left` and friends |
+| Motion | Radix `data-state` transitions, plus Framer Motion on the home screen and the table | Both respect `prefers-reduced-motion` |
 | Database | Neon serverless Postgres + Drizzle | Free tier wakes from idle in milliseconds, so a monthly game never hits a paused project |
 | Validation | Zod at every route, `CHECK` constraints in the schema | |
 | Tests | Vitest | Money, settlement, export and streaks are pure and unit-tested |
