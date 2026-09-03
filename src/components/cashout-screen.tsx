@@ -8,6 +8,7 @@ import { AmountInput } from "@/components/AmountInput";
 import { AppHeader } from "@/components/AppHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -269,11 +270,16 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
             </section>
 
             <Card
-              className={
+              className={cn(
+                // The host is reading this number while counting cash. Snapping
+                // between "balanced" and "off" reads as a glitch at exactly the
+                // moment trust in the figure matters most. Colour only -- never
+                // move the digits themselves.
+                "shadow-none transition-[background-color,border-color] duration-200 ease-[var(--ease-out)]",
                 mismatch
-                  ? "border-destructive/60 bg-destructive/10 shadow-none"
-                  : "border-gold/45 bg-gold/5 shadow-none"
-              }
+                  ? "border-destructive/60 bg-destructive/10"
+                  : "border-gold/45 bg-gold/5",
+              )}
               role="status"
               aria-live="polite"
             >

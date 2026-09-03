@@ -190,7 +190,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       )}
 
       {game.isHost && focusedPlayer && (
-        <section aria-label={`פעולות עבור ${focusedPlayer.name}`} className="px-5">
+        <section aria-label={`פעולות עבור ${focusedPlayer.name}`} className="animate-rise-in px-5">
           <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />
         </section>
       )}

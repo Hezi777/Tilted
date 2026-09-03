@@ -138,7 +138,7 @@ export default function Home() {
                 width={160}
                 height={160}
                 priority
-                className="size-36"
+                className="animate-settle-in size-36"
               />
               <p className="text-muted-foreground max-w-[26ch] text-sm text-balance">
                 עוד לא שיחקתם כאן אף משחק. פתחו משחק חדש, או הצטרפו לאחד עם קוד

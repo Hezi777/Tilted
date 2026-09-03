@@ -155,7 +155,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
         {state && (
           <>
             {winner && (
-              <Card className="overflow-hidden border-gold/60 bg-gold/10 shadow-[0_14px_30px_-24px_var(--felt)]">
+              <Card className="animate-settle-in overflow-hidden border-gold/60 bg-gold/10 shadow-[0_14px_30px_-24px_var(--felt)]">
                 <CardContent className="flex items-center gap-4 p-5">
                   <ImageWithFallback src="/art/winner.png" alt="מנצח" className="size-24 shrink-0 object-contain" />
                   <div>
@@ -175,8 +175,12 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 </Badge>
               </CardHeader>
               <CardContent className="flex flex-col gap-1 p-4 pt-2">
-                {state.players.map((player) => (
-                  <div key={player.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-foreground/8 px-1 py-2 last:border-b-0">
+                {state.players.map((player, index) => (
+                  <div
+                    key={player.id}
+                    className="animate-rise-in flex min-h-14 items-center justify-between gap-3 border-b border-foreground/8 px-1 py-2 last:border-b-0"
+                    style={{ animationDelay: `${120 + index * 40}ms` }}
+                  >
                     <span className="flex items-center gap-2 font-medium">
                       {player.name}
                       {player.outcome === "winner" && <span className="text-muted-foreground text-xs">מנצח</span>}

@@ -98,7 +98,7 @@ export function PokerTable({
             aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}`}
             aria-pressed={onSeatSelect ? selected : undefined}
             className={cn(
-              "absolute flex flex-col items-center gap-1 rounded-2xl p-1 transition-transform duration-150",
+              "absolute flex flex-col items-center gap-1 rounded-2xl p-1 transition-[transform,background-color,box-shadow,opacity] duration-150 ease-[var(--ease-out)]",
               tier.seatWidthClass,
               onSeatSelect && "active:opacity-80",
               selected && "bg-gold/15 ring-2 ring-gold",

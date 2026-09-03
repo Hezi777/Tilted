@@ -166,7 +166,7 @@ export default function JoinPage() {
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none flex justify-center gap-2.5 rounded-2xl peer-focus-visible:ring-4 peer-focus-visible:ring-gold/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background"
+              className="peer-focus-visible:[&_[data-active]]:ring-gold/60 pointer-events-none flex justify-center gap-2.5"
               dir="ltr"
             >
               {[0, 1, 2, 3].map((slot) => {
@@ -175,10 +175,13 @@ export default function JoinPage() {
                 return (
                   <span
                     key={slot}
+                    data-active={active ? "" : undefined}
                     className={[
-                      "flex h-20 w-16 items-center justify-center rounded-2xl border-2 bg-card text-4xl font-black tabular",
-                      char ? "border-gold text-gold" : "border-foreground/15 text-transparent",
-                      active ? "border-gold/70 ring-4 ring-gold/20" : "",
+                      "flex h-20 w-16 items-center justify-center rounded-2xl border-2 bg-card text-4xl font-black tabular transition-[color,border-color,box-shadow,transform] duration-150 ease-[var(--ease-out)]",
+                      char
+                        ? "border-gold text-gold scale-[1.03]"
+                        : "border-foreground/15 text-transparent",
+                      active ? "border-gold/70 ring-4 ring-gold/25" : "",
                     ].join(" ")}
                   >
                     {char || "0"}
@@ -190,7 +193,7 @@ export default function JoinPage() {
           <p id="room-code-help" className="text-muted-foreground text-center text-sm">
             4 תווים, נאמרים בקול על ידי המארח.
           </p>
-          <Button type="submit" className="h-16 w-full rounded-2xl text-lg font-bold" disabled={loading || code.length < 4}>
+          <Button type="submit" className="h-16 w-full rounded-2xl text-lg font-bold disabled:bg-secondary disabled:text-muted-foreground disabled:opacity-100" disabled={loading || code.length < 4}>
             {loading ? "מחפש..." : "כניסה למשחק"}
           </Button>
         </form>

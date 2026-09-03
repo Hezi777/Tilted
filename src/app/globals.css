@@ -104,6 +104,12 @@
   --felt-foreground-muted: oklch(0.98 0.01 90 / 68%);
 
   --radius: 1rem;
+
+  /* One easing vocabulary, so a second animation cannot invent a third curve.
+     Strong ease-out: motion starts fast and settles, which is what makes an
+     interface feel responsive rather than sluggish. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --sidebar: var(--surface-0);
   --sidebar-foreground: oklch(0.97 0.012 90);
   --sidebar-primary: oklch(0.80 0.138 87);
@@ -220,4 +226,53 @@
   /* Rows are separated by a hairline and space, not by boxing each one in a
      card. Six identical bordered cards in a column is the other standard tell. */
   .row-list > * + * { border-block-start: 1px solid var(--border); }
+}
+
+@layer base {
+  /* Nothing in this app is load-bearing on motion, so reduced motion collapses
+     durations rather than trying to hand-tune every case. Colour and opacity
+     changes survive, which is what carries meaning. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Touch screens fire a synthetic :hover before :active, so an ungated hover
+     makes every tap flash before it presses. Hover effects are for pointers. */
+  @media (hover: hover) and (pointer: fine) {
+    .hover-dim:hover {
+      filter: brightness(0.95);
+    }
+  }
+}
+
+@layer components {
+  /* The one place per night the app can afford a beat: the settlement reveal. */
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+
+  @keyframes settle-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  .animate-settle-in {
+    animation: settle-in 350ms var(--ease-out) both;
+  }
+
+  .animate-rise-in {
+    animation: rise-in 250ms var(--ease-out) both;
+  }
 }
