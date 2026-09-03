@@ -48,8 +48,12 @@ export default function RootLayout({
           href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap"
         />
       </head>
-      <body className="bg-background text-foreground flex min-h-full flex-col">
-        <DirectionProvider dir="rtl">{children}</DirectionProvider>
+      <body className="text-foreground flex min-h-full flex-col items-center">
+        {/* The app is designed at 390px. app-shell keeps it a phone-width column
+            on the felt when the viewport is wider. */}
+        <div className="app-shell flex w-full max-w-[430px] flex-1 flex-col">
+          <DirectionProvider dir="rtl">{children}</DirectionProvider>
+        </div>
         <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
