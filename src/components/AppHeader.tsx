@@ -18,17 +18,17 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "bg-felt text-primary-foreground px-4 pt-6 pb-5",
+        "border-b border-gold/35 bg-felt px-5 pb-6 pt-7 text-primary-foreground",
         className,
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl leading-tight font-bold tracking-tight">
+          <h1 className="truncate text-3xl leading-none font-black tracking-[-0.03em]">
             {title}
           </h1>
           {subtitle ? (
-            <div className="text-primary-foreground/70 mt-1 text-sm">
+            <div className="mt-2 text-sm leading-relaxed text-primary-foreground/70">
               {subtitle}
             </div>
           ) : null}
