@@ -156,7 +156,7 @@ export default function JoinPage() {
               placeholder="K7QM"
               aria-describedby="room-code-help"
             />
-            <Button type="submit" className="h-14 min-w-24 rounded-xl bg-felt font-bold text-primary-foreground hover:bg-felt-deep" disabled={loading}>
+            <Button type="submit" className="h-14 min-w-24 rounded-xl bg-felt font-bold text-felt-foreground hover:bg-felt-deep" disabled={loading}>
               {loading ? "מחפש..." : "כניסה"}
             </Button>
           </div>
@@ -193,7 +193,7 @@ export default function JoinPage() {
                   <CardContent className="flex flex-col gap-2 p-4 pt-2">
                     {player.claimedByCurrentDevice ? (
                       <Button
-                        className="h-12 w-full rounded-xl bg-felt text-primary-foreground hover:bg-felt-deep"
+                        className="h-12 w-full rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep"
                         onClick={() => router.replace(`/game/${game.id}`)}
                       >
                         המשך למשחק
@@ -209,7 +209,7 @@ export default function JoinPage() {
                       </Button>
                     ) : (
                       <Button
-                        className="h-12 w-full rounded-xl bg-felt text-primary-foreground hover:bg-felt-deep"
+                        className="h-12 w-full rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep"
                         disabled={claiming === player.id || game.status !== "active"}
                         onClick={() => void claim(player)}
                       >
@@ -250,7 +250,7 @@ export default function JoinPage() {
                     onChange={(event) => setAddNickname(event.target.value)}
                   />
                   <Button
-                    className="h-12 rounded-xl bg-felt text-primary-foreground hover:bg-felt-deep"
+                    className="h-12 rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep"
                     disabled={!addName.trim() || adding}
                     onClick={() => void addPlayer()}
                   >

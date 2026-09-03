@@ -264,7 +264,7 @@ export default function NewGamePage() {
 
       <Button
         size="lg"
-        className="h-14 rounded-xl bg-felt text-lg font-black text-primary-foreground shadow-[0_10px_24px_-16px_var(--felt)] hover:bg-felt-deep"
+        className="h-14 rounded-xl bg-felt text-lg font-black text-felt-foreground shadow-[0_10px_24px_-16px_var(--felt)] hover:bg-felt-deep"
         disabled={!canSubmit || submitting}
         onClick={handleSubmit}
       >

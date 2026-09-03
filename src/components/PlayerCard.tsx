@@ -41,7 +41,7 @@ export function PlayerCard({
           </div>
           <div className="mt-1 flex items-center gap-2">
             <span className="tabular text-lg font-semibold">{formatILS(agorot(player.totalIn))}</span>
-            <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-bold text-felt">x{player.buyInCount}</span>
+            <span className="rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold text-gold">x{player.buyInCount}</span>
             {player.isSettled && <span className="text-muted-foreground text-xs">נסגר</span>}
           </div>
         </div>

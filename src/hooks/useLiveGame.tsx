@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -98,8 +99,17 @@ export function useLiveGame(gameId: string) {
   const requestSequence = useRef(0);
   const appliedSequence = useRef(0);
 
-  const poll = useCallback(async () => {
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+  // `initial` bypasses the visibility guard: section 5.4 pauses *polling* while the
+  // tab is hidden, but a first load that is skipped never clears `loading`, and the
+  // screen sits on skeletons until something happens to make the tab visible.
+  const poll = useCallback(async (initial = false) => {
+    if (
+      !initial &&
+      typeof document !== "undefined" &&
+      document.visibilityState !== "visible"
+    ) {
+      return;
+    }
     const sequence = ++requestSequence.current;
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -118,12 +128,12 @@ export function useLiveGame(gameId: string) {
       if (controller.signal.aborted) return;
       setError(reason instanceof ApiError ? reason.message : "שגיאה בטעינת המשחק");
     } finally {
-      if (sequence === 1) setLoading(false);
+      setLoading(false);
     }
   }, [gameId]);
 
   useEffect(() => {
-    void poll();
+    void poll(true);
     const interval = window.setInterval(() => void poll(), 3_000);
     const onVisibility = () => {
       if (document.visibilityState === "visible") void poll();
@@ -199,6 +209,8 @@ export function useLiveGame(gameId: string) {
     navigator.vibrate?.(20);
     toast.success(`${player.name} הוסיף ריביי`, {
       duration: 5_000,
+      // Section 8.2: the rebuy burst is the one place this asset appears.
+      icon: <Image src="/art/rebuy-burst.png" alt="" width={28} height={28} />,
       action: { label: "בטל", onClick: () => void undo(opId) },
     });
     const createPromise = apiFetch(`/api/game/${gameId}/buy-ins`, {

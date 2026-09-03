@@ -184,7 +184,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
             )}
 
             <div className="mt-auto flex flex-col gap-2 pt-2">
-              <Button className="h-14 rounded-xl bg-felt text-base font-black text-primary-foreground hover:bg-felt-deep" onClick={() => void copySummary()}>
+              <Button className="h-14 rounded-xl bg-felt text-base font-black text-felt-foreground hover:bg-felt-deep" onClick={() => void copySummary()}>
                 העתק לווצאפ
               </Button>
               {shareAvailable && (

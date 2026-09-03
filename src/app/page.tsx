@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -55,9 +56,21 @@ export default function Home() {
       <AppHeader title="פוקר" subtitle="הקופה, הריבייים וסגירת החשבון" />
 
       <div className="flex flex-1 flex-col gap-6 p-4">
-        <Button asChild size="lg" className="h-14 text-lg shadow-sm">
-          <Link href="/game/new">משחק חדש</Link>
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button asChild size="lg" className="h-14 text-lg shadow-sm">
+            <Link href="/game/new">משחק חדש</Link>
+          </Button>
+          {/* Section 5.3: everyone except the host arrives through a room code,
+              so this is the primary path for most people, not a secondary one. */}
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="h-14 text-base"
+          >
+            <Link href="/join">הצטרפות עם קוד</Link>
+          </Button>
+        </div>
 
         {activeGame && (
           <Card>
@@ -91,9 +104,20 @@ export default function Home() {
           {error && <p className="text-destructive text-sm">{error}</p>}
 
           {games !== null && !error && closedGames.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              עוד לא שיחקתם כאן אף משחק. תלחצו על &quot;משחק חדש&quot; כדי להתחיל.
-            </p>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <Image
+                src="/art/empty.png"
+                alt=""
+                width={160}
+                height={160}
+                priority
+                className="size-32 opacity-90"
+              />
+              <p className="text-muted-foreground max-w-[26ch] text-sm text-balance">
+                עוד לא שיחקתם כאן אף משחק. פתחו משחק חדש, או הצטרפו לאחד עם קוד
+                החדר.
+              </p>
+            </div>
           )}
 
           {closedGames.map((game) => (

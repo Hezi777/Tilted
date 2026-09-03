@@ -18,7 +18,7 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "border-b border-gold/35 bg-felt px-5 pb-6 pt-7 text-primary-foreground",
+        "felt-panel gold-rule relative px-5 pb-6 pt-7 text-felt-foreground",
         className,
       )}
     >
@@ -28,7 +28,7 @@ export function AppHeader({
             {title}
           </h1>
           {subtitle ? (
-            <div className="mt-2 text-sm leading-relaxed text-primary-foreground/70">
+            <div className="mt-2 text-sm leading-relaxed text-felt-foreground-muted">
               {subtitle}
             </div>
           ) : null}

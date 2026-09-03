@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CheckIcon, CopyIcon, PlusIcon } from "lucide-react";
@@ -97,12 +99,12 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
 
   return (
     <main className="flex flex-1 flex-col gap-5 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <header className="border-b border-gold/35 bg-felt px-5 pb-7 pt-7 text-primary-foreground">
+      <header className="border-b border-gold/35 bg-felt px-5 pb-7 pt-7 text-felt-foreground">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0"><h1 className="truncate text-3xl leading-none font-black tracking-[-0.03em]">{game.name ?? "משחק"}</h1><p className="mt-2 text-sm text-primary-foreground/70">{game.players.length} שחקנים · {elapsed(game.startedAt)}</p></div>
-          <Button type="button" variant="ghost" onClick={copyCode} className="flex h-12 items-center gap-1 rounded-xl border border-primary-foreground/30 px-3 text-sm font-semibold text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} {game.code}</Button>
+          <div className="min-w-0"><h1 className="truncate text-3xl leading-none font-black tracking-[-0.03em]">{game.name ?? "משחק"}</h1><p className="mt-2 text-sm text-felt-foreground-muted">{game.players.length} שחקנים · {elapsed(game.startedAt)}</p></div>
+          <Button type="button" variant="ghost" onClick={copyCode} className="flex h-12 items-center gap-1 rounded-xl border border-felt-foreground/30 px-3 text-sm font-semibold text-felt-foreground hover:bg-primary-foreground/10 hover:text-felt-foreground" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} {game.code}</Button>
         </div>
-        <div className="mt-7 flex items-end justify-between"><div><p className="text-xs font-bold tracking-wide text-primary-foreground/60">קופה</p><p className="tabular mt-1 text-5xl font-black leading-none tracking-[-0.04em]">{formatILS(agorot(game.pot))}</p></div><div className="text-end text-xs leading-relaxed text-primary-foreground/60">מתעדכן אוטומטית<br />כל 3 שניות</div></div>
+        <div className="mt-7 flex items-end justify-between"><div className="flex items-end gap-3"><Image src="/art/pot-stack.png" alt="" width={96} height={96} className="size-14 shrink-0" /><div><p className="text-xs font-bold tracking-wide text-felt-foreground-muted">קופה</p><p className="tabular foil mt-1 text-5xl font-black leading-none tracking-[-0.04em]">{formatILS(agorot(game.pot))}</p></div></div><div className="text-end text-xs leading-relaxed text-felt-foreground-muted">מתעדכן אוטומטית<br />כל 3 שניות</div></div>
       </header>
 
       {error && <p className="mx-5 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
@@ -112,7 +114,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       <div className="px-5"><LiveFeed items={game.feed} /></div>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-[430px] items-center gap-2 border-t border-foreground/10 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_20px_-16px_var(--felt)] backdrop-blur" aria-label="פעולות מארח">
-        {game.isHost && <Button type="button" className="h-12 flex-1 rounded-xl bg-felt text-primary-foreground hover:bg-felt-deep" onClick={() => setAddPlayerOpen(true)}><PlusIcon /> הוסף שחקן</Button>}
+        {game.isHost && <Button type="button" className="h-12 flex-1 rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep" onClick={() => setAddPlayerOpen(true)}><PlusIcon /> הוסף שחקן</Button>}
         <Button type="button" variant="outline" className="h-12 flex-1 rounded-xl border-felt/25" onClick={copyCode}>קוד החדר</Button>
         {game.isHost && <Button asChild type="button" variant="secondary" className="h-12 flex-1 rounded-xl bg-gold text-felt hover:bg-gold/85"><Link href={`/game/${gameId}/cashout`}>סיום משחק</Link></Button>}
       </nav>

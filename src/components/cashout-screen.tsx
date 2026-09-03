@@ -172,7 +172,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         <Card className="border-gold/35 bg-gold/5 shadow-none">
           <CardContent className="flex flex-col gap-3 p-4">
             <p className="text-sm">ספירה מוקדמת מקפיאה שחקן ומאפשרת למשחק להמשיך.</p>
-            <Button className="min-h-12 w-full rounded-xl bg-felt text-primary-foreground hover:bg-felt-deep" onClick={() => void changeStatus("settling")}>
+            <Button className="min-h-12 w-full rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep" onClick={() => void changeStatus("settling")}>
               סיום משחק וספירת הקופה
             </Button>
           </CardContent>
@@ -268,7 +268,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
 
       {state.status === "settling" && (
         <Button
-          className="min-h-14 w-full rounded-xl bg-felt text-base font-black text-primary-foreground hover:bg-felt-deep"
+          className="min-h-14 w-full rounded-xl bg-felt text-base font-black text-felt-foreground hover:bg-felt-deep"
           disabled={missing || (mismatch && !resolved)}
           onClick={() => void changeStatus("closed")}
         >
