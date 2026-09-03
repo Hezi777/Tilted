@@ -212,7 +212,7 @@ Implementation: build the string in a pure function `formatWhatsAppSummary(game)
 ## 8. The generated art (ChatGPT image model)
 
 ### 8.1 Strategy - important
-The art is generated **once, by hand, in the ChatGPT app**, and the PNGs are committed as static assets under `public/art/`. No image API, no API key, no per-call cost, no runtime dependency. Generate 10-15 images across a couple of sessions, keep the good ones, drag them into the repo, done.
+The art is generated **once, by hand, in the ChatGPT app**, and the PNGs are committed as static assets under `public/art/`. No image API, no API key, no per-call cost, no runtime dependency. The V1 set contains 19 images; keep the good ones, commit them as static assets, and stop there unless a new UI moment clearly needs art.
 
 Do **not** call an image API at runtime. Beyond cost, it is 5-15s of latency and the app must work when the host has bad reception at someone's apartment.
 
@@ -226,6 +226,8 @@ Optional later: if regenerating by hand becomes annoying, add a `scripts/generat
 | Sad/broke chip | 1 | biggest loser row |
 | Empty-state chip | 1 | home screen with no games |
 | Rebuy burst | 1 small | animation on the rebuy toast |
+| Pot chip stack | 1 small | beside the pot total in the live-game header |
+| Counting chip | 1 | cash-out header while entering and balancing chip counts |
 | App icon / PWA icon | 1 | manifest |
 
 ### 8.3 Writing the prompts
@@ -234,13 +236,13 @@ Do not reuse generic prompt phrasing from memory. Look up current prompting guid
 
 Constraints the prompts must enforce, whatever their final wording:
 
-- One shared style across the whole set, so the avatars look like a family: flat vector, thick rounded outlines, soft cel shading, limited palette of deep green felt, cream, warm red and gold, playful children's-book character energy.
-- Square composition, centered subject, transparent or plain background, no text or lettering anywhere.
-- Each avatar differs by chip color plus exactly one accessory (sunglasses, bowtie, cap, tiny cigar, headphones). One variable at a time keeps the set coherent.
-- Nothing resembling real casino brands, real people, or trademarked card designs.
+- One shared style across the whole set, so the artwork looks like a family: polished soft 3D character illustration, tactile felt-and-clay materials, gently rounded forms, subtle two-tone modelling and ambient occlusion, dark dimensional edging, and a limited palette of deep green felt, cream, warm red and antique gold.
+- Square composition, centered subject, transparent or plain background, no text or lettering except the small `A` on chip-02's ace card.
+- Each player avatar differs by chip color plus exactly one accessory. Chip-02's cap with its tucked ace card counts as one combined accessory. One variable at a time keeps the set coherent.
+- Nothing resembling real casino brands, real people, or trademarked card designs. Chip-02's ace of spades is generic and deliberately non-branded.
 
 ### 8.4 Asset rules
-- Deterministic filenames: `public/art/chip-01.png` ... plus `winner.png`, `broke.png`, `empty.png`, `icon.png`.
+- Deterministic filenames: `public/art/chip-01.png` ... `chip-12.png`, plus `winner.png`, `broke.png`, `empty.png`, `rebuy-burst.png`, `pot-stack.png`, `counting.png`, and `icon.png`.
 - Request transparent background where the API supports it; otherwise post-process.
 - Downscale to 512x512 and run through an optimizer - these ship to phones.
 - Store the exact prompt used for each file in `public/art/manifest.json` so regenerating a single asset later is trivial.

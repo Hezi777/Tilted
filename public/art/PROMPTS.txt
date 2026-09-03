@@ -3,7 +3,7 @@ chip-01.png
 ======================================================================
 Subject: a single round poker chip character seen face-on, its body deep green felt green with a cream rim, with the usual evenly spaced rectangular edge notches around the rim. A simple cartoon face sits centred on the chip face: two round black eyes and a small friendly closed smile. It has short rounded stub arms and stub legs. It wears a pair of narrow black sunglasses, and that is its only accessory.
 
-Style: flat vector illustration, thick rounded outlines of even weight, soft cel shading in two tones only, limited palette of deep green felt, warm cream, warm red and antique gold. Playful children's-book character energy, friendly and rounded. No gradients, no photographic texture, no realism.
+Style: polished soft 3D character illustration with tactile felt-and-clay materials, gently rounded edges, subtle two-tone modelling and ambient occlusion, and thick dark outlines retained as dimensional edging. Limited palette of deep green felt, warm cream, warm red and antique gold. Playful children's-book character energy, friendly and rounded. No photographic realism.
 
 Composition: square 1:1 frame, a single subject centred, the whole shape visible with an even margin on all four sides, front-facing, nothing cropped.
 
@@ -14,15 +14,15 @@ Constraints: transparent background, crisp silhouette, clean edges, no halos, no
 ======================================================================
 chip-02.png
 ======================================================================
-Subject: a single round poker chip character seen face-on, its body deep green felt green with a cream rim, with the usual evenly spaced rectangular edge notches around the rim. A simple cartoon face sits centred on the chip face: two round black eyes and a small friendly closed smile. It has short rounded stub arms and stub legs. It wears a small warm red bowtie just below the face, and that is its only accessory.
+Subject: a single round poker chip character seen face-on, its body deep green felt green with a cream rim, with the usual evenly spaced rectangular edge notches around the rim. A simple cartoon face sits centred on the chip face: two round black eyes and a small friendly closed smile. It has short rounded stub arms and stub legs. It wears a cream classic baseball cap with a tiny warm-cream ace of spades card tucked into the cap band, showing one black spade pip and a small capital A, and that is its only accessory.
 
-Style: flat vector illustration, thick rounded outlines of even weight, soft cel shading in two tones only, limited palette of deep green felt, warm cream, warm red and antique gold. Playful children's-book character energy, friendly and rounded. No gradients, no photographic texture, no realism.
+Style: polished soft 3D character illustration with tactile felt-and-clay materials, gently rounded edges, subtle two-tone modelling and ambient occlusion, and thick dark outlines retained as dimensional edging. Limited palette of deep green felt, warm cream, warm red and antique gold. Playful children's-book character energy, friendly and rounded. No photographic realism.
 
 Composition: square 1:1 frame, a single subject centred, the whole shape visible with an even margin on all four sides, front-facing, nothing cropped.
 
 Use case: a small app avatar rendered at 96 pixels on a phone, so the shapes must stay bold and readable when tiny.
 
-Constraints: transparent background, crisp silhouette, clean edges, no halos, no fringing. No text, letters, numbers or lettering of any kind anywhere in the image. No casino branding or real-world brand marks, no playing-card suits or face-card artwork, no resemblance to any real person. No drop shadow, no background scenery, no border, no frame.
+Constraints: transparent background, crisp silhouette, clean edges, no halos, no fringing. No text, letters, numbers or lettering except the single small capital A on the ace card. No casino branding or real-world brand marks, no additional playing-card suits or face-card artwork, no resemblance to any real person. No drop shadow, no background scenery, no border, no frame.
 
 ======================================================================
 chip-03.png
@@ -219,3 +219,30 @@ Use case: a phone home screen app icon, rendered as small as 48 pixels, so it mu
 
 Constraints: solid deep green background filling the entire square, no transparency. No text, letters, numbers or lettering of any kind. No casino branding or real-world brand marks, no playing-card suits or face-card artwork. No drop shadow, no border, no frame, no glare or gloss highlight.
 
+======================================================================
+pot-stack.png
+======================================================================
+Use case: stylized-concept
+Asset type: small decorative game UI asset for the live pot-total header, final filename pot-stack.png
+Input images: Image 1, Image 2, and Image 3 are style references only. Match their softly modeled 3D character-world treatment, material finish, rounded forms, lighting, palette, and family resemblance. Do not copy their faces, limbs, hats, moustache, crown, or confetti.
+
+Scene/backdrop: no scene; isolated object on a genuinely transparent background.
+Subject: one compact, tidy stack of five round poker chips arranged in a slightly staggered pile. Mix deep felt green, warm cream, warm red, and antique gold chips. Each chip has the familiar evenly spaced rectangular edge notches. No character, face, limbs, cards, dice, money, or accessories.
+Style/medium: polished soft 3D illustration with tactile felt-and-clay materials, gently rounded edges, restrained two-tone modeling, subtle ambient occlusion between chips, and dark dimensional edging. Friendly handcrafted feel matching the reference asset family; not photorealistic and not casino-glossy.
+Composition/framing: square 1:1 canvas, centered compact silhouette, slight three-quarter view so the stack reads instantly, whole stack visible with generous even padding, readable at 56–72 pixels.
+Color palette: deep felt green, warm cream, warm red, antique gold, dark green-black edging.
+Constraints: real transparent alpha background with crisp clean edges. No visible backdrop, checkerboard, floor, table, cast shadow, halo, or fringe. No text, letters, numbers, currency symbols, logos, brand marks, playing-card suits, face-card artwork, watermark, border, or frame.
+
+======================================================================
+counting.png
+======================================================================
+Use case: stylized-concept
+Asset type: cash-out and chip-counting screen illustration, final filename counting.png
+Input images: Image 1, Image 2, and Image 3 are style and character-family references only. Match their softly modeled 3D felt-and-clay treatment, rounded chip-character proportions, face style, lighting, palette, and family resemblance. Do not copy their hats, moustache, crown, celebration pose, or confetti.
+
+Scene/backdrop: no scene; isolated character and chips on a genuinely transparent background.
+Subject: one friendly round poker-chip character seen mostly face-on, with a deep felt-green face, warm cream rim, and evenly spaced green rectangular edge notches. It has two small glossy black eyes looking down with calm concentration, a tiny content closed smile, short rounded arms, and short rounded legs. The character is seated or slightly crouched and carefully arranging three tiny poker-chip stacks in front of it with one hand. The little stacks use warm red, deep green, cream, and antique gold. The mood is focused, reassuring, and patient—not worried or celebratory.
+Style/medium: polished soft 3D character illustration with tactile felt-and-clay materials, gently rounded edges, restrained two-tone modeling, subtle ambient occlusion, and dark dimensional edging. Friendly handcrafted children's-character energy matching the references; not photorealistic and not casino-glossy.
+Composition/framing: square 1:1 canvas, centered full character and all three small stacks visible, compact composition with generous even padding, readable around 96–120 pixels on a phone.
+Color palette: deep felt green, warm cream, warm red, antique gold, dark green-black edging.
+Constraints: real transparent alpha background with crisp clean edges. No visible backdrop, checkerboard, ground plane, table, cast shadow, halo, or fringe. No text, letters, numbers, currency symbols, logos, brand marks, playing cards, dice, watermark, border, or frame.
