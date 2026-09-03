@@ -142,27 +142,49 @@ export default function JoinPage() {
             void findGame();
           }}
         >
-          <Label className="text-sm font-bold" htmlFor="room-code">קוד חדר</Label>
-          <div className="flex gap-2">
-            <Input
+          {/* The code owns the screen, the way a game-PIN join screen does: one
+              enormous target, four visible slots, and nothing competing with it.
+              The real input is transparent on top so the phone keyboard, paste and
+              autofill all still work. */}
+          <Label className="sr-only" htmlFor="room-code">קוד חדר</Label>
+          <div className="relative">
+            <input
               id="room-code"
-              className="h-14 rounded-xl border-foreground/15 bg-card text-center text-2xl font-black tracking-[0.3em] uppercase shadow-inner"
+              className="absolute inset-0 z-10 h-full w-full cursor-pointer text-transparent caret-transparent opacity-0"
               value={code}
               onChange={(event) => setCode(normalizeRoomCode(event.target.value))}
               inputMode="text"
               autoCapitalize="characters"
               autoComplete="off"
+              autoFocus
               maxLength={4}
-              placeholder="K7QM"
               aria-describedby="room-code-help"
             />
-            <Button type="submit" className="h-14 min-w-24 rounded-xl bg-felt font-bold text-felt-foreground hover:bg-felt-deep" disabled={loading}>
-              {loading ? "מחפש..." : "כניסה"}
-            </Button>
+            <div aria-hidden="true" className="pointer-events-none flex justify-center gap-2.5" dir="ltr">
+              {[0, 1, 2, 3].map((slot) => {
+                const char = code[slot] ?? "";
+                const active = code.length === slot;
+                return (
+                  <span
+                    key={slot}
+                    className={[
+                      "flex h-20 w-16 items-center justify-center rounded-2xl border-2 bg-card text-4xl font-black tabular",
+                      char ? "border-gold text-gold" : "border-foreground/15 text-transparent",
+                      active ? "border-gold/70 ring-4 ring-gold/20" : "",
+                    ].join(" ")}
+                  >
+                    {char || "0"}
+                  </span>
+                );
+              })}
+            </div>
           </div>
-          <p id="room-code-help" className="text-muted-foreground text-sm">
-            הקוד מורכב מ־4 תווים ונאמר בקול על ידי המארח.
+          <p id="room-code-help" className="text-muted-foreground text-center text-sm">
+            4 תווים, נאמרים בקול על ידי המארח.
           </p>
+          <Button type="submit" className="h-16 w-full rounded-2xl text-lg font-bold" disabled={loading || code.length < 4}>
+            {loading ? "מחפש..." : "כניסה למשחק"}
+          </Button>
         </form>
 
         {error && <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
