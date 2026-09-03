@@ -16,7 +16,7 @@
 ![Neon](https://img.shields.io/badge/Neon_Postgres-00E599?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 
-**[Live app](https://tilted-gray.vercel.app)** · [About](#about) · [Features](#features) · [Tech stack](#tech-stack) · [Getting started](#getting-started) · [Spec](docs/poker-night-spec.md)
+**[Live app](https://tilted-poker.vercel.app)** · [About](#about) · [Features](#features) · [Tech stack](#tech-stack) · [Getting started](#getting-started) · [Spec](docs/poker-night-spec.md)
 
 </div>
 
