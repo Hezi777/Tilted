@@ -161,6 +161,21 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </p>
       )}
 
+      {/* Someone opening the link without a seat had no call to action at all --
+          a dead screen. Section 5.3 says that person joins with the code. */}
+      {!you && (
+        <div className="px-5">
+          <Button asChild className="chip-raise h-auto w-full justify-between rounded-3xl px-6 py-5 text-start">
+            <Link href="/join">
+              <span className="flex flex-col gap-0.5">
+                <span className="t-title">תפסו מקום</span>
+                <span className="t-caption font-medium opacity-70">בחרו את השם שלכם ברשימה</span>
+              </span>
+            </Link>
+          </Button>
+        </div>
+      )}
+
       {you && !you.isSettled && (
         <div className="px-5">
           <RebuyButton

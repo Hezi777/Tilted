@@ -15,6 +15,8 @@
   --color-gold: var(--gold);
   --color-felt-foreground: var(--felt-foreground);
   --color-felt-foreground-muted: var(--felt-foreground-muted);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,58 +56,62 @@
 }
 
 :root {
-  /* Section 8.3's four colours, but dark-first. A poker night happens at night,
-     in dim light, on a phone -- a pale ground can never read as a card room.
-     Felt is the surface, gold is the action, cream is the ink. */
-  --felt: oklch(0.32 0.098 158);
-  --felt-deep: oklch(0.19 0.055 158);
-  --gold: oklch(0.79 0.142 86);
-  /* Text sitting on the felt band. Distinct from --primary-foreground, which is
-     the dark ink for gold buttons: the two were the same colour only while
-     --primary was still felt green. */
-  --felt-foreground: oklch(0.965 0.016 85);
-  --felt-foreground-muted: oklch(0.83 0.028 88);
+  /* ---- Surfaces -------------------------------------------------------
+     One ground, three elevation steps. The old palette used three unrelated
+     greens (a bright header band, a near-black body, a mid-green table) which
+     read as a rendering bug rather than a decision. Felt green is now reserved
+     for exactly one thing: the table itself, the only physical object in the
+     app. Everything else is the same hue at different lightness. */
+  --surface-0: oklch(0.165 0.022 160);
+  --surface-1: oklch(0.215 0.028 160);
+  --surface-2: oklch(0.262 0.032 160);
 
-  --background: oklch(0.185 0.032 158);
-  --foreground: oklch(0.955 0.017 85);
-  --card: oklch(0.235 0.045 158);
-  --card-foreground: oklch(0.955 0.017 85);
-  --popover: oklch(0.225 0.042 158);
-  --popover-foreground: oklch(0.955 0.017 85);
+  /* The cloth. Used only by the table. */
+  --felt: oklch(0.375 0.095 158);
+  --felt-deep: oklch(0.255 0.062 158);
+  --gold: oklch(0.80 0.138 87);
 
-  /* Gold is the primary action: on felt it reads like a chip, not a button. */
-  --primary: oklch(0.79 0.142 86);
-  --primary-foreground: oklch(0.2 0.045 86);
+  --background: var(--surface-0);
+  --foreground: oklch(0.97 0.012 90);
+  --card: var(--surface-1);
+  --card-foreground: oklch(0.97 0.012 90);
+  --popover: var(--surface-2);
+  --popover-foreground: oklch(0.97 0.012 90);
 
-  --secondary: oklch(0.29 0.055 158);
-  --secondary-foreground: oklch(0.955 0.017 85);
-  --muted: oklch(0.275 0.05 158);
-  --muted-foreground: oklch(0.76 0.028 92);
-  --accent: oklch(0.35 0.075 158);
-  --accent-foreground: oklch(0.955 0.017 85);
-  /* Lifted for a dark ground: 0.605 measured 3.89:1 as button text. */
-  --destructive: oklch(0.685 0.185 27);
+  --primary: oklch(0.80 0.138 87);
+  --primary-foreground: oklch(0.19 0.04 87);
 
-  --border: oklch(0.8 0.06 86 / 18%);
-  --input: oklch(0.8 0.06 86 / 22%);
-  --ring: oklch(0.79 0.142 86);
+  --secondary: var(--surface-2);
+  --secondary-foreground: oklch(0.97 0.012 90);
+  --muted: var(--surface-2);
+  /* Hierarchy comes from opacity of one ink, not from new colours. */
+  --muted-foreground: oklch(0.97 0.012 90 / 62%);
+  --accent: var(--surface-2);
+  --accent-foreground: oklch(0.97 0.012 90);
+  --destructive: oklch(0.70 0.175 26);
 
-  /* Winners emerald, losers red, gold for the pot. */
-  --chart-1: oklch(0.72 0.155 156);
-  --chart-2: oklch(0.79 0.142 86);
-  --chart-3: oklch(0.605 0.196 27);
-  --chart-4: oklch(0.76 0.028 92);
-  --chart-5: oklch(0.29 0.055 158);
+  --border: oklch(0.97 0.012 90 / 12%);
+  --input: oklch(0.97 0.012 90 / 16%);
+  --ring: oklch(0.80 0.138 87);
 
-  --radius: 0.875rem;
-  --sidebar: oklch(0.185 0.032 158);
-  --sidebar-foreground: oklch(0.955 0.017 85);
-  --sidebar-primary: oklch(0.79 0.142 86);
-  --sidebar-primary-foreground: oklch(0.2 0.045 86);
-  --sidebar-accent: oklch(0.29 0.055 158);
-  --sidebar-accent-foreground: oklch(0.955 0.017 85);
-  --sidebar-border: oklch(0.8 0.06 86 / 18%);
-  --sidebar-ring: oklch(0.79 0.142 86);
+  --chart-1: oklch(0.76 0.15 155);
+  --chart-2: oklch(0.80 0.138 87);
+  --chart-3: oklch(0.70 0.175 26);
+  --chart-4: oklch(0.97 0.012 90 / 62%);
+  --chart-5: var(--surface-2);
+
+  --felt-foreground: oklch(0.98 0.01 90);
+  --felt-foreground-muted: oklch(0.98 0.01 90 / 68%);
+
+  --radius: 1rem;
+  --sidebar: var(--surface-0);
+  --sidebar-foreground: oklch(0.97 0.012 90);
+  --sidebar-primary: oklch(0.80 0.138 87);
+  --sidebar-primary-foreground: oklch(0.19 0.04 87);
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: oklch(0.97 0.012 90);
+  --sidebar-border: oklch(0.97 0.012 90 / 12%);
+  --sidebar-ring: oklch(0.80 0.138 87);
 }
 
 .dark {
@@ -139,24 +145,15 @@
   /* The table itself. Woven felt is two fine diagonal gradients over a radial
      pool of light, so the ground reads as cloth rather than as flat green --
      no image, no request, and it survives any viewport. */
+  /* The ground keeps a trace of cloth so the app reads as a card room rather
+     than as generic dark chrome, but at a fraction of the felt's chroma so it
+     never competes with the table itself. */
   body {
-    background-color: var(--felt-deep);
+    background-color: var(--surface-0);
     background-image:
-      repeating-linear-gradient(
-        45deg,
-        rgb(255 255 255 / 0.022) 0 1px,
-        transparent 1px 3px
-      ),
-      repeating-linear-gradient(
-        -45deg,
-        rgb(0 0 0 / 0.05) 0 1px,
-        transparent 1px 3px
-      ),
-      radial-gradient(
-        ellipse 120% 80% at 50% -10%,
-        color-mix(in oklab, var(--felt) 92%, white),
-        var(--felt-deep) 70%
-      );
+      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.012) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse 90% 55% at 50% 0%, color-mix(in oklab, var(--felt) 26%, transparent), transparent 70%);
+    background-attachment: fixed;
   }
 
   /* Phone-first: the app is designed at 390px. On anything wider it sits as a
@@ -186,48 +183,41 @@
 }
 
 @layer components {
-  /* The header band is the same cloth as the table, one shade richer, closed
-     with a gold rule so it reads as the felt edge of a card table. */
+  /* ---- Type scale -----------------------------------------------------
+     Four steps at roughly a 1.3 ratio, and no screen uses more than three.
+     Body is 17px because mobile viewing distance makes 16 read small. */
+  .t-display { font-size: 2.125rem; line-height: 1.05; font-weight: 900; letter-spacing: -0.035em; }
+  .t-title   { font-size: 1.375rem; line-height: 1.2;  font-weight: 800; letter-spacing: -0.02em; }
+  .t-body    { font-size: 1.0625rem; line-height: 1.5; font-weight: 500; }
+  .t-caption { font-size: 0.8125rem; line-height: 1.35; font-weight: 600; letter-spacing: 0.01em; }
+
+  /* Secondary and tertiary text are the same ink at lower opacity rather than
+     new colours, which keeps the palette to one warm cream. */
+  .ink-2 { color: color-mix(in oklab, var(--foreground) 66%, transparent); }
+  .ink-3 { color: color-mix(in oklab, var(--foreground) 42%, transparent); }
+
+  /* Section labels sit tight to what they label -- proximity is what groups
+     them, not a rule or a box. */
+  .section-label { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; color: color-mix(in oklab, var(--foreground) 55%, transparent); }
+
+  /* The cloth. The one surface allowed to be felt green. */
   .felt-panel {
     background-color: var(--felt);
     background-image:
-      repeating-linear-gradient(
-        45deg,
-        rgb(255 255 255 / 0.03) 0 1px,
-        transparent 1px 3px
-      ),
-      repeating-linear-gradient(
-        -45deg,
-        rgb(0 0 0 / 0.06) 0 1px,
-        transparent 1px 3px
-      ),
-      radial-gradient(
-        ellipse 90% 140% at 78% 0%,
-        color-mix(in oklab, var(--felt) 80%, white),
-        transparent 60%
-      );
+      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.028) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.055) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse 80% 120% at 50% 0%, color-mix(in oklab, var(--felt) 82%, white), transparent 62%);
   }
 
-  /* A single hairline of gold foil. Used to close a felt edge, never as a box. */
-  .gold-rule {
-    border-block-end: 1px solid color-mix(in oklab, var(--gold) 55%, transparent);
-    box-shadow: 0 1px 0 0 rgb(0 0 0 / 0.25);
-  }
-
-  /* Cards sit on the cloth like a chip does: real offset, real blur. */
   .chip-raise {
-    box-shadow:
-      0 1px 2px rgb(0 0 0 / 0.35),
-      0 8px 20px -8px rgb(0 0 0 / 0.5);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 24px -10px rgb(0 0 0 / 0.55);
   }
 
-  /* The pot, and only the pot. Gold foil numerals. */
-  /* The pot, and only the pot. Solid foil gold -- a background-clip gradient
-     silently computed to border-box here and painted the whole box gold. */
-  .foil {
-    color: var(--gold);
-    text-shadow:
-      0 1px 0 rgb(0 0 0 / 0.45),
-      0 0 22px color-mix(in oklab, var(--gold) 30%, transparent);
-  }
+  /* Gold, carried by weight and scale rather than a glow. A neon halo is one of
+     the standard generated-UI tells and it was doing no work here. */
+  .foil { color: var(--gold); }
+
+  /* Rows are separated by a hairline and space, not by boxing each one in a
+     card. Six identical bordered cards in a column is the other standard tell. */
+  .row-list > * + * { border-block-start: 1px solid var(--border); }
 }

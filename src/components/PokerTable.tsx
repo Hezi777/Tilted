@@ -58,11 +58,11 @@ export function PokerTable({
   const tier = seatTierFor(count);
 
   return (
-    <div className="relative mx-auto aspect-[4/5] w-full max-w-[360px]">
+    <div className="relative mx-auto aspect-[7/5] w-full max-w-[380px]">
       {/* The felt. A gold rim and an inner rail, no image. */}
       <div
         aria-hidden="true"
-        className="absolute inset-[12%] rounded-[50%] bg-felt shadow-[inset_0_2px_0_color-mix(in_oklab,white_14%,transparent),inset_0_-18px_40px_-14px_rgb(0_0_0/0.55),0_18px_40px_-18px_rgb(0_0_0/0.7)] ring-2 ring-gold/45"
+        className="absolute inset-x-[6%] inset-y-[14%] rounded-[50%] felt-panel shadow-[inset_0_2px_0_color-mix(in_oklab,white_14%,transparent),inset_0_-18px_40px_-14px_rgb(0_0_0/0.55),0_18px_40px_-18px_rgb(0_0_0/0.7)] ring-2 ring-gold/45"
       >
         <div className="absolute inset-[6%] rounded-[50%] ring-1 ring-gold/20" />
       </div>

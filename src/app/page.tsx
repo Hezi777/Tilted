@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ChevronLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -58,20 +59,31 @@ export default function Home() {
       <AppHeader title="פוקר" subtitle="הקופה, הריבייים וסגירת החשבון" />
 
       <div className="flex flex-1 flex-col gap-6 p-4">
-        <div className="flex flex-col gap-2">
-          <Button asChild size="lg" className="h-14 text-lg shadow-sm">
-            <Link href="/game/new">משחק חדש</Link>
-          </Button>
-          {/* Section 5.3: everyone except the host arrives through a room code,
-              so this is the primary path for most people, not a secondary one. */}
+        <div className="flex flex-col items-stretch gap-3">
           <Button
             asChild
-            size="lg"
-            variant="outline"
-            className="h-14 text-base"
+            className="chip-raise h-auto justify-between rounded-3xl px-6 py-5 text-start"
           >
-            <Link href="/join">הצטרפות עם קוד</Link>
+            <Link href="/game/new">
+              <span className="flex flex-col gap-0.5">
+                <span className="t-title">משחק חדש</span>
+                <span className="t-caption font-medium opacity-70">
+                  בחרו כניסה ומי משחק
+                </span>
+              </span>
+              <ChevronLeftIcon aria-hidden="true" className="size-5 shrink-0 rtl:rotate-180" />
+            </Link>
           </Button>
+
+          {/* Section 5.3: guests arrive with a code. Quiet, but not hidden --
+              a second identical slab would flatten the hierarchy to nothing. */}
+          <Link
+            href="/join"
+            className="ink-2 hover:text-foreground inline-flex min-h-11 items-center justify-center gap-1.5 text-[0.9375rem] font-semibold transition-colors"
+          >
+            יש לכם קוד חדר?
+            <span className="text-gold underline underline-offset-4">הצטרפו</span>
+          </Link>
         </div>
 
         {activeGame && (
@@ -91,10 +103,8 @@ export default function Home() {
           </Card>
         )}
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-muted-foreground text-sm font-medium">
-            משחקים קודמים
-          </h2>
+        <section className="flex flex-1 flex-col gap-3">
+          <h2 className="section-label">משחקים קודמים</h2>
 
           {games === null && !error && (
             <div className="flex flex-col gap-2">
@@ -121,14 +131,14 @@ export default function Home() {
           )}
 
           {games !== null && !error && closedGames.length === 0 && (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-10 text-center">
               <Image
                 src="/art/empty.png"
                 alt=""
                 width={160}
                 height={160}
                 priority
-                className="size-32 opacity-90"
+                className="size-36"
               />
               <p className="text-muted-foreground max-w-[26ch] text-sm text-balance">
                 עוד לא שיחקתם כאן אף משחק. פתחו משחק חדש, או הצטרפו לאחד עם קוד
