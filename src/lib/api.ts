@@ -53,6 +53,27 @@ export interface PersonSummary {
   nickname: string | null;
 }
 
+/** Public roster payload used by the code-based join screen. */
+export interface JoinRosterPlayer {
+  id: string;
+  name: string;
+  nickname: string | null;
+  seatOrder: number;
+  isHost: boolean;
+  claimed: boolean;
+  claimedByCurrentDevice: boolean;
+}
+
+export interface JoinGameDetail {
+  id: string;
+  code: string;
+  name: string | null;
+  status: GameStatus;
+  players: JoinRosterPlayer[];
+  currentPlayerId: string | null;
+  currentPlayerIsHost: boolean;
+}
+
 /**
  * Fetches `input`, attaching this device's id and a JSON content type, and returns
  * the parsed body. Throws `ApiError` on a non-2xx response.

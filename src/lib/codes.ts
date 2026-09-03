@@ -15,6 +15,16 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 export const CODE_LENGTH = 4;
 
+/** Normalizes text entered on the join screen into the canonical room-code form. */
+export function normalizeRoomCode(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
+}
+
+/** Room-code validation kept pure so the join form and route tests share the rule. */
+export function isValidRoomCode(value: string): boolean {
+  return /^[A-Z0-9]{4}$/.test(value);
+}
+
 /** A random uppercase 4-character code, e.g. "K7QM". */
 export function generateRoomCode(): string {
   let code = "";

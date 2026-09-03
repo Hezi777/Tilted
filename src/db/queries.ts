@@ -12,6 +12,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { buyIns, games, people, players } from "@/db/schema";
 import { generateRoomCode } from "@/lib/codes";
+import { avatarKeyForPerson } from "@/lib/avatar";
 import type { GameSummary, GameStatus, PersonSummary } from "@/lib/api";
 
 /** People who have played, on this device, in at least one game. Spec 5.2 / 5.7. */
@@ -265,6 +266,7 @@ export async function createGame(
         gameId,
         personId,
         name: person.name,
+        avatarKey: avatarKeyForPerson(personId),
         seatOrder,
         deviceId: isHost ? deviceId : null,
         isHost,
