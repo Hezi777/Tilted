@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Share2 } from "lucide-react";
+import Link from "next/link";
+import { HomeIcon, Share2 } from "lucide-react";
+import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,11 +64,14 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   const [state, setState] = useState<SettlementState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const shareAvailable = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  // Decided after mount only: `navigator.share` is absent on desktop, and reading it
+  // during the render that produces the server-rendered HTML would mismatch hydration.
+  const [shareAvailable, setShareAvailable] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     apiFetch<SettlementState>(`/api/game/${gameId}/settlement`)
       .then((next) => {
         if (!cancelled) setState(next);
@@ -82,6 +87,13 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     };
   }, [gameId]);
 
+  useEffect(() => {
+    // `navigator.share` only exists in the browser, so this can only be known post-mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShareAvailable(typeof navigator.share === "function");
+    return load();
+  }, [load]);
+
   const winner = useMemo(
     () => state?.players.find((player) => player.outcome === "winner"),
     [state],
@@ -95,26 +107,33 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     if (!state) return;
     try {
       await navigator.clipboard.writeText(state.exportText);
-      setFeedback("הסיכום הועתק לווצאפ");
+      toast.success("הסיכום הועתק, אפשר להדביק בווצאפ");
     } catch {
-      setFeedback("לא הצלחנו להעתיק את הסיכום");
+      toast.error("לא הצלחנו להעתיק את הסיכום");
     }
   }
 
   async function shareSummary() {
-    if (!state || !navigator.share) return;
+    if (!state || typeof navigator.share !== "function") {
+      toast.error("השיתוף לא נתמך בדפדפן הזה, אפשר להעתיק ולהדביק");
+      return;
+    }
     try {
       await navigator.share({ text: state.exportText });
-      setFeedback("הסיכום שותף");
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
-      setFeedback("השיתוף נכשל");
+      toast.error("השיתוף נכשל");
     }
   }
 
   return (
     <main className="flex flex-1 flex-col">
-      <AppHeader title="סיכום המשחק" subtitle={state?.name ?? "סגירת חשבון"} />
+      <AppHeader
+        title="סיכום המשחק"
+        subtitle={state?.name ?? "סגירת חשבון"}
+        backHref="/"
+        backLabel="בית"
+      />
       <div className="flex flex-1 flex-col gap-5 p-5 pb-8">
         {loading && (
           <div className="flex flex-col gap-3">
@@ -123,7 +142,16 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
             <Skeleton className="h-16 w-full" />
           </div>
         )}
-        {error && <p className="text-destructive text-sm">{error}</p>}
+        {error && (
+          <Card className="border-destructive/45 bg-destructive/5 shadow-none">
+            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
+              <p className="text-destructive text-sm">{error}</p>
+              <Button className="min-h-12 rounded-xl" variant="outline" onClick={load}>
+                נסה שוב
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {state && (
           <>
             {winner && (
@@ -133,7 +161,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                   <div>
                     <p className="text-muted-foreground text-sm">המנצח</p>
                     <p className="text-2xl font-black tracking-tight">{winner.name}</p>
-                    <p className="mt-1 text-2xl font-black text-felt">{formatSignedILS(agorot(winner.net))}</p>
+                    <p className="mt-1 text-2xl font-black text-chart-1">{formatSignedILS(agorot(winner.net))}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -142,7 +170,9 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
             <Card className="border-foreground/10 shadow-none">
               <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
                 <CardTitle className="text-xl font-black">תוצאות</CardTitle>
-                <Badge className="bg-gold/15 text-felt" variant="secondary">קופה {formatILS(agorot(state.pot))}</Badge>
+                <Badge className="border-gold/40 bg-gold/15 text-foreground" variant="secondary">
+                  קופה {formatILS(agorot(state.pot))}
+                </Badge>
               </CardHeader>
               <CardContent className="flex flex-col gap-1 p-4 pt-2">
                 {state.players.map((player) => (
@@ -155,7 +185,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                         <ImageWithFallback src="/art/broke.png" alt="הפסד" className="size-8 object-contain" />
                       )}
                     </span>
-                    <span className={player.outcome === "winner" ? "font-black text-felt" : player.outcome === "loser" ? "font-bold text-destructive" : "text-muted-foreground"}>
+                    <span className={player.outcome === "winner" ? "font-black text-chart-1" : player.outcome === "loser" ? "font-bold text-destructive" : "text-muted-foreground"}>
                       {formatSignedILS(agorot(player.net))}
                     </span>
                   </div>
@@ -193,7 +223,12 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                   שתף
                 </Button>
               )}
-              {feedback && <p className="text-center text-sm text-primary" role="status">{feedback}</p>}
+              <Button asChild className="h-14 rounded-xl bg-gold text-base font-black text-felt hover:bg-gold/85">
+                <Link href="/">
+                  <HomeIcon />
+                  סיימנו — למסך הבית
+                </Link>
+              </Button>
             </div>
           </>
         )}

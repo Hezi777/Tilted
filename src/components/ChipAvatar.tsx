@@ -40,7 +40,7 @@ export function ChipAvatar({
           onError={() => setFailed(true)}
         />
       ) : (
-        <span aria-hidden="true" className="text-xl font-black text-felt">
+        <span aria-hidden="true" className="text-gold text-xl font-black">
           {name.trim().slice(0, 1)}
         </span>
       )}

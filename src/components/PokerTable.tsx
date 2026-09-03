@@ -15,6 +15,27 @@ import { cn } from "@/lib/utils";
  * scales to any number of players without a fixed-seat background image, which is
  * why this is drawn rather than generated art.
  */
+/**
+ * Seat size and orbit radius by table size.
+ *
+ * A fixed 80px seat that works for a 4-handed game overlaps its neighbour once
+ * enough seats share the same ellipse -- the seats near the bottom or top get
+ * crowded first because that is where consecutive seats are angularly closest.
+ * Shrinking the seat and pushing the orbit outward as headcount grows keeps
+ * every seat clear of its neighbours and off the pot, verified for 2/5/8/10+
+ * players. `seatWidthClass` stays >= 48px (the min tap target) at every tier.
+ */
+const SEAT_TIERS = [
+  { max: 4, rx: 33, ry: 34, seatWidthClass: "w-20", avatarClass: "size-12", textClass: "text-xs" },
+  { max: 6, rx: 35, ry: 36, seatWidthClass: "w-17", avatarClass: "size-10", textClass: "text-xs" },
+  { max: 9, rx: 37, ry: 38, seatWidthClass: "w-14", avatarClass: "size-9", textClass: "text-[11px]" },
+  { max: Infinity, rx: 39, ry: 40, seatWidthClass: "w-13", avatarClass: "size-8", textClass: "text-[10px]" },
+] as const;
+
+function seatTierFor(count: number) {
+  return SEAT_TIERS.find((tier) => count <= tier.max) ?? SEAT_TIERS[SEAT_TIERS.length - 1];
+}
+
 export function PokerTable({
   players,
   pot,
@@ -34,6 +55,7 @@ export function PokerTable({
       : players;
 
   const count = ordered.length;
+  const tier = seatTierFor(count);
 
   return (
     <div className="relative mx-auto aspect-[4/5] w-full max-w-[360px]">
@@ -59,10 +81,13 @@ export function PokerTable({
         // Bottom-centre is 90deg; walk anticlockwise so seat order reads around.
         const angle = 90 + (index * 360) / count;
         const radians = (angle * Math.PI) / 180;
-        // Radius has to leave room for the seat's own box or it hangs off the
-        // edge: a 80px-wide seat on a 360px table needs ~11% of clearance.
-        const x = 50 + 33 * Math.cos(radians);
-        const y = 50 + 34 * Math.sin(radians);
+        // `left`/`top` are both physical percentages here, deliberately paired
+        // with the physical `translate` below -- this is ellipse trigonometry,
+        // not a directional offset, so it must not flip under RTL. Mixing a
+        // logical inset with this transform is what shipped seats outside the
+        // table before; see AGENTS.md.
+        const x = 50 + tier.rx * Math.cos(radians);
+        const y = 50 + tier.ry * Math.sin(radians);
         const selected = selectedPlayerId === player.id;
 
         return (
@@ -70,10 +95,11 @@ export function PokerTable({
             key={player.id}
             type="button"
             onClick={onSeatSelect ? () => onSeatSelect(player) : undefined}
-            aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}`}
+            aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}`}
             aria-pressed={onSeatSelect ? selected : undefined}
             className={cn(
-              "absolute flex w-20 flex-col items-center gap-1 rounded-2xl p-1 transition-transform duration-150",
+              "absolute flex flex-col items-center gap-1 rounded-2xl p-1 transition-transform duration-150",
+              tier.seatWidthClass,
               onSeatSelect && "active:opacity-80",
               selected && "bg-gold/15 ring-2 ring-gold",
               player.isSettled && "opacity-55",
@@ -90,7 +116,7 @@ export function PokerTable({
                 personId={player.personId}
                 name={player.name}
                 className={cn(
-                  "size-12",
+                  tier.avatarClass,
                   player.isYou && "ring-[3px] ring-gold",
                 )}
               />
@@ -106,11 +132,11 @@ export function PokerTable({
                 </span>
               )}
             </div>
-            <span className="max-w-full truncate text-xs font-bold">
+            <span className={cn("max-w-full truncate font-bold", tier.textClass)}>
               {player.name}
             </span>
-            <span className="tabular text-gold text-xs font-bold">
-              {formatILS(agorot(player.totalIn))}
+            <span className={cn("tabular font-bold", tier.textClass, player.isSettled ? "text-muted-foreground" : "text-gold")}>
+              {player.isSettled ? "נסגר" : formatILS(agorot(player.totalIn))}
             </span>
           </button>
         );

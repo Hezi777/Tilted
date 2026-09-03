@@ -41,6 +41,7 @@ export default function NewGamePage() {
   const [people, setPeople] = useState<PersonSummary[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [peopleRetryCount, setPeopleRetryCount] = useState(0);
 
   const [addGuestOpen, setAddGuestOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
@@ -65,7 +66,7 @@ export default function NewGamePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [peopleRetryCount]);
 
   const buyInShekels = useMemo(() => {
     if (buyInChoice === "custom") return Number(customBuyIn);
@@ -112,6 +113,17 @@ export default function NewGamePage() {
     Number.isFinite(rebuyShekels) &&
     rebuyShekels > 0;
 
+  const disabledReason =
+    people === null
+      ? null
+      : selected.size === 0
+        ? "בחרו לפחות שחקן אחד כדי להתחיל"
+        : !Number.isFinite(buyInShekels) || buyInShekels <= 0
+          ? "הזינו סכום כניסה תקין"
+          : !Number.isFinite(rebuyShekels) || rebuyShekels <= 0
+            ? "הזינו סכום ריביי תקין"
+            : null;
+
   async function handleSubmit() {
     if (!canSubmit) return;
     setSubmitting(true);
@@ -137,7 +149,11 @@ export default function NewGamePage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <AppHeader title="משחק חדש" subtitle="קופה משותפת לערב אחד, בלי כאב ראש" />
+      <AppHeader
+        title="משחק חדש"
+        subtitle="קופה משותפת לערב אחד, בלי כאב ראש"
+        backHref="/"
+      />
       <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col gap-5 p-5 pb-8">
 
       <div className="flex flex-col gap-2.5">
@@ -212,7 +228,7 @@ export default function NewGamePage() {
           <Button
             type="button"
             variant="ghost"
-            className="h-12 rounded-xl text-felt"
+            className="h-12 rounded-xl text-foreground"
             onClick={() => setAddGuestOpen(true)}
           >
             הוסף אורח
@@ -227,7 +243,22 @@ export default function NewGamePage() {
           </div>
         )}
 
-        {loadError && <p className="text-destructive text-sm">{loadError}</p>}
+        {loadError && (
+          <div className="flex flex-col items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3">
+            <p className="text-destructive text-sm">{loadError}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => {
+                setLoadError(null);
+                setPeopleRetryCount((count) => count + 1);
+              }}
+            >
+              נסה שוב
+            </Button>
+          </div>
+        )}
 
         {people !== null && people.length === 0 && !loadError && (
           <div className="flex items-center gap-3 rounded-2xl border border-dashed border-foreground/15 bg-card/50 p-4">
@@ -270,6 +301,9 @@ export default function NewGamePage() {
       >
         {submitting ? "יוצר משחק..." : "התחלת משחק"}
       </Button>
+      {!canSubmit && disabledReason && !submitting && (
+        <p className="text-muted-foreground -mt-2 text-center text-sm">{disabledReason}</p>
+      )}
 
       <Dialog open={addGuestOpen} onOpenChange={setAddGuestOpen}>
         <DialogContent>

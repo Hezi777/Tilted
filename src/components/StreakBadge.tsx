@@ -14,7 +14,7 @@ export function StreakBadge({ streak, className }: StreakBadgeProps) {
   return (
     <Badge
       aria-label={`רצף ניצחונות של ${streak} משחקים`}
-      className={cn("gap-1 border-gold/50 bg-gold/15 text-felt dark:bg-gold/20", className)}
+      className={cn("gap-1 border-gold/50 bg-gold/15 text-gold", className)}
       title={`רצף ניצחונות: ${streak}`}
       variant="secondary"
     >

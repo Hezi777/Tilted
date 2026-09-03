@@ -23,7 +23,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#0b3d2e",
+  // Matches --felt and the manifest's theme_color; the old value was a
+  // different green and tinted the phone chrome inconsistently.
+  themeColor: "#00411e",
 };
 
 export default function RootLayout({

@@ -18,6 +18,8 @@ export default function Home() {
   const [cancelTarget, setCancelTarget] = useState<GameSummary | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
+  const [retryCount, setRetryCount] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     apiFetch<{ games: GameSummary[] }>("/api/games")
@@ -31,7 +33,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryCount]);
 
   const activeGame = games?.find((game) => game.status === "active") ?? null;
   const closedGames = games?.filter((game) => game.status === "closed") ?? [];
@@ -101,7 +103,22 @@ export default function Home() {
             </div>
           )}
 
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && (
+            <div className="flex flex-col items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3">
+              <p className="text-destructive text-sm">{error}</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => {
+                  setError(null);
+                  setRetryCount((count) => count + 1);
+                }}
+              >
+                נסה שוב
+              </Button>
+            </div>
+          )}
 
           {games !== null && !error && closedGames.length === 0 && (
             <div className="flex flex-col items-center gap-3 py-8 text-center">
@@ -141,7 +158,7 @@ export default function Home() {
       <Dialog open={cancelTarget !== null} onOpenChange={(open) => !open && setCancelTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>לבטל את המשחק?</DialogTitle><DialogDescription>המשחק יוסר מההיסטוריה ולא יהיה ניתן להמשיך אותו.</DialogDescription></DialogHeader>
-          <DialogFooter><Button type="button" variant="destructive" className="min-h-12" disabled={cancelling} onClick={() => void cancelGame()}>כן, בטל משחק</Button><Button type="button" variant="outline" className="min-h-12" onClick={() => setCancelTarget(null)}>חזרה</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="destructive" className="min-h-12" disabled={cancelling} onClick={() => void cancelGame()}>כן, בטל משחק</Button><Button type="button" variant="outline" className="min-h-12" onClick={() => setCancelTarget(null)}>ביטול</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </main>

@@ -133,7 +133,11 @@ export default function JoinPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <AppHeader title="הצטרפות למשחק" subtitle="הכניסו את קוד החדר ובחרו את השם שלכם" />
+      <AppHeader
+        title="הצטרפות למשחק"
+        subtitle="הכניסו את קוד החדר ובחרו את השם שלכם"
+        backHref="/"
+      />
       <div className="flex flex-1 flex-col gap-6 p-5 pb-8">
         <form
           className="flex flex-col gap-3"
@@ -150,7 +154,7 @@ export default function JoinPage() {
           <div className="relative">
             <input
               id="room-code"
-              className="absolute inset-0 z-10 h-full w-full cursor-pointer text-transparent caret-transparent opacity-0"
+              className="peer absolute inset-0 z-10 h-full w-full cursor-pointer text-transparent caret-transparent opacity-0"
               value={code}
               onChange={(event) => setCode(normalizeRoomCode(event.target.value))}
               inputMode="text"
@@ -160,7 +164,11 @@ export default function JoinPage() {
               maxLength={4}
               aria-describedby="room-code-help"
             />
-            <div aria-hidden="true" className="pointer-events-none flex justify-center gap-2.5" dir="ltr">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none flex justify-center gap-2.5 rounded-2xl peer-focus-visible:ring-4 peer-focus-visible:ring-gold/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background"
+              dir="ltr"
+            >
               {[0, 1, 2, 3].map((slot) => {
                 const char = code[slot] ?? "";
                 const active = code.length === slot;
@@ -223,7 +231,7 @@ export default function JoinPage() {
                     ) : player.claimed ? (
                       <Button
                         variant="outline"
-                        className="h-12 w-full rounded-xl border-gold/45 text-felt"
+                        className="h-12 w-full rounded-xl border-gold/45 text-foreground"
                         disabled={claiming === player.id}
                         onClick={() => setForcePlayer(player)}
                       >

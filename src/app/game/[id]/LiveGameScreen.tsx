@@ -3,11 +3,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CheckIcon, CopyIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
+import { AppHeader } from "@/components/AppHeader";
 import { PlayerCard } from "@/components/PlayerCard";
 import { PokerTable } from "@/components/PokerTable";
 import { RebuyButton } from "@/components/RebuyButton";
@@ -99,19 +100,50 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     window.setTimeout(() => setCopied(false), 1_500);
   }
 
-  if (loading && !game) return <main className="flex flex-1 flex-col gap-4 p-5"><Skeleton className="h-36 w-full rounded-2xl" /><Skeleton className="h-28 w-full rounded-2xl" /><Skeleton className="h-28 w-full rounded-2xl" /></main>;
-  if (!game) return <main className="flex flex-1 flex-col gap-3 p-5"><h1 className="text-xl font-bold">לא הצלחנו לטעון את המשחק</h1><p className="text-destructive text-sm">{error ?? "המשחק לא נמצא"}</p></main>;
+  if (loading && !game) {
+    return (
+      <main className="flex flex-1 flex-col">
+        <AppHeader title="טוען משחק…" backHref="/" backLabel="לדף הבית" />
+        <div className="flex flex-1 flex-col gap-4 p-5">
+          <Skeleton className="mx-auto aspect-[4/5] w-full max-w-[360px] rounded-[50%]" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
+        </div>
+      </main>
+    );
+  }
+  if (!game) {
+    return (
+      <main className="flex flex-1 flex-col">
+        <AppHeader title="לא הצלחנו לטעון את המשחק" backHref="/" backLabel="לדף הבית" />
+        <div className="flex flex-1 flex-col items-start gap-3 p-5">
+          <p className="text-destructive text-sm">{error ?? "המשחק לא נמצא"}</p>
+          <Button type="button" variant="outline" className="h-12 rounded-xl" onClick={() => void refresh()}>
+            <RefreshCwIcon aria-hidden="true" /> נסה שוב
+          </Button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-5 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <header className="felt-panel gold-rule px-5 pb-5 pt-7 text-felt-foreground">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0"><h1 className="truncate text-3xl leading-none font-black tracking-[-0.03em]">{game.name ?? "משחק"}</h1><p className="mt-2 text-sm text-felt-foreground-muted">{game.players.length} שחקנים · {elapsed(game.startedAt)}</p></div>
+      <AppHeader
+        title={game.name ?? "משחק"}
+        subtitle={`${game.players.length} שחקנים · ${elapsed(game.startedAt)}`}
+        backHref="/"
+        backLabel="לדף הבית"
+        action={
           <Button type="button" variant="ghost" onClick={copyCode} className="flex h-12 items-center gap-1 rounded-xl border border-felt-foreground/30 px-3 text-sm font-semibold text-felt-foreground hover:bg-primary-foreground/10 hover:text-felt-foreground" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} {game.code}</Button>
-        </div>
-      </header>
+        }
+      />
 
-      {error && <p className="mx-5 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="mx-5 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span>{error}</span>
+          <Button type="button" variant="ghost" size="sm" className="h-9 shrink-0 text-destructive" onClick={() => void refresh()}>נסה שוב</Button>
+        </div>
+      )}
       {/* The table, then your own action directly under it: poker clients keep the
           primary action in one fixed place so it is never hunted for. */}
       <section aria-label="שולחן" className="px-4">
@@ -122,6 +154,12 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           onSeatSelect={game.isHost ? (player) => setFocusedPlayerId((current) => current === player.id ? null : player.id) : undefined}
         />
       </section>
+
+      {game.players.length === 1 && (
+        <p className="text-muted-foreground mx-5 rounded-xl border border-dashed border-gold/30 bg-gold/5 px-4 py-3 text-center text-sm">
+          אתם לבד כרגע · שתפו את קוד החדר <span className="text-gold font-bold">{game.code}</span> כדי שחברים יצטרפו
+        </p>
+      )}
 
       {you && !you.isSettled && (
         <div className="px-5">

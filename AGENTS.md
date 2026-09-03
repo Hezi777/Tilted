@@ -70,5 +70,15 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
 - **shadcn for every component**, and animation comes from Radix `data-state`, which those
   primitives already wire up. Never add an animation library — `framer-motion` in
   particular is prohibited.
+- **Felt is a surface, not an ink.** The app is dark: felt ground, cream text, gold
+  actions. `text-felt` on a card or the background measures about 1.4:1 and is
+  invisible — it is only ever correct on gold. Text on the felt band uses
+  `text-felt-foreground`, never `text-primary-foreground`, which is the dark ink for
+  gold buttons. This has now caused two separate rounds of unreadable screens.
+- **Never mix a logical inset with a physical transform.** `insetInlineStart` flips
+  under `dir="rtl"` and `translate-x` does not, so together they mirror an element away
+  from where the maths put it. This shipped a table with seats rendered outside their
+  container. Pick one system: `left` + `translate(-50%,-50%)` is the safe pair. ESLint
+  cannot catch this, because the logical property is normally the correct one.
 - **Latency is the product.** A tap updates local state immediately and persists in the
   background, rolling back with an error toast on failure. Never block a tap on a round trip.
