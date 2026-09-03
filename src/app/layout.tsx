@@ -13,8 +13,14 @@ const assistant = Assistant({
 });
 
 export const metadata: Metadata = {
-  title: "פוקר",
-  description: "מעקב אחרי כניסות, ריבייים וסגירת חשבון בערב פוקר ביתי",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ??
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : "http://localhost:3000"),
+  ),
+  title: "Tilted Poker",
+  description: "ניהול כניסות, ריבאיים וסגירת חשבון בערב פוקר ביתי",
   manifest: "/manifest.webmanifest",
 };
 
@@ -23,9 +29,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  // Matches --felt and the manifest's theme_color; the old value was a
-  // different green and tinted the phone chrome inconsistently.
-  themeColor: "#00411e",
+  themeColor: "#080305",
 };
 
 export default function RootLayout({
@@ -51,9 +55,7 @@ export default function RootLayout({
         />
       </head>
       <body className="text-foreground flex min-h-full flex-col items-center">
-        {/* The app is designed at 390px. app-shell keeps it a phone-width column
-            on the felt when the viewport is wider. */}
-        <div className="app-shell flex w-full max-w-[430px] flex-1 flex-col">
+        <div className="app-shell flex w-full max-w-[450px] flex-1 flex-col">
           <DirectionProvider dir="rtl">{children}</DirectionProvider>
         </div>
         <Toaster position="top-center" richColors closeButton />

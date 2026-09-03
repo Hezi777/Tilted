@@ -58,6 +58,7 @@ export interface JoinRosterPlayer {
   id: string;
   name: string;
   nickname: string | null;
+  avatarKey: string | null;
   seatOrder: number;
   isHost: boolean;
   claimed: boolean;

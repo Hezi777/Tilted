@@ -12,7 +12,7 @@ import {
   type ActorPlayer,
   type BuyInRow,
 } from "@/lib/authz";
-import { avatarKeyForPerson } from "@/lib/avatar";
+import { firstAvailableAvatarKey } from "@/lib/avatar";
 import { agorot, sumAgorot } from "@/lib/money";
 
 export interface LivePlayer {
@@ -46,6 +46,7 @@ export interface LiveGame {
   buyIn: number;
   rebuyAmount: number;
   startedAt: string;
+  plannedEndAt: string;
   pot: number;
   players: LivePlayer[];
   feed: LiveFeedItem[];
@@ -181,6 +182,7 @@ export async function getLiveGame(
     buyIn: game.buyIn,
     rebuyAmount: game.rebuyAmount,
     startedAt: game.createdAt.toISOString(),
+    plannedEndAt: (game.plannedEndAt ?? new Date(game.createdAt.getTime() + 4 * 60 * 60 * 1000)).toISOString(),
     pot: Number(sumAgorot(playersOut.map((player) => agorot(player.totalIn)))),
     players: playersOut,
     feed: feedRows.map((row) => ({
@@ -195,6 +197,27 @@ export async function getLiveGame(
     youId: playersOut.find((player) => player.isYou)?.id ?? null,
     isHost: playersOut.some((player) => player.isYou && player.isHost),
   };
+}
+
+export async function extendPlannedEnd(
+  gameId: string,
+  deviceId: string,
+  minutes: 30 | 60,
+): Promise<string> {
+  const actorRow = await getActor(gameId, deviceId);
+  const actor = requireActor(toActor(actorRow));
+  assertCanManageRoster(actorRow.status, actor);
+
+  const [updated] = await db
+    .update(games)
+    .set({
+      plannedEndAt: sql`greatest(coalesce(${games.plannedEndAt}, ${games.createdAt} + interval '4 hours'), now()) + ${minutes} * interval '1 minute'`,
+    })
+    .where(and(eq(games.id, gameId), eq(games.status, "active")))
+    .returning({ plannedEndAt: games.plannedEndAt });
+
+  if (!updated?.plannedEndAt) throw new Error("המשחק כבר לא פעיל");
+  return updated.plannedEndAt.toISOString();
 }
 
 /** Active buy-in insertion. The game/player predicates live in the INSERT statement. */
@@ -400,6 +423,12 @@ export async function addLivePlayer(
   const actorRow = await getActor(gameId, deviceId);
   const actor = requireActor(toActor(actorRow));
   assertCanManageRoster(actorRow.status, actor);
+  const usedAvatars = await db
+    .select({ avatarKey: players.avatarKey })
+    .from(players)
+    .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)));
+  const avatarKey = firstAvailableAvatarKey(usedAvatars.map((row) => row.avatarKey));
+  if (!avatarKey) throw new Error("אין עוד דמויות פנויות בשולחן");
   const personId = randomUUID();
   const playerId = randomUUID();
   const buyInId = randomUUID();
@@ -418,7 +447,7 @@ export async function addLivePlayer(
     ), new_player AS (
       INSERT INTO ${players} (id, game_id, person_id, name, avatar_key, seat_order, device_id, is_host)
       SELECT ${playerId}::uuid, active_game.id, new_person.id, ${name},
-        ${avatarKeyForPerson(personId)},
+        ${avatarKey},
         coalesce((SELECT max(p.seat_order) + 1 FROM ${players} p WHERE p.game_id = active_game.id), 0),
         NULL, false
       FROM active_game CROSS JOIN new_person

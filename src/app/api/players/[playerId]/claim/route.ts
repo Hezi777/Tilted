@@ -5,6 +5,7 @@ import type { ApiErrorBody } from "@/lib/api";
 
 const claimSchema = z.object({
   gameId: z.string().uuid(),
+  avatarKey: z.string().regex(/^chip-(0[1-9]|1[0-2])$/),
   force: z.boolean().optional().default(false),
 });
 const deviceSchema = z.string().trim().min(1).max(200);
@@ -45,6 +46,7 @@ export async function POST(
       parsed.data.gameId,
       playerId,
       actorDevice,
+      parsed.data.avatarKey,
       parsed.data.force,
     );
     return NextResponse.json(player);

@@ -30,18 +30,18 @@ export function PlayerCard({
 }) {
   const showMenu = player.isYou || canManage;
   return (
-    <Card className={player.isYou ? "border-gold/70 bg-gold/5 shadow-[0_8px_24px_-18px_var(--felt)] ring-2 ring-gold/40" : "border-foreground/10 bg-card/80 shadow-none"}>
+    <Card className={player.isYou ? "border-ruby/55 bg-ruby/7 shadow-[0_12px_30px_-20px_rgb(220_25_45/0.7)] ring-1 ring-ruby/35" : "border-foreground/10 bg-card/85 shadow-none"}>
       <CardContent className="flex items-center gap-3 p-4">
         <ChipAvatar avatarKey={player.avatarKey} personId={player.personId} name={player.name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate font-bold">{player.name}</p>
-            {player.isYou && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">אתה</span>}
+            {player.isYou && <span className="rounded-full bg-ruby/15 px-2 py-0.5 text-xs text-ruby-bright">אתה</span>}
             {player.isHost && <span className="text-muted-foreground text-xs">מארח</span>}
           </div>
           <div className="mt-1 flex items-center gap-2">
             <span className="tabular text-lg font-semibold">{formatILS(agorot(player.totalIn))}</span>
-            <span className="rounded-full bg-gold/20 px-2 py-0.5 text-xs font-bold text-gold">x{player.buyInCount}</span>
+            <span className="rounded-full bg-ruby/16 px-2 py-0.5 text-xs font-bold text-ruby-bright">x{player.buyInCount}</span>
             {player.isSettled && <span className="text-muted-foreground text-xs">נסגר</span>}
           </div>
         </div>

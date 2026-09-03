@@ -12,12 +12,12 @@ function ago(value: string): string {
   return `לפני ${hours} שע׳`;
 }
 
-export function LiveFeed({ items }: { items: readonly LiveFeedItem[] }) {
+export function LiveFeed({ items, showTitle = true }: { items: readonly LiveFeedItem[]; showTitle?: boolean }) {
   return (
     <section aria-labelledby="feed-heading" className="flex flex-col gap-3">
-      <h2 id="feed-heading" className="text-muted-foreground text-xs font-bold tracking-wide">מה קורה עכשיו</h2>
+      {showTitle && <h2 id="feed-heading" className="text-muted-foreground text-xs font-bold tracking-wide">מה קרה בשולחן</h2>}
       {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-foreground/15 p-4 text-sm text-muted-foreground">עוד לא נרשמו פעולות</p>
+        <p className="rounded-xl border border-dashed border-foreground/15 p-4 text-sm text-muted-foreground">עוד לא נוספו כניסות או ריבאיים</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {items.slice(0, 6).map((item) => (

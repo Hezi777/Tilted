@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
@@ -19,13 +18,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
+import { AVATAR_KEYS } from "@/lib/avatar";
 import { shekelsToAgorot } from "@/lib/money";
 
-const BUY_IN_CHIPS = ["20", "50", "100"] as const;
+const BUY_IN_CHIPS = ["20", "30", "50", "100"] as const;
 type BuyInChoice = (typeof BUY_IN_CHIPS)[number] | "custom";
 
 function defaultGameName(): string {
   return new Date().toLocaleDateString("he-IL");
+}
+
+function defaultExitTime(): string {
+  const date = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function exitTimeToIso(value: string): string {
+  const [hours, minutes] = value.split(":").map(Number);
+  const date = new Date();
+  date.setSeconds(0, 0);
+  date.setHours(hours, minutes);
+  if (date.getTime() <= Date.now()) date.setDate(date.getDate() + 1);
+  return date.toISOString();
 }
 
 /** New game setup. Spec 5.2. */
@@ -33,6 +47,7 @@ export default function NewGamePage() {
   const router = useRouter();
 
   const [name, setName] = useState(defaultGameName);
+  const [exitTime, setExitTime] = useState(defaultExitTime);
   const [buyInChoice, setBuyInChoice] = useState<BuyInChoice>("50");
   const [customBuyIn, setCustomBuyIn] = useState("");
   const [rebuyDifferent, setRebuyDifferent] = useState(false);
@@ -108,6 +123,7 @@ export default function NewGamePage() {
   const canSubmit =
     people !== null &&
     selected.size > 0 &&
+    selected.size <= AVATAR_KEYS.length &&
     Number.isFinite(buyInShekels) &&
     buyInShekels > 0 &&
     Number.isFinite(rebuyShekels) &&
@@ -118,6 +134,8 @@ export default function NewGamePage() {
       ? null
       : selected.size === 0
         ? "בחרו לפחות שחקן אחד כדי להתחיל"
+        : selected.size > AVATAR_KEYS.length
+          ? `אפשר להושיב עד ${AVATAR_KEYS.length} שחקנים בשולחן`
         : !Number.isFinite(buyInShekels) || buyInShekels <= 0
           ? "הזינו סכום כניסה תקין"
           : !Number.isFinite(rebuyShekels) || rebuyShekels <= 0
@@ -137,6 +155,7 @@ export default function NewGamePage() {
           name: name.trim() || undefined,
           buyIn,
           rebuyAmount,
+          plannedEndAt: exitTimeToIso(exitTime),
           personIds: Array.from(selected),
         }),
       });
@@ -150,14 +169,14 @@ export default function NewGamePage() {
   return (
     <main className="flex flex-1 flex-col">
       <AppHeader
-        title="משחק חדש"
-        subtitle="קופה משותפת לערב אחד, בלי כאב ראש"
+        title="מסדרים את השולחן"
+        subtitle="בוחרים סכומים ומי משחק הערב"
         backHref="/"
       />
-      <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col gap-5 p-5 pb-8">
+      <div className="mx-auto flex w-full max-w-[450px] flex-1 flex-col gap-5 p-5 pb-8">
 
       <div className="flex flex-col gap-2.5">
-        <Label className="text-sm font-bold" htmlFor="game-name">שם המשחק</Label>
+        <Label className="text-sm font-bold" htmlFor="game-name">שם הערב</Label>
         <Input
           id="game-name"
           className="h-12 rounded-xl border-foreground/15 bg-card px-4"
@@ -168,7 +187,18 @@ export default function NewGamePage() {
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <Label className="text-sm font-bold">כניסה</Label>
+        <Label className="text-sm font-bold" htmlFor="exit-time">שעת יציאה</Label>
+        <Input
+          id="exit-time"
+          className="h-12 rounded-xl border-foreground/15 bg-card px-4 text-start tabular-nums"
+          type="time"
+          value={exitTime}
+          onChange={(event) => setExitTime(event.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        <Label className="text-sm font-bold">כניסה לשחקן</Label>
         <ToggleGroup
           type="single"
           value={buyInChoice}
@@ -224,14 +254,14 @@ export default function NewGamePage() {
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-bold">שחקנים</Label>
+          <Label className="text-sm font-bold">מי סביב השולחן?</Label>
           <Button
             type="button"
             variant="ghost"
             className="h-12 rounded-xl text-foreground"
             onClick={() => setAddGuestOpen(true)}
           >
-            הוסף אורח
+            צרפו אורח
           </Button>
         </div>
 
@@ -262,9 +292,8 @@ export default function NewGamePage() {
 
         {people !== null && people.length === 0 && !loadError && (
           <div className="flex items-center gap-3 rounded-2xl border border-dashed border-foreground/15 bg-card/50 p-4">
-            <Image src="/art/empty.png" alt="" width={56} height={56} className="size-14 object-contain" />
             <p className="text-sm leading-relaxed text-muted-foreground">
-              אין עדיין שחקנים קבועים. הוסיפו אורח כדי להתחיל.
+              הרשימה עדיין ריקה. צרפו את השחקן הראשון כדי להתחיל.
             </p>
           </div>
         )}
@@ -272,7 +301,7 @@ export default function NewGamePage() {
         <ul className="flex flex-col gap-1">
           {people?.map((person) => (
             <li key={person.id}>
-              <Label className="flex min-h-14 items-center gap-3 rounded-xl border border-foreground/10 bg-card px-4 shadow-[0_4px_12px_-12px_var(--felt)]">
+              <Label className="flex min-h-14 items-center gap-3 rounded-xl border border-foreground/10 bg-card/85 px-4 shadow-[0_8px_20px_-16px_rgb(0_0_0/0.9)]">
                 <Checkbox
                   checked={selected.has(person.id)}
                   onCheckedChange={(checked) =>
@@ -295,11 +324,11 @@ export default function NewGamePage() {
 
       <Button
         size="lg"
-        className="h-14 rounded-xl bg-felt text-lg font-black text-felt-foreground shadow-[0_10px_24px_-16px_var(--felt)] hover:bg-felt-deep"
+        className="h-14 rounded-xl text-lg font-black"
         disabled={!canSubmit || submitting}
         onClick={handleSubmit}
       >
-        {submitting ? "יוצר משחק..." : "התחלת משחק"}
+        {submitting ? "פותחים את השולחן..." : "פתחו את השולחן"}
       </Button>
       {!canSubmit && disabledReason && !submitting && (
         <p className="text-muted-foreground -mt-2 text-center text-sm">{disabledReason}</p>
@@ -308,7 +337,7 @@ export default function NewGamePage() {
       <Dialog open={addGuestOpen} onOpenChange={setAddGuestOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>הוסף אורח</DialogTitle>
+            <DialogTitle>מצרפים אורח</DialogTitle>
           </DialogHeader>
           <Input
             className="h-12 rounded-xl"
@@ -326,7 +355,7 @@ export default function NewGamePage() {
               disabled={!guestName.trim() || addingGuest}
               onClick={() => void handleAddGuest()}
             >
-              {addingGuest ? "מוסיף..." : "הוסף"}
+              {addingGuest ? "מצרפים..." : "צרפו לשולחן"}
             </Button>
           </DialogFooter>
         </DialogContent>

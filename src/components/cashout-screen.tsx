@@ -168,17 +168,17 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const blockReason = missing
     ? "יש להזין סכום לכל השחקנים כדי לסגור את המשחק."
     : mismatch && !resolved
-    ? "אי אפשר לסגור כשיש הפרש בספירה — יש לבחור פתרון למעלה."
+    ? "אי אפשר לסגור כשיש הפרש בספירה. יש לבחור פתרון למעלה."
     : null;
 
   return (
     <main className="flex flex-1 flex-col">
       <AppHeader
-        title="סגירת חשבון"
+        title="סופרים את הקופה"
         subtitle={
           state
             ? `${state.name ?? "המשחק"} · קופה ${formatILS(agorot(state.pot))}`
-            : "ספירת הקופה בסוף הערב"
+            : "מזינים כמה נשאר לכל שחקן"
         }
         backHref={`/game/${gameId}`}
         backLabel="חזרה למשחק"
@@ -210,12 +210,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         {!loading && state && (
           <>
             {state.status === "closed" && (
-              <Card className="border-gold/40 bg-gold/10 shadow-none">
+              <Card className="border-ruby/40 bg-ruby/10 shadow-none">
                 <CardContent className="flex flex-col gap-3 p-4 text-center">
                   <p className="text-sm">המשחק כבר נסגר וסוכם. אפשר לצפות בסיכום ולשתף אותו.</p>
                   <Button
                     asChild
-                    className="min-h-12 w-full rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep"
+                    className="min-h-12 w-full rounded-xl"
                   >
                     <Link href={`/game/${gameId}/settlement`}>למסך הסיכום</Link>
                   </Button>
@@ -224,11 +224,11 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
             )}
 
             {state.status === "active" && (
-              <Card className="border-gold/35 bg-gold/5 shadow-none">
+              <Card className="border-ruby/35 bg-ruby/5 shadow-none">
                 <CardContent className="flex flex-col gap-3 p-4">
                   <p className="text-sm">ספירה מוקדמת מקפיאה שחקן ומאפשרת למשחק להמשיך.</p>
-                  <Button className="min-h-12 w-full rounded-xl bg-felt text-felt-foreground hover:bg-felt-deep" onClick={() => void changeStatus("settling")}>
-                    סיום משחק וספירת הקופה
+                  <Button className="min-h-12 w-full rounded-xl" onClick={() => void changeStatus("settling")}>
+                    סיימנו לשחק. מתחילים לספור
                   </Button>
                 </CardContent>
               </Card>
@@ -244,7 +244,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                   <CardContent className="flex items-end gap-3 p-4 pt-1">
                     <div className="flex-1">
                       <Label className="text-muted-foreground mb-1 block text-xs">
-                        כמה נספר עבור {player.name}?
+                        כמה נשאר ל{player.name}?
                       </Label>
                       <AmountInput
                         aria-label={`סכום נספר עבור ${player.name}`}
@@ -278,7 +278,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 "shadow-none transition-[background-color,border-color] duration-200 ease-[var(--ease-out)]",
                 mismatch
                   ? "border-destructive/60 bg-destructive/10"
-                  : "border-gold/45 bg-gold/5",
+                  : "border-ruby/45 bg-ruby/5",
               )}
               role="status"
               aria-live="polite"
@@ -302,7 +302,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
             {state.status === "settling" && mismatch && !resolved && !missing && (
               <Card className="border-foreground/10 shadow-none">
                 <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base">יש הפרש — איך מתקנים?</CardTitle>
+                  <CardTitle className="text-base">הסכומים לא נסגרים</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 p-4 pt-1">
                   <div className="flex flex-col gap-1">
@@ -325,7 +325,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                     <p className="text-muted-foreground text-xs leading-relaxed">
                       {hasWinner
                         ? "ההפרש מתחלק באופן יחסי בין כל מי שסיים ברווח."
-                        : "אי אפשר לפצל — אף שחקן לא נמצא ברווח כרגע."}
+                        : "אי אפשר לפצל. אף שחקן לא נמצא ברווח כרגע."}
                     </p>
                   </div>
                   <div className="flex flex-col gap-1">
@@ -333,7 +333,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                       שיוך ההפרש לשחקן אחד
                     </Button>
                     <p className="text-muted-foreground text-xs leading-relaxed">
-                      שחקן אחד סופג את כל ההפרש לבד — בדרך כלל מי שכנראה טעה בספירה.
+                      שחקן אחד סופג את כל ההפרש לבד. בדרך כלל מי שכנראה טעה בספירה.
                     </p>
                     {assigning && (
                       <div className="grid grid-cols-2 gap-2 pt-1">
@@ -362,12 +362,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                   </p>
                 )}
                 <Button
-                  className="min-h-14 w-full rounded-xl bg-felt text-base font-black text-felt-foreground hover:bg-felt-deep disabled:opacity-50"
+                  className="min-h-14 w-full rounded-xl text-base font-black disabled:opacity-50"
                   disabled={missing || (mismatch && !resolved)}
                   aria-disabled={missing || (mismatch && !resolved)}
                   onClick={() => void changeStatus("closed")}
                 >
-                  סגור משחק והצג סיכום
+                  סגרו את החשבון
                 </Button>
               </div>
             )}

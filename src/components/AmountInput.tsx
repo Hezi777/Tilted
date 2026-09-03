@@ -52,7 +52,7 @@ export function AmountInput({
   return (
     <Input
       aria-label={ariaLabel}
-      className="h-14 min-w-0 rounded-xl border-foreground/15 bg-background text-end text-xl tabular-nums shadow-inner focus-visible:border-gold focus-visible:ring-gold/30"
+      className="h-14 min-w-0 rounded-xl border-foreground/15 bg-surface-1/90 text-end text-xl tabular-nums shadow-inner focus-visible:border-ruby focus-visible:ring-ruby/30"
       disabled={disabled}
       inputMode="decimal"
       pattern="[0-9]*[.,]?[0-9]*"

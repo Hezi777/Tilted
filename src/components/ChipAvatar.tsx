@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
 import { avatarKeyForPerson } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 
@@ -26,24 +25,16 @@ export function ChipAvatar({
   name: string;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const key = deterministicChipKey(avatarKey, personId);
+  const chipKey = deterministicChipKey(avatarKey, personId);
   return (
-    <div className={cn("relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gold/15 ring-2 ring-gold/60", className)}>
-      {!failed ? (
-        <Image
-          src={`/art/${key}.png`}
-          alt=""
-          fill
-          sizes="56px"
-          className="object-contain"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span aria-hidden="true" className="text-gold text-xl font-black">
-          {name.trim().slice(0, 1)}
-        </span>
-      )}
+    <div className={cn("relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#080305] shadow-[0_8px_18px_-9px_rgb(0_0_0/0.95)] ring-1 ring-ruby/55", className)}>
+      <Image
+        src={`/art/${chipKey}.png`}
+        alt=""
+        fill
+        sizes="64px"
+        className="object-cover"
+      />
       <span className="sr-only">{name}</span>
     </div>
   );

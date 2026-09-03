@@ -126,6 +126,19 @@ export function assertCanInsertBuyIn(
   assert(actor.id === target.id, "not_your_seat");
 }
 
+/** An active player may freeze their own result; the host may do it for any seat. */
+export function assertCanCashOutEarly(
+  status: GameStatus,
+  actor: ActorPlayer,
+  target: TargetPlayer,
+): void {
+  requireActiveGame(status);
+  assert(target.deletedAt === null, "player_deleted");
+  assert(target.settledAt === null, "player_settled");
+  if (actor.isHost) return;
+  assert(actor.id === target.id, "not_your_seat");
+}
+
 /**
  * Removing a buy-in: the host at any time, or the device that actually wrote the row,
  * within 60 seconds of the server's timestamp.
@@ -152,7 +165,7 @@ export function assertCanDeleteBuyIn(
   );
 }
 
-/** Cash-outs, mismatch resolution, closing and cancelling are all host-only. */
+/** Final counting, mismatch resolution, closing and cancelling are host-only. */
 export function assertCanSettle(status: GameStatus, actor: ActorPlayer): void {
   assert(status === "active" || status === "settling", "game_not_active");
   requireHost(actor);

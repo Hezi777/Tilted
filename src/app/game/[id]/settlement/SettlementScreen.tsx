@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { HomeIcon, Share2 } from "lucide-react";
+import { CrownIcon, HomeIcon, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { Badge } from "@/components/ui/badge";
@@ -41,22 +40,6 @@ interface SettlementState {
   transfers: SettlementTransfer[];
   resolution: { kind: "split" } | { kind: "assign"; playerId: string } | null;
   exportText: string;
-}
-
-function ImageWithFallback({
-  src,
-  alt,
-  className,
-}: {
-  src: string;
-  alt: string;
-  className: string;
-}) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <div className={`${className} bg-felt/10`} role="img" aria-label={alt} />;
-  }
-  return <Image src={src} alt={alt} width={96} height={96} className={className} onError={() => setFailed(true)} />;
 }
 
 /** Read-only settlement result with browser-native export actions. */
@@ -129,8 +112,8 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   return (
     <main className="flex flex-1 flex-col">
       <AppHeader
-        title="סיכום המשחק"
-        subtitle={state?.name ?? "סגירת חשבון"}
+        title="החשבון נסגר"
+        subtitle={state?.name ?? "המאזן של הערב"}
         backHref="/"
         backLabel="בית"
       />
@@ -155,9 +138,11 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
         {state && (
           <>
             {winner && (
-              <Card className="animate-settle-in overflow-hidden border-gold/60 bg-gold/10 shadow-[0_14px_30px_-24px_var(--felt)]">
+              <Card className="animate-settle-in overflow-hidden border-ruby/50 bg-ruby/10 shadow-[0_16px_38px_-24px_rgb(220_25_45/0.65)]">
                 <CardContent className="flex items-center gap-4 p-5">
-                  <ImageWithFallback src="/art/winner.png" alt="מנצח" className="size-24 shrink-0 object-contain" />
+                  <div className="grid size-16 shrink-0 place-items-center rounded-full border border-ruby/35 bg-ruby/12 shadow-[inset_0_1px_rgb(255_255_255/0.08)]">
+                    <CrownIcon aria-hidden="true" className="size-7 text-ruby-bright" />
+                  </div>
                   <div>
                     <p className="text-muted-foreground text-sm">המנצח</p>
                     <p className="text-2xl font-black tracking-tight">{winner.name}</p>
@@ -169,8 +154,8 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
 
             <Card className="border-foreground/10 shadow-none">
               <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
-                <CardTitle className="text-xl font-black">תוצאות</CardTitle>
-                <Badge className="border-gold/40 bg-gold/15 text-foreground" variant="secondary">
+                <CardTitle className="text-xl font-black">מי יצא עם מה</CardTitle>
+                <Badge className="border-ruby/40 bg-ruby/15 text-foreground" variant="secondary">
                   קופה {formatILS(agorot(state.pot))}
                 </Badge>
               </CardHeader>
@@ -185,9 +170,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                       {player.name}
                       {player.outcome === "winner" && <span className="text-muted-foreground text-xs">מנצח</span>}
                       {player.outcome === "even" && <span className="text-muted-foreground text-xs">מאוזן</span>}
-                      {player.id === biggestLoser?.id && (
-                        <ImageWithFallback src="/art/broke.png" alt="הפסד" className="size-8 object-contain" />
-                      )}
+                      {player.id === biggestLoser?.id && <span className="text-xs text-muted-foreground">הפסד גבוה</span>}
                     </span>
                     <span className={player.outcome === "winner" ? "font-black text-chart-1" : player.outcome === "loser" ? "font-bold text-destructive" : "text-muted-foreground"}>
                       {formatSignedILS(agorot(player.net))}
@@ -199,7 +182,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
 
             {state.transfers.length > 0 && (
               <Card className="border-foreground/10 shadow-none">
-                <CardHeader className="p-4 pb-2"><CardTitle className="text-xl font-black">העברות</CardTitle></CardHeader>
+                <CardHeader className="p-4 pb-2"><CardTitle className="text-xl font-black">מי מעביר למי</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-1 p-4 pt-2">
                   {state.transfers.map((transfer) => (
                     <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-14 items-center justify-between gap-3 border-b border-foreground/8 px-1 py-2 last:border-b-0">
@@ -218,19 +201,19 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
             )}
 
             <div className="mt-auto flex flex-col gap-2 pt-2">
-              <Button className="h-14 rounded-xl bg-felt text-base font-black text-felt-foreground hover:bg-felt-deep" onClick={() => void copySummary()}>
+              <Button className="h-14 rounded-xl text-base font-black" onClick={() => void copySummary()}>
                 העתק לווצאפ
               </Button>
               {shareAvailable && (
-                <Button variant="outline" className="h-14 rounded-xl border-felt/25 text-base" onClick={() => void shareSummary()}>
+                <Button variant="outline" className="h-14 rounded-xl border-ruby/25 text-base" onClick={() => void shareSummary()}>
                   <Share2 />
                   שתף
                 </Button>
               )}
-              <Button asChild className="h-14 rounded-xl bg-gold text-base font-black text-felt hover:bg-gold/85">
+              <Button asChild variant="secondary" className="h-14 rounded-xl text-base font-black">
                 <Link href="/">
                   <HomeIcon />
-                  סיימנו — למסך הבית
+                  סיימנו. למסך הבית
                 </Link>
               </Button>
             </div>

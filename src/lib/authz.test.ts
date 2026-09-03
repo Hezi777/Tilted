@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertCanCashOutEarly,
   assertCanDeleteBuyIn,
   assertCanInsertBuyIn,
   assertCanManageRoster,
@@ -111,6 +112,22 @@ describe("assertCanInsertBuyIn", () => {
         }),
       ),
     ).toBe("player_deleted");
+  });
+});
+
+describe("assertCanCashOutEarly", () => {
+  it("allows a player to freeze their own result", () => {
+    expect(codeOf(() => assertCanCashOutEarly("active", actor(), target()))).toBe("ok");
+  });
+
+  it("refuses a guest writing another player's result", () => {
+    expect(codeOf(() => assertCanCashOutEarly("active", actor(), target("other"))))
+      .toBe("not_your_seat");
+  });
+
+  it("allows the host to freeze another player's result", () => {
+    expect(codeOf(() => assertCanCashOutEarly("active", actor({ isHost: true }), target("other"))))
+      .toBe("ok");
   });
 });
 

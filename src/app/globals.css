@@ -13,6 +13,8 @@
   --color-felt: var(--felt);
   --color-felt-deep: var(--felt-deep);
   --color-gold: var(--gold);
+  --color-ruby: var(--ruby);
+  --color-ruby-bright: var(--ruby-bright);
   --color-felt-foreground: var(--felt-foreground);
   --color-felt-foreground-muted: var(--felt-foreground-muted);
   --color-surface-1: var(--surface-1);
@@ -46,233 +48,179 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --radius-sm: calc(var(--radius) * 0.55);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.75);
+  --radius-3xl: calc(var(--radius) * 2.15);
+  --radius-4xl: calc(var(--radius) * 2.55);
 }
 
 :root {
-  /* ---- Surfaces -------------------------------------------------------
-     One ground, three elevation steps. The old palette used three unrelated
-     greens (a bright header band, a near-black body, a mid-green table) which
-     read as a rendering bug rather than a decision. Felt green is now reserved
-     for exactly one thing: the table itself, the only physical object in the
-     app. Everything else is the same hue at different lightness. */
-  --surface-0: oklch(0.165 0.022 160);
-  --surface-1: oklch(0.215 0.028 160);
-  --surface-2: oklch(0.262 0.032 160);
-
-  /* The cloth. Used only by the table. */
-  --felt: oklch(0.375 0.095 158);
-  --felt-deep: oklch(0.255 0.062 158);
-  --gold: oklch(0.80 0.138 87);
-
+  --surface-0: oklch(0.105 0.018 20);
+  --surface-1: oklch(0.145 0.026 20);
+  --surface-2: oklch(0.195 0.032 20);
+  --felt: oklch(0.275 0.105 22);
+  --felt-deep: oklch(0.185 0.062 22);
+  --ruby: oklch(0.57 0.225 25);
+  --ruby-bright: oklch(0.68 0.235 27);
+  --gold: var(--ruby-bright);
   --background: var(--surface-0);
-  --foreground: oklch(0.97 0.012 90);
-  --card: var(--surface-1);
-  --card-foreground: oklch(0.97 0.012 90);
-  --popover: var(--surface-2);
-  --popover-foreground: oklch(0.97 0.012 90);
-
-  --primary: oklch(0.80 0.138 87);
-  --primary-foreground: oklch(0.19 0.04 87);
-
+  --foreground: oklch(0.955 0.02 75);
+  --card: oklch(0.15 0.026 20 / 94%);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.175 0.032 20 / 98%);
+  --popover-foreground: var(--foreground);
+  --primary: var(--ruby);
+  --primary-foreground: oklch(0.985 0.012 75);
   --secondary: var(--surface-2);
-  --secondary-foreground: oklch(0.97 0.012 90);
-  --muted: var(--surface-2);
-  /* Hierarchy comes from opacity of one ink, not from new colours. */
-  --muted-foreground: oklch(0.97 0.012 90 / 62%);
-  --accent: var(--surface-2);
-  --accent-foreground: oklch(0.97 0.012 90);
-  --destructive: oklch(0.70 0.175 26);
-
-  --border: oklch(0.97 0.012 90 / 12%);
-  --input: oklch(0.97 0.012 90 / 16%);
-  --ring: oklch(0.80 0.138 87);
-
-  --chart-1: oklch(0.76 0.15 155);
-  --chart-2: oklch(0.80 0.138 87);
-  --chart-3: oklch(0.70 0.175 26);
-  --chart-4: oklch(0.97 0.012 90 / 62%);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.19 0.027 20);
+  --muted-foreground: oklch(0.79 0.025 55);
+  --accent: oklch(0.235 0.065 23);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.7 0.19 28);
+  --border: oklch(0.88 0.04 45 / 13%);
+  --input: oklch(0.88 0.04 45 / 17%);
+  --ring: var(--ruby-bright);
+  --chart-1: oklch(0.73 0.15 150);
+  --chart-2: var(--ruby-bright);
+  --chart-3: oklch(0.7 0.19 28);
+  --chart-4: var(--muted-foreground);
   --chart-5: var(--surface-2);
-
-  --felt-foreground: oklch(0.98 0.01 90);
-  --felt-foreground-muted: oklch(0.98 0.01 90 / 68%);
-
-  --radius: 1rem;
-
-  /* One easing vocabulary, so a second animation cannot invent a third curve.
-     Strong ease-out: motion starts fast and settles, which is what makes an
-     interface feel responsive rather than sluggish. */
+  --felt-foreground: var(--foreground);
+  --felt-foreground-muted: oklch(0.9 0.025 70 / 70%);
+  --radius: 0.9rem;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --sidebar: var(--surface-0);
-  --sidebar-foreground: oklch(0.97 0.012 90);
-  --sidebar-primary: oklch(0.80 0.138 87);
-  --sidebar-primary-foreground: oklch(0.19 0.04 87);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--ruby);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--surface-2);
-  --sidebar-accent-foreground: oklch(0.97 0.012 90);
-  --sidebar-border: oklch(0.97 0.012 90 / 12%);
-  --sidebar-ring: oklch(0.80 0.138 87);
-}
-
-.dark {
-  /* Dark-first: :root is already the night palette. */
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  html {
-    @apply font-sans;
-  }
-}
-
-:root {
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
   --font-app: "Satoshi", var(--font-assistant), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
-  /* Amounts are always LTR runs inside RTL text. */
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
-}
+  * { @apply border-border outline-ring/50; }
 
-@layer base {
-  /* The table itself. Woven felt is two fine diagonal gradients over a radial
-     pool of light, so the ground reads as cloth rather than as flat green --
-     no image, no request, and it survives any viewport. */
-  /* The ground keeps a trace of cloth so the app reads as a card room rather
-     than as generic dark chrome, but at a fraction of the felt's chroma so it
-     never competes with the table itself. */
+  html {
+    @apply font-sans;
+    background: #050203;
+  }
+
   body {
-    background-color: var(--surface-0);
+    @apply bg-background text-foreground;
     background-image:
-      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.012) 0 1px, transparent 1px 3px),
-      radial-gradient(ellipse 90% 55% at 50% 0%, color-mix(in oklab, var(--felt) 26%, transparent), transparent 70%);
+      linear-gradient(rgb(5 2 3 / 32%), rgb(5 2 3 / 78%)),
+      url("/art/casino-ambience.webp");
+    background-position: center top;
+    background-size: cover;
     background-attachment: fixed;
   }
 
-  /* Phone-first: the app is designed at 390px. On anything wider it sits as a
-     lit slab on the felt. */
+  ::selection {
+    background: color-mix(in oklab, var(--ruby) 55%, transparent);
+    color: var(--foreground);
+  }
+
   .app-shell {
-    background: var(--background);
+    position: relative;
+    isolation: isolate;
     min-height: 100dvh;
+    background:
+      linear-gradient(180deg, rgb(9 3 5 / 88%), rgb(9 3 5 / 97%) 32rem),
+      radial-gradient(circle at 50% -10%, rgb(174 18 34 / 18%), transparent 26rem);
+    overflow: hidden;
+  }
+
+  .app-shell::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, transparent 0 38%, rgb(7 2 4 / 78%) 72%),
+      url("/art/casino-ambience.webp") center top / cover no-repeat;
+    opacity: 0.16;
   }
 
   @media (min-width: 480px) {
     .app-shell {
-      min-height: min(100dvh, 900px);
-      margin-block: max(0px, calc((100dvh - 900px) / 2));
-      border-radius: 1.75rem;
+      min-height: min(100dvh, 920px);
+      margin-block: max(0px, calc((100dvh - 920px) / 2));
+      border-radius: 1.85rem;
       box-shadow:
-        0 0 0 1px color-mix(in oklab, var(--gold) 40%, transparent),
-        0 1px 0 0 color-mix(in oklab, var(--gold) 22%, transparent) inset,
-        0 40px 90px -20px rgb(0 0 0 / 0.8),
-        0 10px 26px -10px rgb(0 0 0 / 0.6);
-      overflow: hidden;
+        0 0 0 1px rgb(244 78 89 / 22%),
+        0 1px 0 rgb(255 255 255 / 8%) inset,
+        0 42px 110px -18px rgb(0 0 0 / 92%);
+    }
+
+    .app-shell::before {
+      position: absolute;
+      border-radius: inherit;
     }
   }
 
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
-}
+  .tabular { font-variant-numeric: tabular-nums; }
 
-@layer components {
-  /* ---- Type scale -----------------------------------------------------
-     Four steps at roughly a 1.3 ratio, and no screen uses more than three.
-     Body is 17px because mobile viewing distance makes 16 read small. */
-  .t-display { font-size: 2.125rem; line-height: 1.05; font-weight: 900; letter-spacing: -0.035em; }
-  .t-title   { font-size: 1.375rem; line-height: 1.2;  font-weight: 800; letter-spacing: -0.02em; }
-  .t-body    { font-size: 1.0625rem; line-height: 1.5; font-weight: 500; }
-  .t-caption { font-size: 0.8125rem; line-height: 1.35; font-weight: 600; letter-spacing: 0.01em; }
-
-  /* Secondary and tertiary text are the same ink at lower opacity rather than
-     new colours, which keeps the palette to one warm cream. */
-  .ink-2 { color: color-mix(in oklab, var(--foreground) 66%, transparent); }
-  .ink-3 { color: color-mix(in oklab, var(--foreground) 42%, transparent); }
-
-  /* Section labels sit tight to what they label -- proximity is what groups
-     them, not a rule or a box. */
-  .section-label { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; color: color-mix(in oklab, var(--foreground) 55%, transparent); }
-
-  /* The cloth. The one surface allowed to be felt green. */
-  .felt-panel {
-    background-color: var(--felt);
-    background-image:
-      repeating-linear-gradient(45deg, rgb(255 255 255 / 0.028) 0 1px, transparent 1px 3px),
-      repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.055) 0 1px, transparent 1px 3px),
-      radial-gradient(ellipse 80% 120% at 50% 0%, color-mix(in oklab, var(--felt) 82%, white), transparent 62%);
-  }
-
-  .chip-raise {
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 24px -10px rgb(0 0 0 / 0.55);
-  }
-
-  /* Gold, carried by weight and scale rather than a glow. A neon halo is one of
-     the standard generated-UI tells and it was doing no work here. */
-  .foil { color: var(--gold); }
-
-  /* Rows are separated by a hairline and space, not by boxing each one in a
-     card. Six identical bordered cards in a column is the other standard tell. */
-  .row-list > * + * { border-block-start: 1px solid var(--border); }
-}
-
-@layer base {
-  /* Nothing in this app is load-bearing on motion, so reduced motion collapses
-     durations rather than trying to hand-tune every case. Colour and opacity
-     changes survive, which is what carries meaning. */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
+      scroll-behavior: auto !important;
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-
-  /* Touch screens fire a synthetic :hover before :active, so an ungated hover
-     makes every tap flash before it presses. Hover effects are for pointers. */
-  @media (hover: hover) and (pointer: fine) {
-    .hover-dim:hover {
-      filter: brightness(0.95);
     }
   }
 }
 
 @layer components {
-  /* The one place per night the app can afford a beat: the settlement reveal. */
-  @keyframes rise-in {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
+  .t-display { font-size: 2.25rem; line-height: 1.02; font-weight: 900; letter-spacing: -0.045em; }
+  .t-title { font-size: 1.375rem; line-height: 1.15; font-weight: 850; letter-spacing: -0.025em; }
+  .t-body { font-size: 1.0625rem; line-height: 1.5; font-weight: 500; }
+  .t-caption { font-size: 0.8125rem; line-height: 1.35; font-weight: 650; letter-spacing: 0.012em; }
+  .ink-2 { color: color-mix(in oklab, var(--foreground) 68%, transparent); }
+  .ink-3 { color: color-mix(in oklab, var(--foreground) 44%, transparent); }
+  .section-label { font-size: 0.8125rem; font-weight: 750; color: color-mix(in oklab, var(--foreground) 58%, transparent); }
+
+  .felt-panel {
+    background:
+      repeating-linear-gradient(45deg, rgb(255 255 255 / 1.8%) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse 80% 120% at 50% 0%, color-mix(in oklab, var(--felt) 86%, white), var(--felt-deep));
   }
 
-  @keyframes settle-in {
-    from {
-      opacity: 0;
-      transform: scale(0.96);
-    }
+  .casino-panel {
+    background: linear-gradient(145deg, rgb(43 17 21 / 86%), rgb(17 7 10 / 96%));
+    border: 1px solid rgb(255 229 210 / 10%);
+    box-shadow: 0 18px 45px -30px rgb(0 0 0 / 95%), 0 1px 0 rgb(255 255 255 / 5%) inset;
   }
 
-  .animate-settle-in {
-    animation: settle-in 350ms var(--ease-out) both;
+  .neon-frame {
+    box-shadow: 0 0 0 1px rgb(244 78 89 / 20%), 0 22px 65px -28px rgb(220 25 45 / 58%);
   }
 
-  .animate-rise-in {
-    animation: rise-in 250ms var(--ease-out) both;
+  .chip-raise {
+    box-shadow: 0 12px 28px -18px rgb(234 35 54 / 92%), 0 1px 0 rgb(255 255 255 / 16%) inset;
   }
+
+  .foil {
+    color: var(--ruby-bright);
+    text-shadow: 0 0 20px rgb(225 34 53 / 30%);
+  }
+
+  .row-list > * + * { border-block-start: 1px solid var(--border); }
+
+  @keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes settle-in { from { opacity: 0; transform: scale(0.97); } }
+  .animate-rise-in { animation: rise-in 240ms var(--ease-out) both; }
+  .animate-settle-in { animation: settle-in 320ms var(--ease-out) both; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-dim:hover { filter: brightness(1.08); }
 }

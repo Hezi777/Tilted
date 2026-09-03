@@ -12,7 +12,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { buyIns, games, people, players } from "@/db/schema";
 import { generateRoomCode } from "@/lib/codes";
-import { avatarKeyForPerson } from "@/lib/avatar";
+import { AVATAR_KEYS, avatarKeyForSeat } from "@/lib/avatar";
 import type { GameSummary, GameStatus, PersonSummary } from "@/lib/api";
 
 /** People who have played, on this device, in at least one game. Spec 5.2 / 5.7. */
@@ -179,6 +179,7 @@ export interface CreateGameInput {
   buyIn: number;
   /** Agorot. */
   rebuyAmount: number;
+  plannedEndAt: Date;
   /** The selected roster, in the order shown in the setup checklist. */
   personIds: string[];
 }
@@ -240,6 +241,9 @@ export async function createGame(
   input: CreateGameInput,
   deviceId: string,
 ): Promise<string> {
+  if (input.personIds.length > AVATAR_KEYS.length) {
+    throw new Error("A table cannot have more character slots than available avatars");
+  }
   const selectedPeople = await db
     .select({ id: people.id, name: people.name })
     .from(people)
@@ -266,7 +270,7 @@ export async function createGame(
         gameId,
         personId,
         name: person.name,
-        avatarKey: avatarKeyForPerson(personId),
+        avatarKey: avatarKeyForSeat(seatOrder),
         seatOrder,
         deviceId: isHost ? deviceId : null,
         isHost,
@@ -291,6 +295,7 @@ export async function createGame(
           name,
           buyIn: input.buyIn,
           rebuyAmount: input.rebuyAmount,
+          plannedEndAt: input.plannedEndAt,
           status: "active",
         }),
         db.insert(players).values(playerRows),
@@ -303,5 +308,5 @@ export async function createGame(
     }
   }
 
-  throw new Error("Could not allocate a unique room code — please retry");
+  throw new Error("Could not allocate a unique room code, please retry");
 }

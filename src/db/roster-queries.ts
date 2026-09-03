@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { buyIns, games, people, players } from "@/db/schema";
-import { avatarKeyForPerson } from "@/lib/avatar";
+import { AVATAR_KEYS, firstAvailableAvatarKey } from "@/lib/avatar";
 import type { JoinGameDetail } from "@/lib/api";
 import {
   assertCanManageRoster,
@@ -41,6 +41,7 @@ export async function getGameByRoomCode(
       id: players.id,
       name: players.name,
       nickname: people.nickname,
+      avatarKey: players.avatarKey,
       seatOrder: players.seatOrder,
       isHost: players.isHost,
       deviceId: players.deviceId,
@@ -60,6 +61,7 @@ export async function getGameByRoomCode(
       id: player.id,
       name: player.name,
       nickname: player.nickname,
+      avatarKey: player.avatarKey,
       seatOrder: player.seatOrder,
       isHost: player.isHost,
       claimed: player.deviceId !== null,
@@ -71,8 +73,8 @@ export async function getGameByRoomCode(
 }
 
 export class ClaimConflictError extends Error {
-  constructor() {
-    super("המקום כבר נתפס במכשיר אחר");
+  constructor(message = "המקום כבר נתפס במכשיר אחר") {
+    super(message);
     this.name = "ClaimConflictError";
   }
 }
@@ -89,8 +91,12 @@ export async function claimPlayer(
   gameId: string,
   playerId: string,
   deviceId: string,
+  avatarKey: string,
   force = false,
 ): Promise<{ id: string }> {
+  if (!AVATAR_KEYS.includes(avatarKey as (typeof AVATAR_KEYS)[number])) {
+    throw new ClaimConflictError("הדמות שבחרתם לא זמינה");
+  }
   const result = await db.execute<{ id: string }>(force
     ? sql`
         WITH active_game AS (
@@ -99,11 +105,18 @@ export async function claimPlayer(
           FOR UPDATE
         ), claimed AS (
           UPDATE ${players} p
-          SET device_id = ${deviceId}
+          SET device_id = ${deviceId}, avatar_key = ${avatarKey}
           FROM active_game g
           WHERE p.id = ${playerId}::uuid
             AND p.game_id = g.id
             AND p.deleted_at IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM ${players} occupied
+              WHERE occupied.game_id = g.id
+                AND occupied.id <> p.id
+                AND occupied.avatar_key = ${avatarKey}
+                AND occupied.deleted_at IS NULL
+            )
           RETURNING p.id
         )
         SELECT id FROM claimed
@@ -115,19 +128,26 @@ export async function claimPlayer(
           FOR UPDATE
         ), claimed AS (
           UPDATE ${players} p
-          SET device_id = ${deviceId}
+          SET device_id = ${deviceId}, avatar_key = ${avatarKey}
           FROM active_game g
           WHERE p.id = ${playerId}::uuid
             AND p.game_id = g.id
             AND p.deleted_at IS NULL
             AND (p.device_id IS NULL OR p.device_id = ${deviceId})
+            AND NOT EXISTS (
+              SELECT 1 FROM ${players} occupied
+              WHERE occupied.game_id = g.id
+                AND occupied.id <> p.id
+                AND occupied.avatar_key = ${avatarKey}
+                AND occupied.deleted_at IS NULL
+            )
           RETURNING p.id
         )
         SELECT id FROM claimed
       `);
 
   const claimed = result.rows[0];
-  if (!claimed) throw new ClaimConflictError();
+  if (!claimed) throw new ClaimConflictError("המקום או הדמות כבר נתפסו");
   return claimed;
 }
 
@@ -205,6 +225,13 @@ export async function addPlayerToGame(
   }
   if (!person) throw new Error("חסר שם שחקן");
 
+  const usedAvatars = await db
+    .select({ avatarKey: players.avatarKey })
+    .from(players)
+    .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)));
+  const avatarKey = firstAvailableAvatarKey(usedAvatars.map((row) => row.avatarKey));
+  if (!avatarKey) throw new RosterConflictError("אין עוד דמויות פנויות בשולחן");
+
   const [duplicate] = await db
     .select({ id: players.id })
     .from(players)
@@ -236,7 +263,7 @@ export async function addPlayerToGame(
           INSERT INTO ${players}
             (id, game_id, person_id, name, avatar_key, seat_order, device_id, is_host)
           SELECT ${playerId}::uuid, g.id, p.id, ${person.name},
-            ${avatarKeyForPerson(person.id)},
+            ${avatarKey},
             coalesce((SELECT max(existing.seat_order) + 1 FROM ${players} existing WHERE existing.game_id = g.id), 0),
             NULL, false
           FROM inserted_person p CROSS JOIN active_game g
@@ -261,7 +288,7 @@ export async function addPlayerToGame(
           INSERT INTO ${players}
             (id, game_id, person_id, name, avatar_key, seat_order, device_id, is_host)
           SELECT ${playerId}::uuid, g.id, ${person.id}::uuid, ${person.name},
-            ${avatarKeyForPerson(person.id)},
+            ${avatarKey},
             coalesce((SELECT max(existing.seat_order) + 1 FROM ${players} existing WHERE existing.game_id = g.id), 0),
             NULL, false
           FROM active_game g

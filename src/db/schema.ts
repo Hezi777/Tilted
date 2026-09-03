@@ -68,6 +68,7 @@ export const games = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    plannedEndAt: timestamp("planned_end_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
   (table) => [

@@ -9,7 +9,12 @@
 import { and, asc, eq, exists, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { buyIns, cashOuts, games, players } from "@/db/schema";
-import { assertCanSettle, requireActor, type ActorPlayer } from "@/lib/authz";
+import {
+  assertCanCashOutEarly,
+  assertCanSettle,
+  requireActor,
+  type ActorPlayer,
+} from "@/lib/authz";
 import {
   agorot,
   MAX_AGOROT,
@@ -204,7 +209,6 @@ export async function saveCashout(
   assertAmount(amount);
   const access = await getActorForGame(gameId, deviceId);
   if (!access) throw new Error("המשחק לא נמצא");
-  assertCanSettle(access.game.status, access.actor);
 
   const [target] = await db
     .select({
@@ -218,6 +222,7 @@ export async function saveCashout(
 
   if (access.game.status === "active") {
     if (!early) throw new Error("יש לסיים את המשחק לפני ספירת הקופה");
+    assertCanCashOutEarly(access.game.status, access.actor, target);
 
     // The INSERT is conditional on active status and a live player. This keeps an
     // early cash-out from landing after a concurrent active -> settling transition.
@@ -245,6 +250,7 @@ export async function saveCashout(
     `);
     if (!saved.rows[0]) throw new Error("השחקן או המשחק כבר לא פעילים");
   } else {
+    assertCanSettle(access.game.status, access.actor);
     // Guard every write by settling status. If close wins a race first, this
     // statement inserts nothing and cannot edit an already closed game.
     const saved = await db.execute<{ id: string }>(sql`

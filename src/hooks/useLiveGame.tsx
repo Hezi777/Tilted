@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -210,7 +209,6 @@ export function useLiveGame(gameId: string) {
     toast.success(`${player.name} הוסיף ריביי`, {
       duration: 5_000,
       // Section 8.2: the rebuy burst is the one place this asset appears.
-      icon: <Image src="/art/rebuy-burst.png" alt="" width={28} height={28} />,
       action: { label: "בטל", onClick: () => void undo(opId) },
     });
     const createPromise = apiFetch(`/api/game/${gameId}/buy-ins`, {

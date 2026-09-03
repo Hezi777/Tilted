@@ -2,13 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createGame, getGamesForDevice } from "@/db/queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { AVATAR_KEYS } from "@/lib/avatar";
 import { MAX_AGOROT } from "@/lib/money";
 
 const createGameSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   buyIn: z.number().int().positive().max(MAX_AGOROT),
   rebuyAmount: z.number().int().positive().max(MAX_AGOROT),
-  personIds: z.array(z.string().uuid()).min(1),
+  plannedEndAt: z.string().datetime(),
+  personIds: z.array(z.string().uuid()).min(1).max(AVATAR_KEYS.length),
 });
 
 function requireDeviceId(request: NextRequest): string | NextResponse {
@@ -52,7 +54,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const id = await createGame(parsed.data, deviceId);
+    const id = await createGame(
+      { ...parsed.data, plannedEndAt: new Date(parsed.data.plannedEndAt) },
+      deviceId,
+    );
     return NextResponse.json({ id }, { status: 201 });
   } catch {
     return NextResponse.json<ApiErrorBody>(
