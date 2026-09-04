@@ -47,7 +47,7 @@
       {
         "files": ["buyin-20.webp", "buyin-30.webp", "buyin-50.webp", "buyin-100.webp", "buyin-custom.webp"],
         "prompt": "Use case: production mobile UI asset sheet for a poker-game buy-in value picker. Create a strict 3 columns by 2 rows contact sheet on one perfectly uniform solid #0B0809 background. Five separate, face-on round poker chips, each centered in its own equal cell with identical scale and no perspective tilt. Leave the bottom-right cell empty. Labels must be exact: 20, 30, 50, 100, and +. Palette: ivory, muted clay red, charcoal, deep forest green, and oxblood with cream edge marks. No gold, yellow, brass, metallic accents, neon, characters, faces, cards, suits, logos, watermark, or text outside the chips. Tactile matte clay/felt 3D UI icon style, readable at 64px.",
-        "postProcess": "Generated as a 1536x1024 contact sheet, cropped into five 512x512 cells, then encoded as WebP at quality 90."
+        "postProcess": "Generated as a 1536x1024 contact sheet, cropped into five 512x512 cells, then encoded as WebP at quality 90. The cells came back with the chip off-centre by up to 44px and differently framed per cell, so each was re-cropped around its own detected chip bounding box to a shared centre and a 94% diameter, and the black backdrop replaced with a single circular alpha mask."
       },
       {
         "file": "casino-ambience.webp",

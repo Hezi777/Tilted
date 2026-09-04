@@ -247,14 +247,14 @@ export default function NewGamePage() {
               key={chip}
               value={chip}
               aria-label={`₪${chip}`}
-              className="relative aspect-square h-auto flex-1 overflow-hidden rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(194_30_58/0.55)]"
+              className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(142_22_49/0.6)]"
             >
-              <Image src={`/art/buyin-${chip}.webp`} alt="" fill sizes="84px" className="object-cover" />
+              <Image src={`/art/buyin-${chip}.webp`} alt="" fill sizes="84px" className="object-contain" />
               <span className="sr-only">₪{chip}</span>
             </ToggleGroupItem>
           ))}
-          <ToggleGroupItem value="custom" aria-label="סכום אחר" className="relative aspect-square h-auto flex-1 overflow-hidden rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(194_30_58/0.55)]">
-            <Image src="/art/buyin-custom.webp" alt="" fill sizes="84px" className="object-cover" />
+          <ToggleGroupItem value="custom" aria-label="סכום אחר" className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(142_22_49/0.6)]">
+            <Image src="/art/buyin-custom.webp" alt="" fill sizes="84px" className="object-contain" />
             <span className="sr-only">סכום אחר</span>
           </ToggleGroupItem>
         </ToggleGroup>
