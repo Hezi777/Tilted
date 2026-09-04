@@ -286,6 +286,24 @@
     text-shadow: 0 0 22px rgb(142 22 49 / 30%);
   }
 
+  /* Chrome forces direction: ltr on date and time inputs and will not let the page
+     override it, not even inline — so in an RTL form the value strands itself against
+     the far edge, a screen away from every other field's text. The digits must stay
+     LTR anyway, so the fix is to push the value box across the control instead. */
+  [dir="rtl"] input[type="time"],
+  [dir="rtl"] input[type="date"] {
+    /* Neither direction nor text-align reaches the value: it lives in a shadow flex
+       row that fills the control. Making the control itself a flex row and letting
+       the value box shrink is what actually moves it. */
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  [dir="rtl"] input[type="time"]::-webkit-datetime-edit,
+  [dir="rtl"] input[type="date"]::-webkit-datetime-edit {
+    flex: none;
+  }
+
   .row-list > * + * { border-block-start: 1px solid var(--edge-hairline); }
 
   .screen-enter { animation: screen-enter var(--dur-enter) var(--ease-out) both; }

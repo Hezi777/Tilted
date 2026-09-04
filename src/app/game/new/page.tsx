@@ -224,7 +224,7 @@ export default function NewGamePage() {
         <Label className="text-sm font-bold" htmlFor="exit-time">שעת יציאה</Label>
         <Input
           id="exit-time"
-          className="h-12 rounded-xl border-foreground/15 bg-card px-4 text-start tabular-nums"
+          className="h-12 rounded-xl border-foreground/15 bg-card px-4 tabular-nums"
           type="time"
           value={exitTime}
           onChange={(event) => setExitTime(event.target.value)}
@@ -368,7 +368,7 @@ export default function NewGamePage() {
                   )}
                 </span>
                 {seated.has(person.id) && (
-                  <span className="absolute end-3 top-3 grid size-5 place-items-center rounded-full bg-brand-500 text-primary-foreground">
+                  <span className="ms-auto grid size-6 shrink-0 place-items-center rounded-full bg-brand-500 text-primary-foreground">
                     <CheckIcon aria-hidden="true" className="size-3.5" />
                   </span>
                 )}

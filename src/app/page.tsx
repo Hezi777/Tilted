@@ -164,6 +164,7 @@ function HomeScreen() {
             </Card>
           )}
 
+          {closedGames.length > 0 && (
           <div className="row-list casino-panel min-h-0 overflow-y-auto rounded-[20px]">
             {closedGames.map((game) => (
               <Link key={game.id} href={`/history/${game.id}`} className="flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/3">
@@ -178,6 +179,7 @@ function HomeScreen() {
               </Link>
             ))}
           </div>
+          )}
         </section>
       </div>
 
