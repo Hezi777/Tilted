@@ -70,6 +70,16 @@ export const games = pgTable(
       .defaultNow(),
     plannedEndAt: timestamp("planned_end_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    // v2: where the evening is, e.g. "הבית של עידו" (plan item 7).
+    location: text("location"),
+    notes: text("notes"),
+    // v2: the chip set this table counts with (plan items 1 / 8). Null keeps the
+    // v1 behaviour of entering shekel amounts directly.
+    chipSetId: uuid("chip_set_id").references((): AnyPgColumn => chipSets.id),
+    // v2: only this person may delete the game from history (plan item 3).
+    createdByPersonId: uuid("created_by_person_id").references(
+      (): AnyPgColumn => people.id,
+    ),
   },
   (table) => [
     // Resolution #2: codes are unique among games that still need theirs resolved —
@@ -99,6 +109,8 @@ export const people = pgTable("people", {
   // Cross-game disambiguation for two friends with the same first name (edge case #6).
   // Lives on Person, not Player, so it is not retyped every game.
   nickname: text("nickname"),
+  // v2: used only to compose a Bit deep link (plan item 5). The app never moves money.
+  phone: text("phone"),
 });
 
 export const players = pgTable(
@@ -118,6 +130,10 @@ export const players = pgTable(
     settledAt: timestamp("settled_at", { withTimezone: true }),
     // Soft delete: removes them from the pot and settlement without losing the audit trail.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // v2: which chair they actually sit in (plan item 10). Deliberately separate from
+    // `seatOrder`, which is the creation order the pot and settlement depend on and
+    // must not be reshuffled to match the room.
+    tableSeat: integer("table_seat"),
   },
   (table) => [
     index("players_game_id_idx").on(table.gameId),
@@ -202,6 +218,204 @@ export const cashOuts = pgTable(
     check(
       "cash_outs_adjustment_bounded",
       sql`${table.adjustment} BETWEEN -${MAX_AGOROT_SQL} AND ${MAX_AGOROT_SQL}`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// v2 (docs/v2-plan.md). Everything below is additive: no existing column moved
+// or changed type, so the v1 pot, settlement and streak paths are untouched.
+// ---------------------------------------------------------------------------
+
+/**
+ * A named set of chip denominations. `ownerPersonId` null means a shared preset every
+ * game can pick; a person's own set is private to them.
+ */
+export const chipSets = pgTable(
+  "chip_sets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    ownerPersonId: uuid("owner_person_id").references(() => people.id),
+    isPreset: boolean("is_preset").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("chip_sets_owner_person_id_idx").on(table.ownerPersonId)],
+);
+
+/**
+ * One denomination inside a set. The *value* carries the money, never the colour —
+ * a set may legitimately hold two colours worth the same, and the same colour means
+ * different amounts in different sets (plan item 8).
+ */
+export const chipDenominations = pgTable(
+  "chip_denominations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    chipSetId: uuid("chip_set_id")
+      .notNull()
+      .references(() => chipSets.id, { onDelete: "cascade" }),
+    /** Display colour as #rrggbb. Presentation only. */
+    color: text("color").notNull(),
+    /** Agorot. */
+    value: integer("value").notNull(),
+    /** Key into public/art, or null to render the flat colour. */
+    imageKey: text("image_key"),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [
+    index("chip_denominations_chip_set_id_idx").on(table.chipSetId),
+    unique("chip_denominations_set_sort_unique").on(
+      table.chipSetId,
+      table.sortOrder,
+    ),
+    check("chip_denominations_value_positive", sql`${table.value} > 0`),
+    check(
+      "chip_denominations_value_bounded",
+      sql`${table.value} <= ${MAX_AGOROT_SQL}`,
+    ),
+    check("chip_denominations_color_hex", sql`${table.color} ~ '^#[0-9a-fA-F]{6}$'`),
+  ],
+);
+
+/**
+ * The counted stack behind one cash-out, kept per denomination so the total can be
+ * re-derived and audited. The agorot total still lands on `cash_outs.amount`, which
+ * remains the single number settlement reads.
+ */
+export const cashOutChips = pgTable(
+  "cash_out_chips",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cashOutId: uuid("cash_out_id")
+      .notNull()
+      .references(() => cashOuts.id, { onDelete: "cascade" }),
+    denominationId: uuid("denomination_id")
+      .notNull()
+      .references(() => chipDenominations.id),
+    count: integer("count").notNull(),
+  },
+  (table) => [
+    uniqueIndex("cash_out_chips_cash_out_denomination_unique").on(
+      table.cashOutId,
+      table.denominationId,
+    ),
+    check("cash_out_chips_count_non_negative", sql`${table.count} >= 0`),
+  ],
+);
+
+/**
+ * A transfer the settlement worked out, persisted so "who has already paid" survives a
+ * refresh. The amounts still come from src/lib/settlement.ts — nothing here recomputes
+ * a net or a transfer.
+ */
+export const transfers = pgTable(
+  "transfers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => games.id),
+    fromPlayerId: uuid("from_player_id").notNull(),
+    toPlayerId: uuid("to_player_id").notNull(),
+    amount: integer("amount").notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    markedByDevice: text("marked_by_device"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.fromPlayerId, table.gameId],
+      foreignColumns: [players.id, players.gameId],
+      name: "transfers_from_player_game_fk",
+    }),
+    foreignKey({
+      columns: [table.toPlayerId, table.gameId],
+      foreignColumns: [players.id, players.gameId],
+      name: "transfers_to_player_game_fk",
+    }),
+    uniqueIndex("transfers_game_from_to_unique").on(
+      table.gameId,
+      table.fromPlayerId,
+      table.toPlayerId,
+    ),
+    index("transfers_game_id_idx").on(table.gameId),
+    check("transfers_amount_positive", sql`${table.amount} > 0`),
+    check("transfers_amount_bounded", sql`${table.amount} <= ${MAX_AGOROT_SQL}`),
+    check("transfers_distinct_players", sql`${table.fromPlayerId} <> ${table.toPlayerId}`),
+  ],
+);
+
+/** Poker playlists offered behind the music button (plan item 11). */
+export const playlists = pgTable(
+  "playlists",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [unique("playlists_sort_order_unique").on(table.sortOrder)],
+);
+
+/** A hand worth remembering — the flop/turn/river and who it hurt (plan item 12). */
+export const hands = pgTable(
+  "hands",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => games.id),
+    title: text("title"),
+    note: text("note"),
+    /** Free text board, e.g. "As Kd 7h | 2c | Qs". Not parsed; it is a memory aid. */
+    board: text("board"),
+    /** Agorot. */
+    potAmount: integer("pot_amount"),
+    winnerPlayerId: uuid("winner_player_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.winnerPlayerId, table.gameId],
+      foreignColumns: [players.id, players.gameId],
+      name: "hands_winner_player_game_fk",
+    }),
+    index("hands_game_id_idx").on(table.gameId),
+    check(
+      "hands_pot_amount_bounded",
+      sql`${table.potAmount} BETWEEN 0 AND ${MAX_AGOROT_SQL}`,
+    ),
+  ],
+);
+
+/**
+ * Who was in a remembered hand and what it cost them. `delta` is a story, not a ledger
+ * entry: it never reaches the pot or the settlement.
+ */
+export const handPlayers = pgTable(
+  "hand_players",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    handId: uuid("hand_id")
+      .notNull()
+      .references(() => hands.id, { onDelete: "cascade" }),
+    playerId: uuid("player_id").notNull(),
+    holeCards: text("hole_cards"),
+    /** Agorot, signed. */
+    delta: integer("delta"),
+  },
+  (table) => [
+    uniqueIndex("hand_players_hand_player_unique").on(
+      table.handId,
+      table.playerId,
+    ),
+    check(
+      "hand_players_delta_bounded",
+      sql`${table.delta} BETWEEN -${MAX_AGOROT_SQL} AND ${MAX_AGOROT_SQL}`,
     ),
   ],
 );
