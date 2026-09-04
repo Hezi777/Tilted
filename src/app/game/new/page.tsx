@@ -85,7 +85,6 @@ export default function NewGamePage() {
       .then((data) => {
         if (cancelled) return;
         setPeople(data.people);
-        setSelected(new Set(data.people.map((person) => person.id)));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -103,7 +102,17 @@ export default function NewGamePage() {
 
   const rebuyShekels = rebuyDifferent ? Number(customRebuy) : buyInShekels;
 
-  // The host holds seat 0 and cannot sit this one out — they are the device writing.
+  // The host holds seat 0 and cannot sit this one out — they are the device writing —
+  // so they are added on top of the checklist's own state rather than stored in it.
+  const seated = useMemo(() => {
+    if (hostPersonId == null) return selected;
+    const next = new Set(selected);
+    next.add(hostPersonId);
+    return next;
+  }, [selected, hostPersonId]);
+
+  const hostInRoster = people?.some((person) => person.id === hostPersonId) ?? false;
+
   const orderedPeople = useMemo(() => {
     if (people === null) return null;
     return [...people].sort((a, b) =>
@@ -145,9 +154,9 @@ export default function NewGamePage() {
   const canSubmit =
     people !== null &&
     hostPersonId != null &&
-    selected.has(hostPersonId) &&
-    selected.size > 0 &&
-    selected.size <= AVATAR_KEYS.length &&
+    hostInRoster &&
+    seated.size > 0 &&
+    seated.size <= AVATAR_KEYS.length &&
     Number.isFinite(buyInShekels) &&
     buyInShekels > 0 &&
     Number.isFinite(rebuyShekels) &&
@@ -156,11 +165,9 @@ export default function NewGamePage() {
   const disabledReason =
     people === null
       ? null
-      : hostPersonId != null && !selected.has(hostPersonId)
+      : !hostInRoster
         ? "השם שבחרתם לא נמצא ברשימה — בחרו אותו מחדש במסך הבית"
-        : selected.size === 0
-        ? "בחרו לפחות שחקן אחד כדי להתחיל"
-        : selected.size > AVATAR_KEYS.length
+        : seated.size > AVATAR_KEYS.length
           ? `אפשר להושיב עד ${AVATAR_KEYS.length} שחקנים בשולחן`
         : !Number.isFinite(buyInShekels) || buyInShekels <= 0
           ? "הזינו סכום כניסה תקין"
@@ -182,7 +189,7 @@ export default function NewGamePage() {
           buyIn,
           rebuyAmount,
           plannedEndAt: exitTimeToIso(exitTime),
-          personIds: Array.from(selected),
+          personIds: Array.from(seated),
           hostPersonId,
         }),
       });
@@ -337,21 +344,21 @@ export default function NewGamePage() {
             <li key={person.id}>
               <motion.button
                 type="button"
-                aria-pressed={selected.has(person.id)}
+                aria-pressed={seated.has(person.id)}
                 disabled={person.id === hostPersonId}
                 whileTap={reduceMotion ? undefined : { scale: 0.985 }}
                 transition={{ duration: 0.12 }}
-                onClick={() => toggleSelected(person.id, !selected.has(person.id))}
+                onClick={() => toggleSelected(person.id, !seated.has(person.id))}
                 className={cn(
                   "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] border border-foreground/7 border-t-foreground/14 bg-surface-2 px-4 text-start transition-[background-color,border-color] duration-[var(--dur-base)] focus-visible:ring-3 focus-visible:ring-ring/40",
-                  selected.has(person.id) && "border-brand-500/45 border-t-brand-300/35 bg-surface-3",
+                  seated.has(person.id) && "border-brand-500/45 border-t-brand-300/35 bg-surface-3",
                 )}
               >
                 <ChipAvatar
                   avatarKey={avatarKeyForPerson(person.id)}
                   personId={person.id}
                   name={person.name}
-                  className={cn("size-12 transition-opacity duration-[var(--dur-base)]", selected.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
+                  className={cn("size-12 transition-opacity duration-[var(--dur-base)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
                 />
                 <span className="min-w-0 font-semibold">
                   {person.name}
@@ -360,7 +367,7 @@ export default function NewGamePage() {
                     <span className="text-brand-300 font-normal"> · אתה</span>
                   )}
                 </span>
-                {selected.has(person.id) && (
+                {seated.has(person.id) && (
                   <span className="absolute end-3 top-3 grid size-5 place-items-center rounded-full bg-brand-500 text-primary-foreground">
                     <CheckIcon aria-hidden="true" className="size-3.5" />
                   </span>
