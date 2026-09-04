@@ -146,6 +146,12 @@ export const players = pgTable(
     uniqueIndex("players_game_id_person_id_unique")
       .on(table.gameId, table.personId)
       .where(sql`"person_id" IS NOT NULL AND "deleted_at" IS NULL`),
+    // v2: two phones racing for the same empty chair. The write path already guards
+    // this with a conditional UPDATE, but that only orders writes to one row — this
+    // is what actually makes the chair exclusive.
+    uniqueIndex("players_game_id_table_seat_unique")
+      .on(table.gameId, table.tableSeat)
+      .where(sql`"table_seat" IS NOT NULL AND "deleted_at" IS NULL`),
   ],
 );
 

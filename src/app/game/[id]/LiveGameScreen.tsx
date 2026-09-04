@@ -3,16 +3,18 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, PlusIcon, RefreshCwIcon, Share2Icon } from "lucide-react";
+import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, PlusIcon, RefreshCwIcon, Share2Icon } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
+import type { LivePlayer } from "@/db/live-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
 import { PlayerCard } from "@/components/PlayerCard";
 import { PokerTable } from "@/components/PokerTable";
 import { RebuyButton } from "@/components/RebuyButton";
+import { SeatPicker } from "@/components/SeatPicker";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,9 +44,22 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [earlyAmount, setEarlyAmount] = useState<number | null>(null);
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
 
-  // Seats keep table order; the table itself rotates so your chair is at the bottom.
-  const seated = useMemo(() => game ? [...game.players].sort((a, b) => a.seatOrder - b.seatOrder) : [], [game]);
-  const you = useMemo(() => game?.players.find((player) => player.isYou) ?? null, [game]);
+  // Optimistic local overrides for a chosen chair (plan item 10), cleared once the
+  // server value catches up on the next refresh, or rolled back on failure.
+  const [seatOverrides, setSeatOverrides] = useState<Record<string, number | null>>({});
+  const [seatPickerPlayer, setSeatPickerPlayer] = useState<LivePlayer | null>(null);
+  const [savingSeat, setSavingSeat] = useState(false);
+
+  const playersWithSeats = useMemo<LivePlayer[]>(() => {
+    if (!game) return [];
+    return game.players.map((player) =>
+      player.id in seatOverrides ? { ...player, tableSeat: seatOverrides[player.id] } : player,
+    );
+  }, [game, seatOverrides]);
+
+  // Seats keep table order for anyone who has not chosen a physical chair.
+  const seated = useMemo(() => [...playersWithSeats].sort((a, b) => a.seatOrder - b.seatOrder), [playersWithSeats]);
+  const you = useMemo(() => seated.find((player) => player.isYou) ?? null, [seated]);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const focusedPlayer = useMemo(() => seated.find((player) => player.id === focusedPlayerId) ?? null, [seated, focusedPlayerId]);
 
@@ -124,6 +139,33 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
       toast.error("שיתוף ההזמנה נכשל");
+    }
+  }
+
+  async function saveSeat(playerId: string, seat: number | null) {
+    setSeatOverrides((current) => ({ ...current, [playerId]: seat }));
+    setSavingSeat(true);
+    try {
+      await apiFetch<SetTableSeatResponse>(`/api/game/${gameId}/players/${playerId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ tableSeat: seat }),
+      });
+      setSeatPickerPlayer(null);
+      await refresh();
+      setSeatOverrides((current) => {
+        const next = { ...current };
+        delete next[playerId];
+        return next;
+      });
+    } catch (reason) {
+      setSeatOverrides((current) => {
+        const next = { ...current };
+        delete next[playerId];
+        return next;
+      });
+      toast.error(reason instanceof ApiError ? reason.message : "שמירת המקום נכשלה");
+    } finally {
+      setSavingSeat(false);
     }
   }
 
@@ -207,6 +249,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {game.isHost && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px] text-brand-300" onClick={() => void extendTime()}>+30 דק׳</Button>}
+          {you && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setSeatPickerPlayer(you)}><ArmchairIcon className="size-3.5" /> המקום שלי</Button>}
           {you && !you.isSettled && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setEarlyExitOpen(true)}>יציאה מוקדמת</Button>}
         </div>
       </div>
@@ -275,6 +318,11 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <DialogContent showCloseButton={false}>
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
           {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />}
+          {focusedPlayer && (
+            <Button type="button" variant="outline" className="h-12" onClick={() => setSeatPickerPlayer(focusedPlayer)}>
+              <ArmchairIcon /> קביעת מקום בשולחן
+            </Button>
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -310,6 +358,18 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       <Dialog open={customPlayer !== null} onOpenChange={(open) => !open && setCustomPlayer(null)}><DialogContent><DialogHeader><DialogTitle>ריביי אחר</DialogTitle><DialogDescription>כמה להוסיף עבור {customPlayer?.name}?</DialogDescription></DialogHeader><Label htmlFor="custom-rebuy">סכום בשקלים</Label><Input id="custom-rebuy" type="number" min="1" inputMode="decimal" value={customAmount} onChange={(event) => setCustomAmount(event.target.value)} autoFocus /><DialogFooter><Button type="button" onClick={() => void submitCustom()}>הוסיפו לקופה</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={addPlayerOpen} onOpenChange={setAddPlayerOpen}><DialogContent><DialogHeader><DialogTitle>מושיבים שחקן</DialogTitle><DialogDescription>הכניסה הראשונה תתווסף לקופה מיד</DialogDescription></DialogHeader><Label htmlFor="new-player">שם</Label><Input id="new-player" value={newName} onChange={(event) => setNewName(event.target.value)} autoFocus /><Label htmlFor="new-nickname">כינוי (לא חובה)</Label><Input id="new-nickname" value={newNickname} onChange={(event) => setNewNickname(event.target.value)} /><DialogFooter><Button type="button" disabled={busy || !newName.trim()} onClick={() => void addPlayer()}>הושיבו בשולחן</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={deletePlayer !== null} onOpenChange={(open) => !open && setDeletePlayer(null)}><DialogContent><DialogHeader><DialogTitle>להסיר מהשולחן?</DialogTitle><DialogDescription>כל הכניסות של {deletePlayer?.name} יוסרו יחד איתו.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="destructive" disabled={busy} onClick={() => void removePlayer()}>הסירו שחקן</Button><Button type="button" variant="outline" onClick={() => setDeletePlayer(null)}>השאירו</Button></DialogFooter></DialogContent></Dialog>
+
+      {seatPickerPlayer && (
+        <SeatPicker
+          open={seatPickerPlayer !== null}
+          onOpenChange={(open) => !open && setSeatPickerPlayer(null)}
+          players={seated}
+          targetPlayerId={seatPickerPlayer.id}
+          targetName={seatPickerPlayer.isYou ? "אתם" : seatPickerPlayer.name}
+          saving={savingSeat}
+          onSelect={(seat) => void saveSeat(seatPickerPlayer.id, seat)}
+        />
+      )}
     </main>
   );
 }

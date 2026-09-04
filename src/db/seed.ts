@@ -8,12 +8,48 @@
 
 import { randomUUID } from "node:crypto";
 import { db } from "@/db";
-import { buyIns, cashOuts, games, people, players } from "@/db/schema";
+import {
+  buyIns,
+  cashOuts,
+  chipDenominations,
+  chipSets,
+  games,
+  people,
+  players,
+} from "@/db/schema";
 
 const BUY_IN = 5000; // ₪50
 const REBUY = 5000; // ₪50
 
+/** Two shared presets every game can pick without owning a chip set (plan item 1/8). */
+async function seedChipSetPresets() {
+  const [standard] = await db
+    .insert(chipSets)
+    .values({ name: "חבילה סטנדרטית", isPreset: true })
+    .returning();
+  await db.insert(chipDenominations).values([
+    { chipSetId: standard.id, color: "#F5EDE6", value: 100, sortOrder: 0 }, // ₪1
+    { chipSetId: standard.id, color: "#C21E3A", value: 500, sortOrder: 1 }, // ₪5
+    { chipSetId: standard.id, color: "#1A6B4E", value: 2000, sortOrder: 2 }, // ₪20
+    { chipSetId: standard.id, color: "#141011", value: 10000, sortOrder: 3 }, // ₪100
+  ]);
+
+  const [highStakes] = await db
+    .insert(chipSets)
+    .values({ name: "חבילת סטייקים גבוהים", isPreset: true })
+    .returning();
+  await db.insert(chipDenominations).values([
+    { chipSetId: highStakes.id, color: "#F5EDE6", value: 500, sortOrder: 0 }, // ₪5
+    { chipSetId: highStakes.id, color: "#C21E3A", value: 2500, sortOrder: 1 }, // ₪25
+    { chipSetId: highStakes.id, color: "#1A6B4E", value: 10000, sortOrder: 2 }, // ₪100
+    { chipSetId: highStakes.id, color: "#4A0917", value: 50000, sortOrder: 3 }, // ₪500
+    { chipSetId: highStakes.id, color: "#141011", value: 100000, sortOrder: 4 }, // ₪1,000
+  ]);
+}
+
 async function seed() {
+  await seedChipSetPresets();
+
   const [game] = await db
     .insert(games)
     .values({

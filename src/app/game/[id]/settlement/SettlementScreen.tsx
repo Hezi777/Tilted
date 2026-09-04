@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, CopyIcon, CrownIcon, HomeIcon, Share2Icon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CopyIcon, CrownIcon, HomeIcon, Share2Icon } from "lucide-react";
 import confetti from "canvas-confetti";
 import { motion, useReducedMotion } from "framer-motion";
 import { toBlob } from "html-to-image";
@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SettlementPlayer, SettlementState } from "@/db/settlement-queries";
+import type { TransferRecord } from "@/db/transfer-queries";
 import { apiFetch, ApiError } from "@/lib/api";
+import { buildBitLink } from "@/lib/bit";
 import { cn } from "@/lib/utils";
 
 type SequenceStage = "pending" | "playing" | "complete";
@@ -103,6 +105,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<SequenceStage>("pending");
+  const [transfers, setTransfers] = useState<TransferRecord[] | null>(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -128,6 +131,54 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     return load();
   }, [load]);
+
+  useEffect(() => {
+    // Transfers only exist once the game has reached settlement, so this waits for
+    // the settlement state to load successfully before asking for them.
+    if (!state) return;
+    let cancelled = false;
+    apiFetch<TransferRecord[]>(`/api/game/${gameId}/transfers`)
+      .then((next) => {
+        if (!cancelled) setTransfers(next);
+      })
+      .catch(() => {
+        // Non-fatal: the settlement result itself already loaded. The transfer rows
+        // just stay hidden if this fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId, state]);
+
+  const togglePaid = useCallback(
+    (transferId: string, nextPaid: boolean) => {
+      setTransfers((current) => {
+        if (!current) return current;
+        return current.map((transfer) =>
+          transfer.id === transferId
+            ? { ...transfer, paidAt: nextPaid ? new Date().toISOString() : null }
+            : transfer,
+        );
+      });
+      apiFetch<TransferRecord[]>(`/api/game/${gameId}/transfers/${transferId}`, {
+        method: "POST",
+        body: JSON.stringify({ paid: nextPaid }),
+      })
+        .then((next) => setTransfers(next))
+        .catch((reason: unknown) => {
+          setTransfers((current) => {
+            if (!current) return current;
+            return current.map((transfer) =>
+              transfer.id === transferId
+                ? { ...transfer, paidAt: nextPaid ? null : new Date().toISOString() }
+                : transfer,
+            );
+          });
+          toast.error(reason instanceof ApiError ? reason.message : "עדכון התשלום נכשל");
+        });
+    },
+    [gameId],
+  );
 
   useEffect(() => {
     if (!state) return;
@@ -171,6 +222,10 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
 
   const winner = useMemo(() => state?.players.find((player) => player.outcome === "winner"), [state]);
   const voiceLine = useMemo(() => state ? settlementVoiceLine(gameId, state.players) : "", [gameId, state]);
+  const transferByPair = useMemo(
+    () => new Map((transfers ?? []).map((t) => [`${t.from.playerId}:${t.to.playerId}`, t])),
+    [transfers],
+  );
   const staged = stage === "playing";
 
   async function copySummary() {
@@ -310,14 +365,55 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
               <Card>
                 <CardHeader><CardTitle>מי מעביר למי</CardTitle></CardHeader>
                 <CardContent className="flex flex-col">
-                  {state.transfers.map((transfer, index) => (
-                    <motion.div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} initial={staged ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: staged ? 2.2 + index * 0.08 : 0 }} className="flex min-h-14 items-center gap-2 border-b border-foreground/8 py-2 last:border-b-0">
-                      <span className="min-w-0 truncate">{transfer.fromName}</span>
-                      <motion.span initial={staged ? { scaleX: 0 } : false} animate={{ scaleX: 1 }} transition={{ delay: staged ? 2.2 + index * 0.08 : 0, duration: 0.18 }} className="flex flex-1 origin-right items-center gap-1 text-brand-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></motion.span>
-                      <span className="min-w-0 truncate">{transfer.toName}</span>
-                      <Money value={transfer.amount} className="ms-auto shrink-0 font-bold" />
-                    </motion.div>
-                  ))}
+                  {state.transfers.map((transfer, index) => {
+                    const record = transferByPair.get(
+                      `${transfer.fromPlayerId}:${transfer.toPlayerId}`,
+                    );
+                    const paid = record?.paidAt != null;
+                    const bitLink = record ? buildBitLink(record.to.phone, record.amount) : null;
+                    return (
+                      <motion.div
+                        key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`}
+                        initial={staged ? { opacity: 0 } : false}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: staged ? 2.2 + index * 0.08 : 0 }}
+                        className={cn(
+                          "flex flex-col gap-2 border-b border-foreground/8 py-3 last:border-b-0",
+                          paid && "opacity-60",
+                        )}
+                      >
+                        <div className="flex min-h-10 items-center gap-2">
+                          <span className="min-w-0 truncate">{transfer.fromName}</span>
+                          <motion.span initial={staged ? { scaleX: 0 } : false} animate={{ scaleX: 1 }} transition={{ delay: staged ? 2.2 + index * 0.08 : 0, duration: 0.18 }} className="flex flex-1 origin-right items-center gap-1 text-brand-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></motion.span>
+                          <span className="min-w-0 truncate">{transfer.toName}</span>
+                          <Money
+                            value={transfer.amount}
+                            className={cn("ms-auto shrink-0 font-bold", paid && "line-through")}
+                          />
+                        </div>
+                        {record && (
+                          <div className="flex gap-2">
+                            {bitLink && (
+                              <Button asChild variant="outline" className="h-12 flex-1 text-sm">
+                                <a href={bitLink}>פתחו ב-Bit</a>
+                              </Button>
+                            )}
+                            <Button
+                              variant={paid ? "secondary" : "outline"}
+                              className={cn(
+                                "h-12 flex-1 text-sm",
+                                paid && "border-profit/50 bg-profit/15 text-profit",
+                              )}
+                              onClick={() => togglePaid(record.id, !paid)}
+                            >
+                              {paid ? <CheckIcon /> : null}
+                              {paid ? "שולם" : "סמנו כשולם"}
+                            </Button>
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
                 </CardContent>
               </Card>
             )}

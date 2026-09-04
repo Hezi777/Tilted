@@ -8,7 +8,9 @@ import {
   assertCanDeleteBuyIn,
   assertCanInsertBuyIn,
   assertCanManageRoster,
+  requireActiveGame,
   requireActor,
+  AuthzError,
   type ActorPlayer,
   type BuyInRow,
 } from "@/lib/authz";
@@ -26,7 +28,14 @@ export interface LivePlayer {
   isSettled: boolean;
   totalIn: number;
   buyInCount: number;
+  /** v2: the physical chair chosen around the table (plan item 10). Null until the
+   * player picks one; distinct from `seatOrder`, which the pot and settlement rely on
+   * and must never be reshuffled to match the room. */
+  tableSeat: number | null;
 }
+
+/** Physical chairs available around the table (design system's nine-seat layout). */
+export const MAX_TABLE_SEATS = 9;
 
 export interface LiveFeedItem {
   id: string;
@@ -133,6 +142,7 @@ export async function getLiveGame(
       isHost: players.isHost,
       deviceId: players.deviceId,
       settledAt: players.settledAt,
+      tableSeat: players.tableSeat,
       totalIn: sql<number>`coalesce(sum(${buyIns.amount}), 0)`,
       buyInCount: sql<number>`count(${buyIns.id})`,
     })
@@ -172,6 +182,7 @@ export async function getLiveGame(
     isSettled: row.settledAt !== null,
     totalIn: Number(row.totalIn),
     buyInCount: Number(row.buyInCount),
+    tableSeat: row.tableSeat,
   }));
 
   return {
@@ -499,4 +510,62 @@ export async function deleteLivePlayer(
     SELECT id FROM deleted_player
   `);
   if (result.rows.length === 0) throw new Error("game_not_active");
+}
+
+/**
+ * v2: pick or clear a physical chair (plan item 10). A device may set only its own
+ * seat; the host may set anyone's. Two live players in the same game may not hold
+ * the same chair — enforced in the UPDATE statement itself so a race between two
+ * phones tapping the same empty chair cannot seat them both.
+ */
+export async function setTableSeat(
+  gameId: string,
+  playerId: string,
+  deviceId: string,
+  tableSeat: number | null,
+): Promise<void> {
+  const actorRow = await getActor(gameId, deviceId);
+  const actor = requireActor(toActor(actorRow));
+  requireActiveGame(actorRow.status);
+  const [target] = await db
+    .select({ id: players.id, deletedAt: players.deletedAt })
+    .from(players)
+    .where(and(eq(players.id, playerId), eq(players.gameId, gameId)))
+    .limit(1);
+  if (!target) throw new Error("player_not_found");
+  if (target.deletedAt !== null) throw new AuthzError("player_deleted");
+  if (!actor.isHost && actor.id !== playerId) throw new AuthzError("not_your_seat");
+
+  const result = await db.execute<{ id: string }>(sql`
+    WITH conflict AS (
+      SELECT id FROM ${players}
+      WHERE game_id = ${gameId}::uuid
+        AND deleted_at IS NULL
+        AND id <> ${playerId}::uuid
+        AND ${tableSeat}::integer IS NOT NULL
+        AND table_seat = ${tableSeat}::integer
+    )
+    UPDATE ${players}
+    SET table_seat = ${tableSeat}
+    WHERE id = ${playerId}::uuid
+      AND game_id = ${gameId}::uuid
+      AND deleted_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM conflict)
+    RETURNING id
+  `);
+  if (result.rows.length > 0) return;
+
+  const [conflict] = await db
+    .select({ id: players.id })
+    .from(players)
+    .where(
+      and(
+        eq(players.gameId, gameId),
+        isNull(players.deletedAt),
+        tableSeat === null ? sql`false` : eq(players.tableSeat, tableSeat),
+      ),
+    )
+    .limit(1);
+  if (conflict) throw new Error("seat_taken");
+  throw new Error("game_not_active");
 }

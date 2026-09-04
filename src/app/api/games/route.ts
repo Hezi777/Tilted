@@ -7,6 +7,8 @@ import { MAX_AGOROT } from "@/lib/money";
 
 const createGameSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
+  location: z.string().trim().min(1).max(120).optional(),
+  notes: z.string().trim().min(1).max(2000).optional(),
   buyIn: z.number().int().positive().max(MAX_AGOROT),
   rebuyAmount: z.number().int().positive().max(MAX_AGOROT),
   plannedEndAt: z.string().datetime(),

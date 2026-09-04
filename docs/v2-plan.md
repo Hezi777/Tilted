@@ -9,7 +9,7 @@ this file wins. `docs/design-system.md` still owns presentation and motion.
 
 | # | Requirement | Collides with | Resolution |
 |---|---|---|---|
-| 1 | Item 2, Authentication | `AGENTS.md`: "**No authentication, ever.**" | The invariant is retired by the product owner's explicit decision. Auth.js (NextAuth v5) with Google OAuth and a Drizzle/Neon session store. Free tier only — no email provider, no paid identity service, so the "costs nothing to run" invariant holds. `device_id` survives as the write-authorization key so nothing in the live game path regresses; a signed-in user is bound to a `Person`. |
+| 1 | Item 2, Authentication | `AGENTS.md`: "**No authentication, ever.**" | The invariant is retired by the product owner's explicit decision. **Neon Managed Better Auth** (`@neondatabase/auth`), free to 60,000 MAU on the plan this project already runs on, so the "costs nothing to run" invariant holds. Chosen over Auth.js because the auth tables live in this same Neon database — users are an ordinary SQL join from `people`, not a synced mirror — and they branch with the database. Two caveats it buys: the product is in Beta and has already had one breaking migration (the legacy Stack Auth flavour is closed to new users), and its `@neondatabase/auth-ui` components would violate the shadcn invariant and have unproven RTL/Hebrew support, so M10 uses the **headless client only** (`createAuthClient` / `useSession` / `auth.getSession`) behind our own shadcn screens. `device_id` survives as the write-authorization key so nothing in the live game path regresses; a signed-in user is bound to a `Person`. |
 | 2 | Item 5, Bit transfers | `AGENTS.md`: "no money moves inside the app" | Compatible. The app composes a Bit deep link and records a manually-ticked `paid_at`. No funds, credentials, or payment APIs touch the runtime. The app never confirms a payment happened — a human does. |
 | 3 | Item 4, per-player reporting | `AGENTS.md`: "One authorization rule, enforced server-side" | Already the rule. This is enforcement and UI work, not a new permission model. No second permission check gets added. |
 | 4 | Items 1/8/9, chip counting | `AGENTS.md`: "Money is integer agorot end to end" and "`money.ts`/`settlement.ts` are test-locked" | Denomination values are agorot integers. Chip count × denomination value is integer multiplication, done in a new `src/lib/chips.ts`. Neither `money.ts` nor `settlement.ts` is edited; `chips.ts` produces an agorot total and hands it to the existing cash-out path. |
@@ -69,9 +69,15 @@ Every user-facing Hebrew string. Text only, no logic.
 `src/app/api/game/[id]/hands/**`, `src/components/HandRecorder.tsx`, history surfacing.
 
 **M10 — authentication and profiles** (items 2, 4)
-Auth.js wiring, `src/app/profile/**`, binding a user to a `Person`, phone on the profile,
-and the server-side check that a non-host may only write their own row. Runs last: it
-touches every route handler, so it cannot run concurrently with anything else.
+Neon Managed Better Auth wiring (`NEON_AUTH_BASE_URL` + cookie secret, a `[...path]`
+handler route, `proxy.ts` for protected paths on Next 16), `src/app/profile/**`, binding a
+signed-in user to a `Person`, phone on the profile, and the server-side check that a
+non-host may only write their own row. Runs last: it touches every route handler, so it
+cannot run concurrently with anything else.
+
+It also closes the hole M1 leaves behind: chip-set ownership currently trusts a
+client-supplied `personId`, because outside a game there is no device-to-person mapping to
+check against. A real server-side session replaces that check rather than patching it.
 
 ## Terminology (item 6), settled
 

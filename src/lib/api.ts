@@ -76,6 +76,53 @@ export interface JoinGameDetail {
 }
 
 /**
+ * Ownership + identity fields layered onto the live-game GET response
+ * (plan item 7): where the evening is, any notes, and who may delete it.
+ */
+export interface GameOwnershipInfo {
+  name: string | null;
+  createdByPersonId: string | null;
+  location: string | null;
+  notes: string | null;
+}
+
+/** Host-only mid-evening rules edit body — PATCH /api/game/[id] (plan item 7). */
+export interface UpdateGameRulesBody {
+  name?: string;
+  location?: string | null;
+  notes?: string | null;
+  /** Agorot. */
+  buyIn?: number;
+  /** Agorot. */
+  rebuyAmount?: number;
+  plannedEndAt?: string;
+}
+
+/** One side of a transfer: who they are and how to reach them for Bit. */
+export interface TransferParty {
+  playerId: string;
+  name: string;
+  avatarKey: string | null;
+  phone: string | null;
+}
+
+/** A transfer computed by settlement and persisted so its paid state survives a refresh. */
+export interface TransferRecord {
+  id: string;
+  gameId: string;
+  from: TransferParty;
+  to: TransferParty;
+  amount: number;
+  paidAt: string | null;
+  markedByDevice: string | null;
+}
+
+/** Response of `PATCH /api/game/[id]/players/[playerId]` (plan item 10, seating). */
+export interface SetTableSeatResponse {
+  tableSeat: number | null;
+}
+
+/**
  * Fetches `input`, attaching this device's id and a JSON content type, and returns
  * the parsed body. Throws `ApiError` on a non-2xx response.
  */

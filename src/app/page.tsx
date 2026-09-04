@@ -92,13 +92,15 @@ function HomeScreen() {
       <div className="flex min-h-0 flex-1 flex-col gap-5 px-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-col gap-2.5">
           <motion.div whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={{ duration: 0.12 }}>
-            <Button asChild className="h-[3.5rem] w-full text-base font-bold tracking-[-0.01em]">
+            <Button asChild className="h-14 w-full text-base font-bold tracking-[-0.01em]">
               <Link href="/game/new">פותחים שולחן</Link>
             </Button>
           </motion.div>
-          <Button asChild variant="ghost" className="h-10 text-muted-foreground hover:text-foreground">
-            <Link href="/join">יש קוד חדר? <span className="text-brand-300">מצטרפים למשחק</span></Link>
-          </Button>
+          <motion.div whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={{ duration: 0.12 }}>
+            <Button asChild variant="outline" className="h-14 w-full text-base font-bold tracking-[-0.01em]">
+              <Link href="/join">מצטרפים למשחק</Link>
+            </Button>
+          </motion.div>
           {myName && (
             <button
               type="button"

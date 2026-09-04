@@ -1,15 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftIcon, CrownIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeftIcon, CrownIcon, Trash2Icon } from "lucide-react";
+import { toast } from "sonner";
 import type { HistoryState } from "@/db/history-queries";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, ApiError, type GameOwnershipInfo } from "@/lib/api";
+import { useIdentity } from "@/lib/identity";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function date(value: string | null): string {
   return value ? new Date(value).toLocaleDateString("he-IL") : "";
@@ -20,9 +31,14 @@ function time(value: string): string {
 }
 
 export default function HistoryScreen({ gameId }: { gameId: string }) {
+  const router = useRouter();
+  const identity = useIdentity();
   const [state, setState] = useState<HistoryState | null>(null);
+  const [ownership, setOwnership] = useState<GameOwnershipInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const winner = useMemo(
     () => state?.players.find((player) => player.outcome === "winner"),
     [state],
@@ -40,12 +56,59 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
     return () => { cancelled = true; };
   }, [gameId, retryCount]);
 
+  useEffect(() => {
+    let cancelled = false;
+    // Location + who created the evening — layered onto the live-game GET
+    // response (plan item 7), separate from the history read model above.
+    apiFetch<GameOwnershipInfo>(`/api/game/${gameId}`)
+      .then((next) => { if (!cancelled) setOwnership(next); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [gameId]);
+
+  const isCreator =
+    identity != null &&
+    ownership?.createdByPersonId != null &&
+    identity.id === ownership.createdByPersonId;
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/game/${gameId}`, { method: "DELETE" });
+      toast.success("הערב נמחק");
+      router.replace("/");
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "מחיקת הערב נכשלה");
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  }
+
+  const title = ownership?.name ?? state?.name ?? "הערב במספרים";
+  const subtitle = state
+    ? [date(state.closedAt), ownership?.location].filter(Boolean).join(" · ")
+    : "המאזן שנשמר מהערב";
+
   return (
     <main className="flex flex-1 flex-col">
       <AppHeader
-        title="הערב במספרים"
-        subtitle={state ? date(state.closedAt) : "המאזן שנשמר מהערב"}
+        title={title}
+        subtitle={subtitle}
         backHref="/"
+        action={
+          isCreator ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="מחיקת הערב"
+              className="min-h-11 min-w-11 text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2Icon aria-hidden="true" className="size-5" />
+            </Button>
+          ) : null
+        }
       />
       <div className="flex flex-1 flex-col gap-4 p-4">
         {!state && !error && <><Skeleton className="h-28 w-full" /><Skeleton className="h-56 w-full" /></>}
@@ -132,6 +195,29 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
           </Card>
         </>}
       </div>
+
+      <Dialog open={deleteOpen} onOpenChange={(open) => !deleting && setDeleteOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>למחוק את {title}?</DialogTitle>
+            <DialogDescription>הערב יימחק לצמיתות מההיסטוריה ולא ניתן יהיה לשחזר אותו.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="destructive"
+              className="min-h-12"
+              disabled={deleting}
+              onClick={() => void handleDelete()}
+            >
+              {deleting ? "מוחקים..." : "כן, מחקו את הערב"}
+            </Button>
+            <Button type="button" variant="outline" className="min-h-12" disabled={deleting} onClick={() => setDeleteOpen(false)}>
+              ביטול
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

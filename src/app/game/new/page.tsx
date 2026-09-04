@@ -55,6 +55,7 @@ export default function NewGamePage() {
   const hostPersonId = identity === undefined ? undefined : (identity?.id ?? null);
 
   const [name, setName] = useState(defaultGameName);
+  const [location, setLocation] = useState("");
   const [exitTime, setExitTime] = useState(defaultExitTime);
   const [buyInChoice, setBuyInChoice] = useState<BuyInChoice>("50");
   const [customBuyIn, setCustomBuyIn] = useState("");
@@ -186,6 +187,7 @@ export default function NewGamePage() {
         method: "POST",
         body: JSON.stringify({
           name: name.trim() || undefined,
+          location: location.trim() || undefined,
           buyIn,
           rebuyAmount,
           plannedEndAt: exitTimeToIso(exitTime),
@@ -217,6 +219,17 @@ export default function NewGamePage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={defaultGameName()}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        <Label className="text-sm font-bold" htmlFor="game-location">מיקום</Label>
+        <Input
+          id="game-location"
+          className="h-12 rounded-xl border-foreground/15 bg-card px-4"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="הבית של עידו, אצל רועי..."
         />
       </div>
 

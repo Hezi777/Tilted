@@ -6,7 +6,7 @@ const game: LiveGame = {
   id: "game", code: "ABCD", name: null, status: "active", buyIn: 5_000, rebuyAmount: 5_000,
   startedAt: "2026-09-03T20:00:00.000Z", plannedEndAt: "2026-09-04T00:00:00.000Z",
   pot: 10_000, youId: "p1", isHost: false,
-  players: [{ id: "p1", personId: "person-1", name: "א", avatarKey: null, seatOrder: 0, isHost: false, isYou: true, isSettled: false, totalIn: 10_000, buyInCount: 2 }],
+  players: [{ id: "p1", personId: "person-1", name: "א", avatarKey: null, seatOrder: 0, isHost: false, isYou: true, isSettled: false, totalIn: 10_000, buyInCount: 2, tableSeat: null }],
   feed: [],
 };
 

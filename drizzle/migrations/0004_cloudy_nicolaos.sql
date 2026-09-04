@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "players_game_id_table_seat_unique" ON "players" USING btree ("game_id","table_seat") WHERE "table_seat" IS NOT NULL AND "deleted_at" IS NULL;

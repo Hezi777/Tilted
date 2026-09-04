@@ -10,9 +10,21 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { buyIns, games, people, players } from "@/db/schema";
+import {
+  buyIns,
+  cashOuts,
+  cashOutChips,
+  games,
+  handPlayers,
+  hands,
+  people,
+  players,
+  transfers,
+} from "@/db/schema";
 import { generateRoomCode } from "@/lib/codes";
 import { AVATAR_KEYS, avatarKeyForSeat } from "@/lib/avatar";
+import { getActorForGame } from "@/db/cashout-queries";
+import { AuthzError, requireHost } from "@/lib/authz";
 import type { GameSummary, GameStatus, PersonSummary } from "@/lib/api";
 
 /** The whole roster, for the identity screen and the setup checklist. Spec 5.2 / 5.7. */
@@ -156,6 +168,9 @@ export async function getGameById(gameId: string): Promise<GameDetail | null> {
 
 export interface CreateGameInput {
   name?: string;
+  /** v2: where the evening is, e.g. "הבית של עידו" (plan item 7). */
+  location?: string;
+  notes?: string;
   /** Agorot. Converted from shekels on the client via src/lib/money.ts. */
   buyIn: number;
   /** Agorot. */
@@ -255,10 +270,14 @@ export async function createGame(
           id: gameId,
           code,
           name,
+          location: input.location?.trim() || null,
+          notes: input.notes?.trim() || null,
           buyIn: input.buyIn,
           rebuyAmount: input.rebuyAmount,
           plannedEndAt: input.plannedEndAt,
           status: "active",
+          // v2: only this person may delete the game from history (plan item 3).
+          createdByPersonId: input.hostPersonId,
         }),
         db.insert(players).values(playerRows),
         db.insert(buyIns).values(buyInRows),
@@ -271,4 +290,161 @@ export async function createGame(
   }
 
   throw new Error("Could not allocate a unique room code, please retry");
+}
+
+/**
+ * Fields the live-game GET route layers onto its response so a viewer can tell
+ * who created the game and where it is (plan item 7). Kept separate from
+ * `getLiveGame` (src/db/live-queries.ts), which this milestone does not touch.
+ */
+export interface GameOwnership {
+  createdByPersonId: string | null;
+  location: string | null;
+  notes: string | null;
+}
+
+export async function getGameOwnership(
+  gameId: string,
+): Promise<GameOwnership | null> {
+  const [row] = await db
+    .select({
+      createdByPersonId: games.createdByPersonId,
+      location: games.location,
+      notes: games.notes,
+    })
+    .from(games)
+    .where(eq(games.id, gameId));
+  return row ?? null;
+}
+
+export interface UpdateGameRulesInput {
+  name?: string;
+  location?: string | null;
+  notes?: string | null;
+  /** Agorot. */
+  buyIn?: number;
+  /** Agorot. */
+  rebuyAmount?: number;
+  plannedEndAt?: Date;
+}
+
+export interface GameRulesDetail {
+  id: string;
+  name: string | null;
+  location: string | null;
+  notes: string | null;
+  buyIn: number;
+  rebuyAmount: number;
+  plannedEndAt: string | null;
+  status: GameStatus;
+  createdByPersonId: string | null;
+}
+
+/**
+ * Host-only mid-evening rules edit (plan item 7). Reuses the same authorization
+ * predicates as every other write (src/lib/authz.ts) — there is no second
+ * permission model here.
+ */
+export async function updateGameRules(
+  gameId: string,
+  deviceId: string,
+  patch: UpdateGameRulesInput,
+): Promise<GameRulesDetail> {
+  const access = await getActorForGame(gameId, deviceId);
+  if (!access) throw new AuthzError("not_in_game");
+  requireHost(access.actor);
+  if (access.game.status === "closed" || access.game.status === "cancelled") {
+    throw new AuthzError("game_not_active");
+  }
+
+  const [row] = await db
+    .update(games)
+    .set(patch)
+    .where(eq(games.id, gameId))
+    .returning({
+      id: games.id,
+      name: games.name,
+      location: games.location,
+      notes: games.notes,
+      buyIn: games.buyIn,
+      rebuyAmount: games.rebuyAmount,
+      plannedEndAt: games.plannedEndAt,
+      status: games.status,
+      createdByPersonId: games.createdByPersonId,
+    });
+
+  return {
+    ...row,
+    status: row.status as GameStatus,
+    plannedEndAt: row.plannedEndAt ? row.plannedEndAt.toISOString() : null,
+  };
+}
+
+export class GameDeleteError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "GameDeleteError";
+    this.status = status;
+  }
+}
+
+/**
+ * Permanently removes a closed/cancelled game from history — the creator only
+ * (plan item 3). Dependent rows go first, in the same `db.batch(...)` pattern as
+ * `createGame` above: the neon-http driver has no interactive transactions, so a
+ * single atomic batch is the only way to keep this all-or-nothing.
+ *
+ * `games.mismatch_player_id` points at one of this game's own players, so it is
+ * nulled out before the players are deleted — otherwise deleting a still-referenced
+ * player inside the same transaction would violate that foreign key.
+ */
+export async function deleteGame(gameId: string, deviceId: string): Promise<void> {
+  const [game] = await db
+    .select({
+      id: games.id,
+      status: games.status,
+      createdByPersonId: games.createdByPersonId,
+    })
+    .from(games)
+    .where(eq(games.id, gameId));
+  if (!game) throw new GameDeleteError("המשחק לא נמצא", 404);
+  if (game.status !== "closed" && game.status !== "cancelled") {
+    throw new GameDeleteError("אפשר למחוק רק משחק שהסתיים", 409);
+  }
+
+  const [requester] = await db
+    .select({ personId: players.personId })
+    .from(players)
+    .where(and(eq(players.gameId, gameId), eq(players.deviceId, deviceId)))
+    .limit(1);
+  if (
+    !game.createdByPersonId ||
+    !requester?.personId ||
+    requester.personId !== game.createdByPersonId
+  ) {
+    throw new GameDeleteError("רק מי שיצר את המשחק יכול למחוק אותו", 403);
+  }
+
+  const cashOutRows = await db
+    .select({ id: cashOuts.id })
+    .from(cashOuts)
+    .where(eq(cashOuts.gameId, gameId));
+  const cashOutIds = cashOutRows.map((row) => row.id);
+
+  const handRows = await db.select({ id: hands.id }).from(hands).where(eq(hands.gameId, gameId));
+  const handIds = handRows.map((row) => row.id);
+
+  await db.batch([
+    db.delete(cashOutChips).where(inArray(cashOutChips.cashOutId, cashOutIds)),
+    db.delete(buyIns).where(eq(buyIns.gameId, gameId)),
+    db.delete(cashOuts).where(eq(cashOuts.gameId, gameId)),
+    db.delete(transfers).where(eq(transfers.gameId, gameId)),
+    db.delete(handPlayers).where(inArray(handPlayers.handId, handIds)),
+    db.delete(hands).where(eq(hands.gameId, gameId)),
+    db.update(games).set({ mismatchPlayerId: null }).where(eq(games.id, gameId)),
+    db.delete(players).where(eq(players.gameId, gameId)),
+    db.delete(games).where(eq(games.id, gameId)),
+  ]);
 }

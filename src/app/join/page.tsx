@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
@@ -22,9 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { JoinGameDetail, JoinRosterPlayer } from "@/lib/api";
+import type { GameSummary, JoinGameDetail, JoinRosterPlayer } from "@/lib/api";
 import { AVATAR_KEYS } from "@/lib/avatar";
+import { useIdentity } from "@/lib/identity";
 import {
   isValidRoomCode,
   normalizeRoomCode,
@@ -34,6 +36,7 @@ import {
 export default function JoinPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const identity = useIdentity();
   const autoJoinStarted = useRef(false);
   const [code, setCode] = useState("");
   const [game, setGame] = useState<JoinGameDetail | null>(null);
@@ -46,6 +49,37 @@ export default function JoinPage() {
   const [addName, setAddName] = useState("");
   const [addNickname, setAddNickname] = useState("");
   const [adding, setAdding] = useState(false);
+
+  // No route code -> the code prompt itself may be unnecessary. This device may
+  // already have an open seat somewhere it has visited before.
+  const routeCode = useMemo(
+    () => (pathname.startsWith("/join/") ? pathname.slice("/join/".length) : ""),
+    [pathname],
+  );
+  const [fetchedActiveGame, setFetchedActiveGame] = useState<GameSummary | null | undefined>(undefined);
+  const [showCodeForm, setShowCodeForm] = useState(false);
+  // No identity, no history to check — falls straight through to the code form.
+  // `undefined` while identity itself is still hydrating, so the loading beat below
+  // only shows when there is something real to wait for.
+  const myActiveGame =
+    identity === undefined ? undefined : identity === null ? null : fetchedActiveGame;
+
+  useEffect(() => {
+    if (routeCode) return;
+    if (!identity) return;
+    let cancelled = false;
+    apiFetch<{ games: GameSummary[] }>("/api/games")
+      .then((data) => {
+        if (cancelled) return;
+        setFetchedActiveGame(data.games.find((item) => item.status === "active") ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedActiveGame(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [identity, routeCode]);
 
   const findGame = useCallback(async (rawCode = code) => {
     const normalized = normalizeRoomCode(rawCode);
@@ -73,12 +107,11 @@ export default function JoinPage() {
 
   useEffect(() => {
     if (autoJoinStarted.current) return;
-    const routeCode = pathname.startsWith("/join/") ? pathname.slice("/join/".length) : "";
     if (!routeCode) return;
     autoJoinStarted.current = true;
     const timeoutId = window.setTimeout(() => void findGame(routeCode), 0);
     return () => window.clearTimeout(timeoutId);
-  }, [findGame, pathname]);
+  }, [findGame, routeCode]);
 
   async function claim(player: JoinRosterPlayer, avatarKey: string, force = false) {
     if (!game) return;
@@ -160,6 +193,60 @@ export default function JoinPage() {
     } finally {
       setClaiming(null);
     }
+  }
+
+  // Fast path: this device already declared who it is and already has an open
+  // seat somewhere. Asking it to hunt for a code it never needed is friction the
+  // spec calls out explicitly, so return straight to the table instead.
+  if (!routeCode && !showCodeForm && myActiveGame) {
+    return (
+      <main className="flex flex-1 flex-col">
+        <AppHeader title="חוזרים לשולחן" subtitle="המקום שלכם עדיין פתוח" backHref="/" />
+        <div className="flex flex-1 flex-col justify-center gap-4 p-5 pb-8">
+          <Card className="border-ruby/35 bg-ruby/5 shadow-none" size="sm">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle>{myActiveGame.name ?? "משחק פעיל"}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 p-4 pt-2">
+              <p className="text-sm text-muted-foreground">
+                לא צריך קוד — המקום שלכם מחכה.
+              </p>
+              <Button
+                className="h-14 w-full rounded-2xl text-lg font-bold"
+                onClick={() => router.push(`/game/${myActiveGame.id}`)}
+              >
+                חזרה לשולחן
+              </Button>
+            </CardContent>
+          </Card>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-10 text-muted-foreground"
+            onClick={() => setShowCodeForm(true)}
+          >
+            יש לכם קוד לשולחן אחר?
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
+  // Still checking whether this device has an open seat — a beat of skeleton
+  // rather than flashing the code form and yanking it away a moment later.
+  if (!routeCode && !showCodeForm && myActiveGame === undefined) {
+    return (
+      <main className="flex flex-1 flex-col">
+        <AppHeader
+          title="נכנסים לערב"
+          subtitle="קוד החדר יוביל אתכם לשולחן"
+          backHref="/"
+        />
+        <div className="flex flex-1 flex-col gap-3 p-5 pb-8">
+          <Skeleton className="h-28 w-full rounded-2xl" />
+        </div>
+      </main>
+    );
   }
 
   return (

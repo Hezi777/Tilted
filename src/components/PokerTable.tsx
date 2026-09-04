@@ -21,6 +21,42 @@ function seatTierFor(count: number) {
   return SEAT_TIERS.find((tier) => count <= tier.max) ?? SEAT_TIERS[SEAT_TIERS.length - 1];
 }
 
+/**
+ * Slot 0..slots-1 for every player: physical `tableSeat` when chosen, otherwise the
+ * next free slot handed out in `seatOrder` — never reshuffling `seatOrder` itself,
+ * which the pot and settlement depend on (plan item 10).
+ */
+function assignSlots(players: LivePlayer[]): { player: LivePlayer; slot: number }[] {
+  const maxChosen = players.reduce(
+    (max, player) => (player.tableSeat !== null ? Math.max(max, player.tableSeat) : max),
+    -1,
+  );
+  const slots = Math.max(players.length, maxChosen + 1, 1);
+  const taken = new Set(
+    players.filter((player) => player.tableSeat !== null).map((player) => player.tableSeat as number),
+  );
+  const unchosen = players
+    .filter((player) => player.tableSeat === null)
+    .sort((a, b) => a.seatOrder - b.seatOrder);
+
+  const free: number[] = [];
+  for (let index = 0; index < slots && free.length < unchosen.length; index += 1) {
+    if (!taken.has(index)) free.push(index);
+  }
+
+  const assigned = new Map<string, number>();
+  for (const player of players) {
+    if (player.tableSeat !== null) assigned.set(player.id, player.tableSeat);
+  }
+  unchosen.forEach((player, index) => {
+    assigned.set(player.id, free[index] ?? index);
+  });
+
+  return players
+    .map((player) => ({ player, slot: assigned.get(player.id) ?? 0 }))
+    .sort((a, b) => a.slot - b.slot);
+}
+
 export function PokerTable({
   players,
   pot,
@@ -35,10 +71,10 @@ export function PokerTable({
   compact?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
-  const youIndex = players.findIndex((player) => player.isYou);
-  const ordered = youIndex > 0 ? [...players.slice(youIndex), ...players.slice(0, youIndex)] : players;
-  const count = ordered.length;
+  const count = players.length;
   const tier = seatTierFor(count);
+  const placed = assignSlots(players);
+  const slots = Math.max(count, 1);
 
   return (
     <motion.div
@@ -74,8 +110,8 @@ export function PokerTable({
         </div>
       </div>
 
-      {ordered.map((player, index) => {
-        const angle = 90 + (index * 360) / count;
+      {placed.map(({ player, slot }, index) => {
+        const angle = 90 + (slot * 360) / slots;
         const radians = (angle * Math.PI) / 180;
         const x = 50 + tier.rx * Math.cos(radians);
         const y = 50 + tier.ry * Math.sin(radians);
@@ -84,13 +120,13 @@ export function PokerTable({
         return (
           <div
             key={player.id}
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${x}%`, top: `${y}%` }}
+            className="absolute z-20"
+            style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)" }}
           >
             <motion.button
               type="button"
               onClick={onSeatSelect ? () => onSeatSelect(player) : undefined}
-              aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}`}
+              aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}${player.isYou ? ", המקום שלך" : ""}`}
               aria-pressed={onSeatSelect ? selected : undefined}
               initial={reduceMotion ? false : { opacity: 0, scale: 0.88 }}
               animate={{ opacity: player.isSettled ? 0.55 : 1, scale: selected ? 1.05 : 1 }}
@@ -116,7 +152,7 @@ export function PokerTable({
                   </span>
                 )}
               </div>
-              <span className={cn("max-w-full truncate font-bold text-felt-foreground drop-shadow-[0_1px_4px_rgb(6_37_27/0.95)]", tier.textClass)}>{player.name}</span>
+              <span className={cn("max-w-full truncate font-bold text-felt-foreground drop-shadow-[0_1px_4px_rgb(6_37_27/0.95)]", tier.textClass, player.isYou && "text-brand-200")}>{player.name}</span>
               <span className={cn("rounded-full bg-surface-2/92 px-1.5 py-0.5 font-semibold text-brand-300 backdrop-blur-sm", tier.textClass)}>
                 {player.isSettled ? "נסגר" : <Money value={player.totalIn} />}
               </span>
