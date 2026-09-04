@@ -1,10 +1,10 @@
 /**
  * Server-side queries for milestone 3: the regulars roster and new-game creation.
  *
- * Scoping without auth (see the build plan): with no login, the home history and the
- * regulars roster are scoped by `device_id` — games this device has a seat in, and the
- * People who played in one of those games. Otherwise one public deployment would show
- * every group's friends and games to everyone.
+ * Scoping without auth (see the build plan): with no login, the home history is scoped
+ * by `device_id` — games this device has a seat in. The People roster is deliberately
+ * not scoped: a device has to be able to pick its own name before it has ever played,
+ * which a device-scoped roster makes impossible.
  */
 
 import { randomUUID } from "node:crypto";
@@ -15,35 +15,16 @@ import { generateRoomCode } from "@/lib/codes";
 import { AVATAR_KEYS, avatarKeyForSeat } from "@/lib/avatar";
 import type { GameSummary, GameStatus, PersonSummary } from "@/lib/api";
 
-/** People who have played, on this device, in at least one game. Spec 5.2 / 5.7. */
-export async function getPeopleForDevice(
-  deviceId: string,
-): Promise<PersonSummary[]> {
-  const rows = await db
-    .selectDistinct({
+/** The whole roster, for the identity screen and the setup checklist. Spec 5.2 / 5.7. */
+export async function getPeople(): Promise<PersonSummary[]> {
+  return db
+    .select({
       id: people.id,
       name: people.name,
       nickname: people.nickname,
     })
     .from(people)
-    .innerJoin(players, eq(players.personId, people.id))
-    .where(
-      and(
-        isNull(players.deletedAt),
-        inArray(
-          players.gameId,
-          db
-            .select({ gameId: players.gameId })
-            .from(players)
-            .where(
-              and(eq(players.deviceId, deviceId), isNull(players.deletedAt)),
-            ),
-        ),
-      ),
-    )
     .orderBy(people.name);
-
-  return rows;
 }
 
 /** Creates a new Person — "הוסף אורח" (spec 5.2). */
@@ -182,35 +163,8 @@ export interface CreateGameInput {
   plannedEndAt: Date;
   /** The selected roster, in the order shown in the setup checklist. */
   personIds: string[];
-}
-
-/**
- * Whichever selected person this device has previously played as becomes host —
- * that is the one sane default with no explicit "who am I" field in the setup
- * screen (spec 5.2 lists no such field). A brand-new device, or one seated as none
- * of the selected people, defaults to the first person in the submitted roster.
- * A wrong guess is recoverable: any seat, host included, can be force-claimed later
- * (join flow, milestone 4).
- */
-async function resolveHostPersonId(
-  deviceId: string,
-  personIds: readonly string[],
-): Promise<string> {
-  const [existing] = await db
-    .select({ personId: players.personId })
-    .from(players)
-    .innerJoin(games, eq(games.id, players.gameId))
-    .where(
-      and(
-        eq(players.deviceId, deviceId),
-        isNull(players.deletedAt),
-        inArray(players.personId, personIds as string[]),
-      ),
-    )
-    .orderBy(desc(games.createdAt))
-    .limit(1);
-
-  return existing?.personId ?? personIds[0];
+  /** The Person the creating device declared itself to be. Must be in `personIds`. */
+  hostPersonId: string;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -254,17 +208,25 @@ export async function createGame(
     throw new Error("One or more selected players do not exist");
   }
 
-  const hostPersonId = await resolveHostPersonId(deviceId, input.personIds);
+  if (!input.personIds.includes(input.hostPersonId)) {
+    throw new Error("The host must be one of the selected players");
+  }
+  // The host always holds seat 0: they declared themselves before the table existed,
+  // and the live screen reads seat order as the seating around the felt.
+  const seatedPersonIds = [
+    input.hostPersonId,
+    ...input.personIds.filter((personId) => personId !== input.hostPersonId),
+  ];
   const name = input.name?.trim() || new Date().toLocaleDateString("he-IL");
 
   for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
     const gameId = randomUUID();
     const code = generateRoomCode();
 
-    const playerRows = input.personIds.map((personId, seatOrder) => {
+    const playerRows = seatedPersonIds.map((personId, seatOrder) => {
       const person = byId.get(personId);
       if (!person) throw new Error(`Unknown person id: ${personId}`);
-      const isHost = personId === hostPersonId;
+      const isHost = personId === input.hostPersonId;
       return {
         id: randomUUID(),
         gameId,

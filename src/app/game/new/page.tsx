@@ -24,6 +24,7 @@ import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
 import { AVATAR_KEYS, avatarKeyForPerson } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { shekelsToAgorot } from "@/lib/money";
+import { useIdentity } from "@/lib/identity";
 
 const BUY_IN_CHIPS = ["20", "30", "50", "100"] as const;
 type BuyInChoice = (typeof BUY_IN_CHIPS)[number] | "custom";
@@ -50,6 +51,8 @@ function exitTimeToIso(value: string): string {
 export default function NewGamePage() {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
+  const identity = useIdentity();
+  const hostPersonId = identity === undefined ? undefined : (identity?.id ?? null);
 
   const [name, setName] = useState(defaultGameName);
   const [exitTime, setExitTime] = useState(defaultExitTime);
@@ -70,6 +73,11 @@ export default function NewGamePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // No declared identity means no host, and the whole screen is meaningless.
+    if (hostPersonId === null) router.replace("/");
+  }, [hostPersonId, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +103,16 @@ export default function NewGamePage() {
 
   const rebuyShekels = rebuyDifferent ? Number(customRebuy) : buyInShekels;
 
+  // The host holds seat 0 and cannot sit this one out — they are the device writing.
+  const orderedPeople = useMemo(() => {
+    if (people === null) return null;
+    return [...people].sort((a, b) =>
+      a.id === hostPersonId ? -1 : b.id === hostPersonId ? 1 : 0,
+    );
+  }, [people, hostPersonId]);
+
   function toggleSelected(personId: string, checked: boolean) {
+    if (personId === hostPersonId) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (checked) next.add(personId);
@@ -127,6 +144,8 @@ export default function NewGamePage() {
 
   const canSubmit =
     people !== null &&
+    hostPersonId != null &&
+    selected.has(hostPersonId) &&
     selected.size > 0 &&
     selected.size <= AVATAR_KEYS.length &&
     Number.isFinite(buyInShekels) &&
@@ -137,7 +156,9 @@ export default function NewGamePage() {
   const disabledReason =
     people === null
       ? null
-      : selected.size === 0
+      : hostPersonId != null && !selected.has(hostPersonId)
+        ? "השם שבחרתם לא נמצא ברשימה — בחרו אותו מחדש במסך הבית"
+        : selected.size === 0
         ? "בחרו לפחות שחקן אחד כדי להתחיל"
         : selected.size > AVATAR_KEYS.length
           ? `אפשר להושיב עד ${AVATAR_KEYS.length} שחקנים בשולחן`
@@ -148,7 +169,7 @@ export default function NewGamePage() {
             : null;
 
   async function handleSubmit() {
-    if (!canSubmit) return;
+    if (!canSubmit || hostPersonId == null) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -162,6 +183,7 @@ export default function NewGamePage() {
           rebuyAmount,
           plannedEndAt: exitTimeToIso(exitTime),
           personIds: Array.from(selected),
+          hostPersonId,
         }),
       });
       router.push(`/game/${id}`);
@@ -311,11 +333,12 @@ export default function NewGamePage() {
         )}
 
         <ul className="flex flex-col gap-3">
-          {people?.map((person) => (
+          {orderedPeople?.map((person) => (
             <li key={person.id}>
               <motion.button
                 type="button"
                 aria-pressed={selected.has(person.id)}
+                disabled={person.id === hostPersonId}
                 whileTap={reduceMotion ? undefined : { scale: 0.985 }}
                 transition={{ duration: 0.12 }}
                 onClick={() => toggleSelected(person.id, !selected.has(person.id))}
@@ -333,6 +356,9 @@ export default function NewGamePage() {
                 <span className="min-w-0 font-semibold">
                   {person.name}
                   {person.nickname && <span className="text-muted-foreground font-normal"> ({person.nickname})</span>}
+                  {person.id === hostPersonId && (
+                    <span className="text-brand-300 font-normal"> · אתה</span>
+                  )}
                 </span>
                 {selected.has(person.id) && (
                   <span className="absolute end-3 top-3 grid size-5 place-items-center rounded-full bg-brand-500 text-primary-foreground">

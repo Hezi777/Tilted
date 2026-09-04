@@ -11,6 +11,7 @@ const createGameSchema = z.object({
   rebuyAmount: z.number().int().positive().max(MAX_AGOROT),
   plannedEndAt: z.string().datetime(),
   personIds: z.array(z.string().uuid()).min(1).max(AVATAR_KEYS.length),
+  hostPersonId: z.string().uuid(),
 });
 
 function requireDeviceId(request: NextRequest): string | NextResponse {

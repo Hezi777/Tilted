@@ -11,10 +11,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Money } from "@/components/Money";
+import { IdentityGate } from "@/components/IdentityGate";
+import { clearIdentity, useIdentity } from "@/lib/identity";
 import { apiFetch, ApiError, type GameSummary } from "@/lib/api";
 
 export default function Home() {
+  return (
+    <IdentityGate>
+      <HomeScreen />
+    </IdentityGate>
+  );
+}
+
+function HomeScreen() {
   const reduceMotion = useReducedMotion();
+  const myName = useIdentity()?.name ?? "";
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<GameSummary | null>(null);
@@ -88,6 +99,15 @@ export default function Home() {
           <Button asChild variant="ghost" className="h-10 text-muted-foreground hover:text-foreground">
             <Link href="/join">יש קוד חדר? <span className="text-brand-300">מצטרפים למשחק</span></Link>
           </Button>
+          {myName && (
+            <button
+              type="button"
+              className="h-8 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => clearIdentity()}
+            >
+              משחקים בתור <span className="font-semibold text-foreground">{myName}</span> · לא אתה?
+            </button>
+          )}
         </div>
 
         {activeGame && (

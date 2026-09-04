@@ -74,10 +74,10 @@
   --surface-2: #1c1618;
   --surface-3: #251d20;
   --surface-4: #2e2528;
-  --brand-300: #e8556b;
-  --brand-500: #c21e3a;
-  --brand-700: #8a1128;
-  --brand-900: #4a0917;
+  --brand-300: #d2515a;
+  --brand-500: #8e1631;
+  --brand-700: #5c0e21;
+  --brand-900: #2e0713;
   --felt-highlight: #1a6b4e;
   --felt-base: #0f4a36;
   --felt-shadow: #06251b;
@@ -93,7 +93,7 @@
   --text-disabled: #4e4340;
   --edge-hairline: rgb(255 255 255 / 7%);
   --edge-specular: rgb(255 255 255 / 14%);
-  --edge-accent: rgb(194 30 58 / 45%);
+  --edge-accent: rgb(142 22 49 / 45%);
   --background: var(--surface-0);
   --foreground: var(--text-1);
   --card: var(--surface-2);
@@ -149,12 +149,12 @@
     @apply bg-background text-foreground;
     min-height: 100dvh;
     background:
-      radial-gradient(circle at 50% -10%, rgb(74 9 23 / 36%), transparent 32rem),
+      radial-gradient(circle at 50% -10%, rgb(46 7 19 / 42%), transparent 32rem),
       var(--surface-0);
   }
 
   ::selection {
-    background: rgb(194 30 58 / 42%);
+    background: rgb(142 22 49 / 55%);
     color: var(--text-1);
   }
 
@@ -271,19 +271,19 @@
 
   .accent-rim {
     border-color: var(--edge-accent);
-    border-block-start-color: rgb(248 196 204 / 38%);
-    box-shadow: 0 18px 44px -28px rgb(194 30 58 / 28%);
+    border-block-start-color: rgb(226 178 186 / 30%);
+    box-shadow: 0 18px 44px -28px rgb(142 22 49 / 32%);
   }
 
   .chip-raise {
     box-shadow:
-      0 10px 24px -15px rgb(194 30 58 / 58%),
+      0 10px 24px -15px rgb(142 22 49 / 62%),
       inset 0 1px 0 rgb(255 255 255 / 28%);
   }
 
   .foil {
     color: var(--brand-300);
-    text-shadow: 0 0 22px rgb(194 30 58 / 25%);
+    text-shadow: 0 0 22px rgb(142 22 49 / 30%);
   }
 
   .row-list > * + * { border-block-start: 1px solid var(--edge-hairline); }

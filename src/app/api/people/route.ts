@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { createPerson, getPeopleForDevice } from "@/db/queries";
+import { createPerson, getPeople } from "@/db/queries";
 import type { ApiErrorBody } from "@/lib/api";
 
 const createPersonSchema = z.object({
@@ -19,12 +19,12 @@ function requireDeviceId(request: NextRequest): string | NextResponse {
   return deviceId;
 }
 
-/** The regulars roster for this device. Spec 5.2. */
+/** The whole regulars roster — every device picks its own name off it. Spec 5.2. */
 export async function GET(request: NextRequest) {
   const deviceId = requireDeviceId(request);
   if (deviceId instanceof NextResponse) return deviceId;
 
-  const people = await getPeopleForDevice(deviceId);
+  const people = await getPeople();
   return NextResponse.json({ people });
 }
 
