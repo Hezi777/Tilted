@@ -20,6 +20,11 @@ resolution is recorded in the approved build plan at
 `~/.claude/plans/read-docs-spec-md-it-is-tingly-kazoo.md`. Where the two disagree, the plan
 wins — it is the spec with its conflicts already settled. Do not silently resolve a new one.
 
+**`docs/design-system.md` is the source of truth for presentation and motion.** It overrides
+older visual, typography, art-direction, and animation notes in the product spec and build
+plan. The product spec still owns behavior and data unless the design system explicitly says
+otherwise.
+
 ## Stack
 
 Next.js 16 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui (Radix primitives,
@@ -67,14 +72,12 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
   `text-start`/`text-end`. ESLint fails the build on `ml-`, `pr-`, `text-left` and friends.
 - **Hebrew UI, English code.** Every user-facing string is Hebrew; every identifier,
   comment and commit message is English.
-- **shadcn for every component**, and animation comes from Radix `data-state`, which those
-  primitives already wire up. Never add an animation library — `framer-motion` in
-  particular is prohibited.
-- **Felt is a surface, not an ink.** The app is dark: felt ground, cream text, gold
+- **shadcn for every control and overlay.** Use Motion for purposeful interaction and staged
+  sequences; keep Radix `data-state` animation for the primitives that already expose it.
+  Every motion path must respect `prefers-reduced-motion`.
+- **Felt is a surface, not an ink.** The app is dark: felt ground, cream text, oxblood-red
   actions. `text-felt` on a card or the background measures about 1.4:1 and is
-  invisible — it is only ever correct on gold. Text on the felt band uses
-  `text-felt-foreground`, never `text-primary-foreground`, which is the dark ink for
-  gold buttons. This has now caused two separate rounds of unreadable screens.
+  invisible. Text on the felt band uses `text-felt-foreground`, never a dark button ink.
 - **Never mix a logical inset with a physical transform.** `insetInlineStart` flips
   under `dir="rtl"` and `translate-x` does not, so together they mirror an element away
   from where the maths put it. This shipped a table with seats rendered outside their

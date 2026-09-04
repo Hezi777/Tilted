@@ -1,7 +1,7 @@
 "use client";
 
 import type { LiveFeedItem } from "@/db/live-queries";
-import { formatILS, agorot } from "@/lib/money";
+import { Money } from "@/components/Money";
 
 function ago(value: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
@@ -23,7 +23,10 @@ export function LiveFeed({ items, showTitle = true }: { items: readonly LiveFeed
           {items.slice(0, 6).map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 border-b border-foreground/8 px-1 py-3 text-sm last:border-b-0">
               <span>{item.playerName} {item.kind === "initial" ? "נכנס" : "הוסיף ריביי"}</span>
-              <span className="text-muted-foreground tabular text-xs">{formatILS(agorot(item.amount))} · {ago(item.createdAt)}</span>
+              <span className="flex flex-col items-end text-xs text-muted-foreground">
+                <Money value={item.amount} />
+                <span>{ago(item.createdAt)}</span>
+              </span>
             </li>
           ))}
         </ul>

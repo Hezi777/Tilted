@@ -52,6 +52,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     if (!customPlayer) return;
     try {
       const amount = shekelsToAgorot(Number(customAmount));
+      navigator.vibrate?.(8);
       addRebuy(customPlayer.id, amount);
       setCustomPlayer(null);
       setCustomAmount("");
@@ -188,24 +189,24 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     <main className="flex h-[100dvh] flex-1 flex-col gap-2 overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
       <AppHeader
         title={game.name ?? "משחק"}
-        subtitle={`${game.players.length} שחקנים · ${elapsed(game.startedAt)}`}
+        subtitle={`התחיל לפני ${elapsed(game.startedAt)}`}
         backHref="/"
         backLabel="לדף הבית"
         action={
-          <Button type="button" variant="outline" onClick={copyCode} className="flex h-11 items-center gap-1 border-ruby/25 bg-black/25 px-3 text-sm font-semibold" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr">{game.code}</span></Button>
+          <Button type="button" variant="outline" onClick={copyCode} className="flex h-11 items-center gap-1 border-brand-500/25 bg-surface-2/75 px-3 text-sm font-semibold" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money">{game.code}</span></Button>
         }
       />
 
-      <div className="mx-5 flex h-11 shrink-0 items-center justify-between gap-2 rounded-xl border border-foreground/10 bg-black/28 px-3">
+      <div className="mx-5 flex h-11 shrink-0 items-center justify-between gap-2 rounded-[14px] border border-foreground/7 border-t-foreground/14 bg-surface-2 px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Clock3Icon aria-hidden="true" className="size-4 shrink-0 text-ruby-bright" />
+          <Clock3Icon aria-hidden="true" className="size-4 shrink-0 text-brand-300" />
           <span className="text-[11px] text-muted-foreground">שעת יציאה</span>
           <time className="tabular text-sm font-bold" dateTime={game.plannedEndAt}>
             {new Date(game.plannedEndAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
           </time>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {game.isHost && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px] text-ruby-bright" onClick={() => void extendTime()}>+30 דק׳</Button>}
+          {game.isHost && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px] text-brand-300" onClick={() => void extendTime()}>+30 דק׳</Button>}
           {you && !you.isSettled && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setEarlyExitOpen(true)}>יציאה מוקדמת</Button>}
         </div>
       </div>
@@ -229,8 +230,8 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       </section>
 
       {game.players.length === 1 && (
-        <p className="text-muted-foreground mx-5 rounded-xl border border-dashed border-ruby/30 bg-ruby/5 px-4 py-3 text-center text-sm">
-          אתם לבד כרגע · שתפו את קוד החדר <span className="text-ruby-bright font-bold">{game.code}</span> כדי שחברים יצטרפו
+        <p className="text-muted-foreground mx-5 rounded-[20px] border border-dashed border-brand-500/30 bg-surface-1 px-4 py-3 text-center text-sm">
+          אתם לבד כרגע. שתפו את קוד החדר <span className="money font-bold text-brand-300">{game.code}</span> כדי שחברים יצטרפו.
         </p>
       )}
 
@@ -256,18 +257,18 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             onClick={() => addRebuy(you.id, game.rebuyAmount)}
             className="h-16 flex-1 rounded-xl"
           />
-          <Button type="button" variant="outline" onClick={() => setCustomPlayer(you)} className="h-16 w-24 shrink-0 flex-col gap-0.5 rounded-xl border-ruby/25 px-2 leading-none">
+          <Button type="button" variant="outline" onClick={() => setCustomPlayer(you)} className="h-16 w-24 shrink-0 flex-col gap-0.5 border-brand-500/25 px-2 leading-none">
             <span className="text-[11px] text-muted-foreground">ריביי</span>
             <span className="text-sm font-bold">סכום אחר</span>
           </Button>
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 border-t border-ruby/15 bg-[rgb(10_3_6/0.9)] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-18px_44px_-24px_rgb(0_0_0/0.95)] backdrop-blur-xl" aria-label="פעולות מארח">
-        {game.isHost && <Button type="button" variant="secondary" className="h-12 flex-1 rounded-xl px-2 text-xs" onClick={() => setAddPlayerOpen(true)}><PlusIcon /> שחקן</Button>}
-        <Button type="button" variant="outline" className="h-12 flex-1 rounded-xl border-ruby/25 px-2 text-xs" onClick={() => void shareInvite()}><Share2Icon /> הזמנה</Button>
-        <Button type="button" variant="outline" className="h-12 flex-1 rounded-xl border-ruby/25 px-2 text-xs" onClick={() => setHistoryOpen(true)}><HistoryIcon /> היסטוריה</Button>
-        {game.isHost && <Button asChild type="button" className="h-12 flex-1 rounded-xl px-2 text-xs"><Link href={`/game/${gameId}/cashout`}>סגירת קופה</Link></Button>}
+      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 border-t border-foreground/10 bg-surface-4/92 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-18px_44px_-24px_rgb(4_2_3/0.95)] backdrop-blur-xl" aria-label="פעולות מארח">
+        {game.isHost && <Button type="button" variant="secondary" className="h-12 flex-1 px-2 text-xs" onClick={() => setAddPlayerOpen(true)}><PlusIcon /> שחקן</Button>}
+        <Button type="button" variant="outline" className="h-12 flex-1 border-foreground/12 px-2 text-xs" onClick={() => void shareInvite()}><Share2Icon /> הזמנה</Button>
+        <Button type="button" variant="outline" className="h-12 flex-1 border-foreground/12 px-2 text-xs" onClick={() => setHistoryOpen(true)}><HistoryIcon /> היסטוריה</Button>
+        {game.isHost && <Button asChild type="button" className="h-12 flex-1 px-2 text-xs"><Link href={`/game/${gameId}/cashout`}>סגירת קופה</Link></Button>}
       </nav>
 
       <Dialog open={focusedPlayer !== null} onOpenChange={(open) => !open && setFocusedPlayerId(null)}>

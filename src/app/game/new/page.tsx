@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { CheckIcon } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ChipAvatar } from "@/components/ChipAvatar";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
-import { AVATAR_KEYS } from "@/lib/avatar";
+import { AVATAR_KEYS, avatarKeyForPerson } from "@/lib/avatar";
+import { cn } from "@/lib/utils";
 import { shekelsToAgorot } from "@/lib/money";
 
 const BUY_IN_CHIPS = ["20", "30", "50", "100"] as const;
@@ -45,6 +49,7 @@ function exitTimeToIso(value: string): string {
 /** New game setup. Spec 5.2. */
 export default function NewGamePage() {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
 
   const [name, setName] = useState(defaultGameName);
   const [exitTime, setExitTime] = useState(defaultExitTime);
@@ -206,15 +211,22 @@ export default function NewGamePage() {
             if (value) setBuyInChoice(value as BuyInChoice);
           }}
           variant="outline"
-          className="w-full rounded-xl bg-muted/50 p-1"
+          className="w-full gap-2 rounded-[20px] bg-surface-1 p-2"
         >
           {BUY_IN_CHIPS.map((chip) => (
-            <ToggleGroupItem key={chip} value={chip} className="h-12 flex-1">
-              ₪{chip}
+            <ToggleGroupItem
+              key={chip}
+              value={chip}
+              aria-label={`₪${chip}`}
+              className="relative aspect-square h-auto flex-1 overflow-hidden rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(194_30_58/0.55)]"
+            >
+              <Image src={`/art/buyin-${chip}.webp`} alt="" fill sizes="84px" className="object-cover" />
+              <span className="sr-only">₪{chip}</span>
             </ToggleGroupItem>
           ))}
-          <ToggleGroupItem value="custom" className="h-12 flex-1">
-            אחר
+          <ToggleGroupItem value="custom" aria-label="סכום אחר" className="relative aspect-square h-auto flex-1 overflow-hidden rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(194_30_58/0.55)]">
+            <Image src="/art/buyin-custom.webp" alt="" fill sizes="84px" className="object-cover" />
+            <span className="sr-only">סכום אחר</span>
           </ToggleGroupItem>
         </ToggleGroup>
         {buyInChoice === "custom" && (
@@ -298,23 +310,36 @@ export default function NewGamePage() {
           </div>
         )}
 
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-3">
           {people?.map((person) => (
             <li key={person.id}>
-              <Label className="flex min-h-14 items-center gap-3 rounded-xl border border-foreground/10 bg-card/85 px-4 shadow-[0_8px_20px_-16px_rgb(0_0_0/0.9)]">
-                <Checkbox
-                  checked={selected.has(person.id)}
-                  onCheckedChange={(checked) =>
-                    toggleSelected(person.id, checked === true)
-                  }
+              <motion.button
+                type="button"
+                aria-pressed={selected.has(person.id)}
+                whileTap={reduceMotion ? undefined : { scale: 0.985 }}
+                transition={{ duration: 0.12 }}
+                onClick={() => toggleSelected(person.id, !selected.has(person.id))}
+                className={cn(
+                  "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] border border-foreground/7 border-t-foreground/14 bg-surface-2 px-4 text-start transition-[background-color,border-color] duration-[var(--dur-base)] focus-visible:ring-3 focus-visible:ring-ring/40",
+                  selected.has(person.id) && "border-brand-500/45 border-t-brand-300/35 bg-surface-3",
+                )}
+              >
+                <ChipAvatar
+                  avatarKey={avatarKeyForPerson(person.id)}
+                  personId={person.id}
+                  name={person.name}
+                  className={cn("size-12 transition-opacity duration-[var(--dur-base)]", selected.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
                 />
-                <span>
+                <span className="min-w-0 font-semibold">
                   {person.name}
-                  {person.nickname && (
-                    <span className="text-muted-foreground"> ({person.nickname})</span>
-                  )}
+                  {person.nickname && <span className="text-muted-foreground font-normal"> ({person.nickname})</span>}
                 </span>
-              </Label>
+                {selected.has(person.id) && (
+                  <span className="absolute end-3 top-3 grid size-5 place-items-center rounded-full bg-brand-500 text-primary-foreground">
+                    <CheckIcon aria-hidden="true" className="size-3.5" />
+                  </span>
+                )}
+              </motion.button>
             </li>
           ))}
         </ul>

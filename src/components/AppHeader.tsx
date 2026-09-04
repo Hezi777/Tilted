@@ -23,7 +23,7 @@ export function AppHeader({
         <Link
           href={backHref}
           aria-label={backLabel}
-          className="ink-2 hover:text-foreground -ms-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold transition-colors"
+          className="ink-2 hover:text-foreground -ms-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-[14px] px-2 text-sm font-medium transition-colors"
         >
           <ChevronLeftIcon aria-hidden="true" className="size-4 rtl:rotate-180" />
           {backLabel}
@@ -32,9 +32,9 @@ export function AppHeader({
 
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="t-display truncate text-[2rem]">{title}</h1>
+          <h1 className="t-display truncate">{title}</h1>
           {subtitle ? (
-            <div className="t-body ink-2 mt-1.5">{subtitle}</div>
+            <div className="t-caption ink-3 mt-1">{subtitle}</div>
           ) : null}
         </div>
         {action ? <div className="shrink-0 pb-1">{action}</div> : null}

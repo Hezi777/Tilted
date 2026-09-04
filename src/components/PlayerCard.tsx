@@ -6,8 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { RebuyButton } from "@/components/RebuyButton";
+import { Money } from "@/components/Money";
 import type { LivePlayer } from "@/db/live-queries";
-import { agorot, formatILS } from "@/lib/money";
 
 export function PlayerCard({
   player,
@@ -30,18 +30,18 @@ export function PlayerCard({
 }) {
   const showMenu = player.isYou || canManage;
   return (
-    <Card className={player.isYou ? "border-ruby/55 bg-ruby/7 shadow-[0_12px_30px_-20px_rgb(220_25_45/0.7)] ring-1 ring-ruby/35" : "border-foreground/10 bg-card/85 shadow-none"}>
+    <Card className={player.isYou ? "accent-rim bg-surface-3" : "bg-surface-2"}>
       <CardContent className="flex items-center gap-3 p-4">
         <ChipAvatar avatarKey={player.avatarKey} personId={player.personId} name={player.name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate font-bold">{player.name}</p>
-            {player.isYou && <span className="rounded-full bg-ruby/15 px-2 py-0.5 text-xs text-ruby-bright">אתה</span>}
+            {player.isYou && <span className="rounded-full bg-brand-500/14 px-2 py-0.5 text-xs text-brand-300">אתה</span>}
             {player.isHost && <span className="text-muted-foreground text-xs">מארח</span>}
           </div>
           <div className="mt-1 flex items-center gap-2">
-            <span className="tabular text-lg font-semibold">{formatILS(agorot(player.totalIn))}</span>
-            <span className="rounded-full bg-ruby/16 px-2 py-0.5 text-xs font-bold text-ruby-bright">x{player.buyInCount}</span>
+            <Money value={player.totalIn} className="text-lg font-semibold" />
+            <span className="rounded-full bg-brand-500/14 px-2 py-0.5 text-xs font-bold text-brand-300">x{player.buyInCount}</span>
             {player.isSettled && <span className="text-muted-foreground text-xs">נסגר</span>}
           </div>
         </div>

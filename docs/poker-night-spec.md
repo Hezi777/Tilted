@@ -254,7 +254,7 @@ Constraints the prompts must enforce, whatever their final wording:
 
 - **Next.js (App Router) + TypeScript**, deployed on Vercel.
 - **Tailwind + shadcn/ui** for every component. Do not hand-roll buttons, dialogs, inputs or toasts - install the shadcn primitives and style those. RTL enabled (`dir="rtl"` on `<html>`, Tailwind logical properties only, never `ml-`/`mr-`).
-- **Typography**: Assistant (Google Fonts) for Hebrew, Satoshi (Fontshare) for Latin and all numerals. Set them as a single font stack with Satoshi first so digits and currency render in Satoshi and Hebrew falls through to Assistant. Load Satoshi from the Fontshare CSS API rather than self-hosting the files - Satoshi is free for commercial use under the ITF Free Font License, but that license does not permit self-hosting the webfont without written consent. Assistant loads normally through `next/font/google`.
+- **Typography and motion**: `docs/design-system.md` owns the current type system and motion behavior. Fonts are self-hosted at build time through `next/font/google`; purposeful motion uses Motion, and the settlement celebration uses a custom chip burst. All motion respects `prefers-reduced-motion`.
 - **Neon (serverless Postgres) + Drizzle ORM** from day one, even though V1 is single-device. See section 10 for why this matters.
 - **PWA**: manifest + icon so it installs to the home screen. No offline requirement in V1 beyond React state surviving a refresh.
 

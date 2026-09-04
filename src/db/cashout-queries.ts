@@ -31,9 +31,11 @@ import {
 export interface CashoutPlayer {
   id: string;
   name: string;
+  avatarKey: string | null;
   seatOrder: number;
   settledAt: string | null;
   totalIn: number;
+  buyInCount: number;
   cashOut: number | null;
   adjustment: number;
 }
@@ -42,6 +44,8 @@ export interface CashoutState {
   id: string;
   name: string | null;
   status: "active" | "settling" | "closed" | "cancelled";
+  createdAt: string;
+  closedAt: string | null;
   pot: number;
   counted: number;
   difference: number;
@@ -55,6 +59,8 @@ interface GameRow {
   id: string;
   name: string | null;
   status: CashoutState["status"];
+  createdAt: Date;
+  closedAt: Date | null;
   mismatchKind: CashoutState["mismatchKind"];
   mismatchAmount: number | null;
   mismatchPlayerId: string | null;
@@ -81,6 +87,8 @@ async function getGameRow(gameId: string): Promise<GameRow | null> {
       id: games.id,
       name: games.name,
       status: games.status,
+      createdAt: games.createdAt,
+      closedAt: games.closedAt,
       mismatchKind: games.mismatchKind,
       mismatchAmount: games.mismatchAmount,
       mismatchPlayerId: games.mismatchPlayerId,
@@ -136,6 +144,7 @@ export async function getCashoutState(
     .select({
       id: players.id,
       name: players.name,
+      avatarKey: players.avatarKey,
       seatOrder: players.seatOrder,
       settledAt: players.settledAt,
       cashOut: cashOuts.amount,
@@ -156,20 +165,23 @@ export async function getCashoutState(
     .select({
       playerId: buyIns.playerId,
       totalIn: sql<number>`coalesce(sum(${buyIns.amount}), 0)`,
+      buyInCount: sql<number>`count(${buyIns.id})`,
     })
     .from(buyIns)
     .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
     .groupBy(buyIns.playerId);
   const totals = new Map(
-    buyInRows.map((row) => [row.playerId, Number(row.totalIn)]),
+    buyInRows.map((row) => [row.playerId, { totalIn: Number(row.totalIn), buyInCount: Number(row.buyInCount) }]),
   );
 
   const resultPlayers: CashoutPlayer[] = playerRows.map((row) => ({
     id: row.id,
     name: row.name,
+    avatarKey: row.avatarKey,
     seatOrder: row.seatOrder,
     settledAt: row.settledAt?.toISOString() ?? null,
-    totalIn: totals.get(row.id) ?? 0,
+    totalIn: totals.get(row.id)?.totalIn ?? 0,
+    buyInCount: totals.get(row.id)?.buyInCount ?? 0,
     cashOut: row.cashOut === null ? null : Number(row.cashOut),
     adjustment: Number(row.adjustment ?? 0),
   }));
@@ -179,6 +191,8 @@ export async function getCashoutState(
     id: game.id,
     name: game.name,
     status: game.status,
+    createdAt: game.createdAt.toISOString(),
+    closedAt: game.closedAt?.toISOString() ?? null,
     pot: Number(potTotal(ledgers)),
     counted: Number(countedTotal(ledgers)),
     difference: mismatchDelta(ledgers),

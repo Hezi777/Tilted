@@ -12,7 +12,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-2xl border border-foreground/8 bg-[linear-gradient(145deg,rgb(43_17_21/0.86),rgb(17_7_10/0.96))] py-(--card-spacing) text-sm text-card-foreground shadow-[0_18px_45px_-30px_rgb(0_0_0/0.95),inset_0_1px_rgb(255_255_255/0.05)] [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-2xl *:[img:last-child]:rounded-b-2xl",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[20px] border border-foreground/7 border-t-foreground/14 bg-surface-2 py-(--card-spacing) text-sm text-card-foreground shadow-[0_18px_44px_-34px_rgb(4_2_3/0.94)] [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-[20px] *:[img:last-child]:rounded-b-[20px]",
         className
       )}
       {...props}
@@ -38,7 +38,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",
+        "text-lg leading-6 font-semibold group-data-[size=sm]/card:text-base",
         className
       )}
       {...props}

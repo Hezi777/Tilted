@@ -15,8 +15,10 @@ export type SettlementOutcome = "winner" | "loser" | "even";
 export interface SettlementPlayer {
   id: string;
   name: string;
+  avatarKey?: string | null;
   seatOrder: number;
   totalIn: number;
+  buyInCount?: number;
   cashOut: number;
   adjustment: number;
   net: number;
@@ -35,6 +37,8 @@ export interface SettlementState {
   id: string;
   name: string | null;
   status: CashoutState["status"];
+  createdAt: string;
+  closedAt: string | null;
   pot: number;
   players: SettlementPlayer[];
   transfers: SettlementTransfer[];
@@ -95,8 +99,10 @@ export async function getSettlementState(
     .map((net) => ({
       id: net.playerId,
       name: playersById.get(net.playerId)?.name ?? "",
+      avatarKey: playersById.get(net.playerId)?.avatarKey ?? null,
       seatOrder: net.seatOrder,
       totalIn: playersById.get(net.playerId)?.totalIn ?? 0,
+      buyInCount: playersById.get(net.playerId)?.buyInCount ?? 0,
       cashOut: playersById.get(net.playerId)?.cashOut ?? 0,
       adjustment: playersById.get(net.playerId)?.adjustment ?? 0,
       net: net.net,
@@ -120,6 +126,8 @@ export async function getSettlementState(
     id: state.id,
     name: state.name,
     status: state.status,
+    createdAt: state.createdAt,
+    closedAt: state.closedAt,
     pot: state.pot,
     players,
     transfers: displayTransfers,

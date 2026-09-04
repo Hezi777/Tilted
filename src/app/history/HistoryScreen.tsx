@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeftIcon, CrownIcon } from "lucide-react";
 import type { HistoryState } from "@/db/history-queries";
 import { apiFetch, ApiError } from "@/lib/api";
-import { agorot, formatILS, formatSignedILS } from "@/lib/money";
 import { AppHeader } from "@/components/AppHeader";
-import { Badge } from "@/components/ui/badge";
+import { ChipAvatar } from "@/components/ChipAvatar";
+import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +23,14 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
   const [state, setState] = useState<HistoryState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const winner = useMemo(
+    () => state?.players.find((player) => player.outcome === "winner"),
+    [state],
+  );
+  const playersById = useMemo(
+    () => new Map(state?.players.map((player) => [player.id, player]) ?? []),
+    [state],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +44,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
     <main className="flex flex-1 flex-col">
       <AppHeader
         title="הערב במספרים"
-        subtitle={state ? `${date(state.closedAt)} · ${state.players.length} שחקנים` : "המאזן שנשמר מהערב"}
+        subtitle={state ? date(state.closedAt) : "המאזן שנשמר מהערב"}
         backHref="/"
       />
       <div className="flex flex-1 flex-col gap-4 p-4">
@@ -57,10 +66,70 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
           </div>
         )}
         {state && <>
-          <Card className="border-ruby/50 bg-ruby/10"><CardContent className="flex items-center justify-between gap-3 p-4"><div><p className="text-muted-foreground text-sm">קופה</p><p className="tabular text-3xl font-black">{formatILS(agorot(state.pot))}</p></div><Badge variant="secondary">משחק סגור</Badge></CardContent></Card>
-          <Card><CardHeader><CardTitle>המאזן הסופי</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">{state.players.map((player) => <div key={player.id} className="flex min-h-12 items-center justify-between gap-3 rounded-lg border px-3 py-2"><span className="font-medium">{player.name}</span><span className={player.outcome === "winner" ? "font-bold text-chart-1" : player.outcome === "loser" ? "font-bold text-destructive" : "text-muted-foreground"}>{formatSignedILS(agorot(player.net))}</span></div>)}</CardContent></Card>
-          {state.transfers.length > 0 && <Card><CardHeader><CardTitle>מי העביר למי</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">{state.transfers.map((transfer) => <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-12 items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2"><span>{transfer.fromName} ➜ {transfer.toName}</span><span className="font-bold">{formatILS(agorot(transfer.amount))}</span></div>)}</CardContent></Card>}
-          <Card><CardHeader><CardTitle>מהלך הריבאיים</CardTitle></CardHeader><CardContent>{state.timeline.length === 0 ? <p className="text-muted-foreground text-sm">לא היו ריבאיים</p> : <ul className="flex flex-col gap-2">{state.timeline.map((item) => <li key={item.id} className="flex min-h-12 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"><span>{item.playerName} הוסיף ריביי{item.deletedAt && <span className="text-muted-foreground"> · בוטל</span>}</span><span className="tabular text-end">{formatILS(agorot(item.amount))}<br /><span className="text-muted-foreground text-xs">{time(item.createdAt)}</span></span></li>)}</ul>}</CardContent></Card>
+          <Card className="felt-panel border-brand-900/65 text-felt-foreground">
+            <CardContent className="flex items-center justify-between gap-3">
+              <div><p className="text-sm text-felt-foreground-muted">הקופה</p><Money value={state.pot} className="mt-1 text-4xl font-semibold" /></div>
+              <span className="rounded-full border border-felt-foreground/15 bg-felt-deep/45 px-3 py-1 text-xs text-felt-foreground-muted">{state.players.length} שחקנים</span>
+            </CardContent>
+          </Card>
+          {winner && (
+            <Card className="accent-rim">
+              <CardContent className="flex items-center gap-4">
+                <div className="relative">
+                  <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-16" />
+                  <CrownIcon className="absolute -top-3 -end-2 size-6 fill-brand-500 text-brand-300" />
+                </div>
+                <div><p className="text-sm text-muted-foreground">בראש הערימה</p><p className="text-xl font-bold">{winner.name}</p></div>
+                <Money value={winner.net} signed className="ms-auto text-xl font-bold text-profit" />
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader><CardTitle>המאזן הסופי</CardTitle></CardHeader>
+            <CardContent className="flex flex-col">
+              {state.players.map((player) => (
+                <div key={player.id} className="flex min-h-14 items-center gap-3 border-b border-foreground/8 py-2 last:border-b-0">
+                  <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
+                  <span className="font-medium">{player.name}</span>
+                  <Money value={player.net} signed className={player.outcome === "winner" ? "ms-auto font-bold text-profit" : player.outcome === "loser" ? "ms-auto font-bold text-loss" : "ms-auto text-even"} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          {state.transfers.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>מי העביר למי</CardTitle></CardHeader>
+              <CardContent className="flex flex-col">
+                {state.transfers.map((transfer) => (
+                  <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-14 items-center gap-2 border-b border-foreground/8 py-2 last:border-b-0">
+                    <span>{transfer.fromName}</span>
+                    <span className="flex flex-1 items-center gap-1 text-brand-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></span>
+                    <span>{transfer.toName}</span>
+                    <Money value={transfer.amount} className="ms-auto font-bold" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader><CardTitle>מהלך הריבאיים</CardTitle></CardHeader>
+            <CardContent>
+              {state.timeline.length === 0
+                ? <p className="text-sm text-muted-foreground">לא היו ריבאיים</p>
+                : <ul className="flex flex-col">
+                    {state.timeline.map((item) => {
+                      const player = playersById.get(item.playerId);
+                      return (
+                        <li key={item.id} className="flex min-h-14 items-center gap-3 border-b border-foreground/8 py-2 text-sm last:border-b-0">
+                          <ChipAvatar avatarKey={player?.avatarKey} personId={item.playerId} name={item.playerName} className="size-9" />
+                          <span>{item.playerName} הוסיף ריביי{item.deletedAt && <span className="text-muted-foreground"> — בוטל</span>}</span>
+                          <span className="ms-auto text-end"><Money value={item.amount} /><br /><span className="text-xs text-muted-foreground">{time(item.createdAt)}</span></span>
+                        </li>
+                      );
+                    })}
+                  </ul>}
+            </CardContent>
+          </Card>
         </>}
       </div>
     </main>

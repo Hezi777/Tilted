@@ -3,9 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { AmountInput } from "@/components/AmountInput";
 import { AppHeader } from "@/components/AppHeader";
+import { ChipAvatar } from "@/components/ChipAvatar";
+import { Money } from "@/components/Money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,12 +16,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
-import { agorot, formatILS } from "@/lib/money";
-import { countedTotal, mismatchDelta, type PlayerLedger } from "@/lib/settlement";
+import { agorot } from "@/lib/money";
+import { computeNets, countedTotal, mismatchDelta, type PlayerLedger } from "@/lib/settlement";
 
 interface CashoutPlayer {
   id: string;
   name: string;
+  avatarKey: string | null;
   seatOrder: number;
   settledAt: string | null;
   totalIn: number;
@@ -158,7 +162,10 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const mismatch = (state?.difference ?? 0) !== 0;
   const resolved =
     state?.mismatchKind === "split" || state?.mismatchKind === "assigned";
-  const absoluteDifference = state ? agorot(Math.abs(state.difference)) : null;
+  const liveNets = React.useMemo(
+    () => new Map(state ? computeNets(ledgers(state)).map((net) => [net.playerId, net.net]) : []),
+    [state],
+  );
   // Mirrors resolveMismatch's own winner test (raw cash-out minus total-in, before
   // any stored adjustment) so the button disables exactly when the server would reject it.
   const hasWinner =
@@ -177,7 +184,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         title="סופרים את הקופה"
         subtitle={
           state
-            ? `${state.name ?? "המשחק"} · קופה ${formatILS(agorot(state.pot))}`
+            ? state.name ?? "המשחק"
             : "מזינים כמה נשאר לכל שחקן"
         }
         backHref={`/game/${gameId}`}
@@ -234,11 +241,26 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
               </Card>
             )}
 
+            <Card className="felt-panel border-brand-900/65 text-felt-foreground">
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-felt-foreground-muted">הקופה לספירה</p>
+                  <Money value={state.pot} className="mt-1 text-3xl font-semibold" />
+                </div>
+                <span className="rounded-full border border-felt-foreground/15 bg-felt-deep/40 px-3 py-1 text-xs text-felt-foreground-muted">
+                  {state.players.length} שחקנים
+                </span>
+              </CardContent>
+            </Card>
+
             <section className="flex flex-col gap-3" aria-label="ספירת שחקנים">
               {state.players.map((player) => (
                 <Card key={player.id} className="border-foreground/10 bg-card/80 shadow-none">
                   <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
-                    <CardTitle className="text-base font-bold">{player.name}</CardTitle>
+                    <div className="flex items-center gap-3">
+                      <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-11" />
+                      <CardTitle className="text-base font-bold">{player.name}</CardTitle>
+                    </div>
                     {player.settledAt && <Badge variant="secondary">סגר חשבון</Badge>}
                   </CardHeader>
                   <CardContent className="flex items-end gap-3 p-4 pt-1">
@@ -253,6 +275,33 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                         onChange={(amount) => optimisticAmount(player.id, amount)}
                         onCommit={(amount) => void save(player.id, amount)}
                       />
+                      <div className="mt-2 flex min-h-6 items-center justify-between text-xs">
+                        <span className="text-muted-foreground">מאזן כרגע</span>
+                        <AnimatePresence mode="wait">
+                          {player.cashOut !== null && (
+                            <motion.span
+                              key={Math.sign(liveNets.get(player.id) ?? 0)}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.16 }}
+                            >
+                              <Money
+                                value={liveNets.get(player.id) ?? 0}
+                                signed
+                                className={cn(
+                                  "text-base font-bold",
+                                  (liveNets.get(player.id) ?? 0) > 0
+                                    ? "text-profit"
+                                    : (liveNets.get(player.id) ?? 0) < 0
+                                      ? "text-loss"
+                                      : "text-even",
+                                )}
+                              />
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
                     {state.status === "active" && (
                       <Button
@@ -284,16 +333,16 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
               aria-live="polite"
             >
               <CardContent className="flex flex-col gap-1 p-5 text-center">
-                <p className="text-lg font-black tabular-nums">
-                  נספר: {formatILS(agorot(state.counted))} מתוך {formatILS(agorot(state.pot))}
+                <p className="text-lg font-black">
+                  נספר: <Money value={state.counted} /> מתוך <Money value={state.pot} />
                 </p>
-                <p className={mismatch ? "text-destructive text-base font-bold" : "text-primary text-sm"}>
+                <p className={mismatch ? "text-destructive text-base font-bold" : "text-profit text-sm"}>
                   {resolved
                     ? "ההפרש טופל"
-                    : mismatch && absoluteDifference !== null
+                    : mismatch
                     ? state.difference < 0
-                      ? `חסר ${formatILS(absoluteDifference)}`
-                      : `עודף ${formatILS(absoluteDifference)}`
+                      ? <>חסר <Money value={Math.abs(state.difference)} /></>
+                      : <>עודף <Money value={Math.abs(state.difference)} /></>
                     : "הכול מאוזן"}
                 </p>
               </CardContent>

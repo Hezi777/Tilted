@@ -22,7 +22,7 @@
   "sharedStyle": "Polished soft 3D character illustration with tactile felt-and-clay materials, gently rounded forms, subtle two-tone modelling and ambient occlusion, dark dimensional edging, and a limited palette of deep green felt, warm cream, warm red and antique gold. Every player avatar differs by chip colour plus exactly one accessory, so the set reads as a family.",
   "premiumRedesign": {
     "generatedAt": "2026-09-04",
-    "direction": "A private after-hours card room: black cherry, oxblood, ruby neon, ivory, worn clay, leather and restrained metal. Red is emitted light and action color, not decorative gold replacement.",
+    "direction": "A low-lit private card room in a poker-native red and green palette: warm charcoal, cool green felt, oxblood leather, ivory, and matte black chips. Materials are grown-up; chip characters are fun. Green anchors the table and red carries actions, focus, and atmosphere.",
     "assets": [
       {
         "files": ["chip-01.png", "chip-02.png", "chip-03.png", "chip-04.png"],
@@ -45,9 +45,9 @@
         "postProcess": "Each cleaned 1254px sheet was split into four 627px quadrants and downscaled to 512px with Lanczos resampling. The third set is mapped so the gold monocle anchor remains chip-12."
       },
       {
-        "file": "neon-hero.webp",
-        "references": ["user neon-sign reference"],
-        "prompt": "Create a cinematic wide mobile hero background for a premium private poker ledger. A real red neon sign reading exactly TILTED POKER, photographed at a slight angle in a dark after-hours casino interior, with believable tubing, mounting hardware, reflections, shallow depth of field, black-cherry shadows and restrained haze. Compose it so the sign feels built into the environment rather than pasted onto a card. No people, chips, cards, money, logos, extra words or UI."
+        "files": ["buyin-20.webp", "buyin-30.webp", "buyin-50.webp", "buyin-100.webp", "buyin-custom.webp"],
+        "prompt": "Use case: production mobile UI asset sheet for a poker-game buy-in value picker. Create a strict 3 columns by 2 rows contact sheet on one perfectly uniform solid #0B0809 background. Five separate, face-on round poker chips, each centered in its own equal cell with identical scale and no perspective tilt. Leave the bottom-right cell empty. Labels must be exact: 20, 30, 50, 100, and +. Palette: ivory, muted clay red, charcoal, deep forest green, and oxblood with cream edge marks. No gold, yellow, brass, metallic accents, neon, characters, faces, cards, suits, logos, watermark, or text outside the chips. Tactile matte clay/felt 3D UI icon style, readable at 64px.",
+        "postProcess": "Generated as a 1536x1024 contact sheet, cropped into five 512x512 cells, then encoded as WebP at quality 90."
       },
       {
         "file": "casino-ambience.webp",
@@ -55,9 +55,10 @@
         "prompt": "Create a dark vertical ambient casino background for a phone UI. Out-of-focus vintage slot machines sit at the far edges and recede into black-cherry darkness; ruby and oxblood practical light reflects softly on worn metal and carpet. Keep the center quiet and low contrast for readable interface content. Premium cinematic photography, shallow depth of field, no people, no readable labels, no logos, no text, no coins or cards."
       },
       {
-        "file": "poker-table-premium.webp",
+        "file": "poker-table-green.webp",
         "references": ["user poker-table app reference", "user red slot-machine reference", "user casino-floor reference"],
-        "prompt": "Create a single premium oval poker table artifact for a portrait phone game screen, viewed nearly top-down with a slight cinematic perspective. Deep oxblood felt center, thick worn black leather rail, subtle red edge light, dark hardwood and restrained metal fasteners, with realistic tactile materials and light signs of use. The whole table must fit inside the frame with generous breathing room and a clean quiet felt area for UI overlays. Solid black-cherry background matching #080305. No players, seats, hands, chips, cards, text, logos, cup holders or UI."
+        "prompt": "Edit the exact poker-table asset while preserving its composition, dimensions, overhead portrait view, deep green felt, oxblood leather rail, dark inner wood, lighting, texture, and empty felt. Change only the small gold/brass studs into subtle matte blackened-steel studs with cool charcoal highlights. Remove every yellow, gold, and brass tone. No added chips, cards, text, logos, people, objects, or decorations.",
+        "postProcess": "Generated with the built-in image tool, center-cropped to the production ratio, then resized to 650x1040 WebP at quality 88."
       },
       {
         "file": "icon-premium.png",

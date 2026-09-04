@@ -1,8 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Money } from "@/components/Money";
 import { cn } from "@/lib/utils";
-import { agorot, formatILS } from "@/lib/money";
 
 export function RebuyButton({
   amount,
@@ -16,9 +16,18 @@ export function RebuyButton({
   className?: string;
 }) {
   return (
-    <Button type="button" size="lg" className={cn("chip-raise hover-dim h-12 min-w-28 flex-col gap-0.5 rounded-xl leading-none", className)} disabled={disabled} onClick={onClick}>
+    <Button
+      type="button"
+      size="lg"
+      className={cn("chip-raise hover-dim h-12 min-w-28 flex-col gap-0.5 leading-none", className)}
+      disabled={disabled}
+      onClick={() => {
+        navigator.vibrate?.(8);
+        onClick();
+      }}
+    >
       <span className="text-[11px] font-medium opacity-70">הוספת ריביי</span>
-      <span className="tabular text-base font-black tracking-[-0.02em]">{formatILS(agorot(amount))}</span>
+      <Money value={amount} className="text-base font-bold tracking-[-0.02em]" />
     </Button>
   );
 }
