@@ -55,7 +55,7 @@ export function LiveSessionBar({ game }: { game: GameSummary | null }) {
     >
       <span
         aria-hidden="true"
-        className="size-2 shrink-0 rounded-full bg-brand-300 shadow-[0_0_10px_var(--brand-300)] motion-safe:animate-pulse"
+        className="size-2 shrink-0 rounded-full bg-brand-300 shadow-[0_0_10px_var(--red-300)] motion-safe:animate-pulse"
       />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-bold">

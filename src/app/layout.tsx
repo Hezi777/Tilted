@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Assistant, IBM_Plex_Sans, Suez_One } from "next/font/google";
+import { Rubik } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { ViewerProvider } from "@/components/ViewerProvider";
 import { LiveSessionBar } from "@/components/shell/LiveSessionBar";
@@ -9,23 +9,14 @@ import { getViewer } from "@/lib/auth/session";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const assistant = Assistant({
-  variable: "--font-assistant",
+// One family for the whole app: Hebrew, Latin, and the money. Rubik is geometric
+// with subtly rounded corners and ships real tabular figures, which is the only
+// reason a separate numeral face was ever loaded beside the UI font -- so this is
+// three families down to one, and two fewer requests on an apartment connection.
+const rubik = Rubik({
+  variable: "--font-app",
   subsets: ["hebrew", "latin"],
-  display: "swap",
-});
-
-const suezOne = Suez_One({
-  variable: "--font-display",
-  subsets: ["hebrew", "latin"],
-  weight: "400",
-  display: "swap",
-});
-
-const ibmPlexSans = IBM_Plex_Sans({
-  variable: "--font-numerals",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -46,7 +37,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#0B0809",
+  themeColor: "#0B0B0F",
 };
 
 // The layout resolves the signed-in Person, so nothing below it can be static.
@@ -70,7 +61,7 @@ export default async function RootLayout({
     <html
       lang="he"
       dir="rtl"
-      className={`${assistant.variable} ${suezOne.variable} ${ibmPlexSans.variable} h-full antialiased`}
+      className={`${rubik.variable} dark h-full antialiased`}
     >
       <body className="text-foreground flex min-h-full flex-col items-center">
         <div className="app-shell flex w-full max-w-[450px] flex-1 flex-col">

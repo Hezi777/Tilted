@@ -4,6 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon, CheckIcon, CopyIcon, CrownIcon, HomeIcon, Share2Icon } from "lucide-react";
 import confetti from "canvas-confetti";
+
+/** Reads a colour token off the document, so confetti cannot drift from the palette. */
+function readToken(name: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return value || fallback;
+}
 import { motion, useReducedMotion } from "framer-motion";
 import { toBlob } from "html-to-image";
 import { toast } from "sonner";
@@ -22,7 +31,7 @@ import { cn } from "@/lib/utils";
 
 type SequenceStage = "pending" | "playing" | "complete";
 
-const CHIP_COLORS = ["bg-brand-500", "bg-felt-highlight", "bg-[#F5EDE6]", "bg-surface-4"];
+const CHIP_COLORS = ["bg-brand-500", "bg-felt-highlight", "bg-ink-0", "bg-clay-600"];
 const CHIP_PATHS = [
   { x: -136, y: -70, rotate: -140 },
   { x: 138, y: -80, rotate: 170 },
@@ -214,7 +223,13 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
         ticks: 220,
         startVelocity: 42,
         decay: 0.91,
-        colors: ["#F5EDE6", "#1A6B4E", "#C21E3A", "#2E2528"],
+        // Real chips off the tray: cream, casino green, cardinal, clay.
+        colors: [
+          readToken("--ink-0", "#f7f3ea"),
+          readToken("--green-500", "#14713d"),
+          readToken("--red-500", "#c1121f"),
+          readToken("--clay-600", "#2e2521"),
+        ],
         shapes: [chip],
         disableForReducedMotion: true,
         zIndex: 40,
@@ -256,7 +271,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
         canvasHeight: 1350,
         pixelRatio: 1,
         cacheBust: true,
-        backgroundColor: "#0B0809",
+        backgroundColor: "#14100E",
       });
       if (!blob) throw new Error("image generation failed");
       const file = new File([blob], `tilted-${state.id}.png`, { type: "image/png" });
@@ -327,7 +342,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: staged ? 1.2 : 0, duration: staged ? 0.36 : 0.1, type: staged ? "spring" : "tween", bounce: 0.22 }}
               >
-                <Card className="accent-rim bg-[linear-gradient(145deg,var(--surface-3),var(--surface-1))]">
+                <Card className="accent-rim bg-[linear-gradient(145deg,var(--clay-600),var(--clay-800))]">
                   <CardContent className="flex items-center gap-4">
                     <div className="relative">
                       <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-20 ring-2 ring-brand-500/70" />

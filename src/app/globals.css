@@ -2,47 +2,93 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* The app is dark-only and <html> carries `dark` permanently. There is no second
+   token set behind this: it exists so the `dark:` variants the vendored shadcn
+   primitives already ship resolve instead of sitting inert, which is what they
+   were written for. Do not add a `.dark {}` block -- :root is the only palette. */
 @custom-variant dark (&:is(.dark *));
 
+/* ---------------------------------------------------------------------------
+ * The system
+ *
+ * Cool charcoal, and structure built from value steps rather than from lines.
+ * There is not one hairline border in this file's component layer: a panel is
+ * separated from its ground by being a lighter step of the same near-black,
+ * plus space, plus a 1px inset specular along its top edge. That single rule is
+ * most of what "clean" means here.
+ *
+ * Colour has exactly two jobs and no others:
+ *   - the AVATAR is saturated, and it is the only saturated fill in the app;
+ *   - money is coloured INK -- green up, rose down -- never a fill, and always
+ *     beside an explicit sign, so a colour is never the only cue.
+ *
+ * The primary action is therefore a light pill with dark text, which is the
+ * highest-contrast object on any screen and can never be confused with money.
+ *
+ * Dark because of where it is used: a dim living room at 2am, one lamp on,
+ * phones face-up on the table. There is no light theme.
+ * ------------------------------------------------------------------------- */
+
 @theme inline {
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  --font-money: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-app);
-  --font-heading: var(--font-display);
-  --font-money: var(--font-numerals);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --color-surface-0: var(--surface-0);
-  --color-surface-1: var(--surface-1);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-surface-4: var(--surface-4);
-  --color-brand-300: var(--brand-300);
-  --color-brand-500: var(--brand-500);
-  --color-brand-700: var(--brand-700);
-  --color-brand-900: var(--brand-900);
-  --color-felt: var(--felt-base);
-  --color-felt-deep: var(--felt-shadow);
-  --color-felt-highlight: var(--felt-highlight);
-  --color-felt-foreground: var(--text-1);
-  --color-felt-foreground-muted: var(--text-2);
-  --color-ruby: var(--brand-500);
-  --color-ruby-bright: var(--brand-300);
-  --color-profit: var(--profit);
-  --color-loss: var(--loss);
-  --color-even: var(--even);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+
+  /* Ground, in value steps. */
+  --color-ink-950: var(--ink-950);
+  --color-ink-900: var(--ink-900);
+  --color-ink-800: var(--ink-800);
+  --color-ink-700: var(--ink-700);
+  --color-ink-600: var(--ink-600);
+  --color-ink-500: var(--ink-500);
+
+  /* Kept while screens migrate off the old names. Same values, older words. */
+  --color-surface-0: var(--ink-950);
+  --color-surface-1: var(--ink-900);
+  --color-surface-2: var(--ink-800);
+  --color-surface-3: var(--ink-700);
+  --color-surface-4: var(--ink-600);
+
+  /* Type. */
+  --color-text-0: var(--text-0);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+
+  /* The light primary. */
+  --color-light: var(--light);
+  --color-light-ink: var(--light-ink);
+
+  /* Money and state -- ink only. */
+  --color-profit: var(--green-400);
+  --color-loss: var(--red-400);
+  --color-even: var(--text-1);
+  --color-amber: var(--amber-400);
+  --color-felt: var(--green-500);
+  --color-felt-deep: var(--green-900);
+  --color-felt-highlight: var(--green-500);
+  --color-felt-foreground: var(--text-0);
+  --color-felt-foreground-muted: var(--text-1);
+
+  /* The four `brand-*` steps the app already names. `brand-500` is the money
+     rose, not an action colour -- the action is the light pill. */
+  --color-brand-200: var(--red-200);
+  --color-brand-300: var(--red-300);
+  --color-brand-500: var(--red-400);
+  --color-brand-700: var(--red-600);
+  --color-brand-900: var(--red-900);
+  --color-brand-950: var(--red-950);
+  --color-ruby: var(--red-400);
+  --color-ruby-bright: var(--red-300);
+
+  --color-green-400: var(--green-400);
+  --color-green-500: var(--green-500);
+  --color-green-900: var(--green-900);
+
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -59,150 +105,156 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: 8px;
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Generous, and consistent. Pills and badges are always fully round. */
+  --radius-sm: 10px;
   --radius-md: 12px;
   --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
-  --radius-3xl: 28px;
-  --radius-4xl: 32px;
+  --radius-xl: 18px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-4xl: 28px;
+
+  --shadow-raised: var(--elevation-1);
+  --shadow-float: var(--elevation-2);
+  --shadow-lift: var(--elevation-3);
 }
 
 :root {
-  --surface-0: #0b0809;
-  --surface-1: #141011;
-  --surface-2: #1c1618;
-  --surface-3: #251d20;
-  --surface-4: #2e2528;
-  --brand-300: #d9444b;
-  --brand-500: #94131e;
-  --brand-700: #6b0d17;
-  --brand-900: #35060b;
-  --felt-highlight: #1a6b4e;
-  --felt-base: #0f4a36;
-  --felt-shadow: #06251b;
-  --rail-highlight: #4a1b21;
-  --rail-base: #2a1013;
-  --rail-shadow: #150608;
-  --profit: #4fe39b;
-  --loss: #f2606b;
-  --even: #b8a9a2;
-  --text-1: #f5ede6;
-  --text-2: #b8a9a2;
-  --text-3: #7a6b67;
-  --text-disabled: #4e4340;
-  --edge-hairline: rgb(255 255 255 / 7%);
-  --edge-specular: rgb(255 255 255 / 14%);
-  --edge-accent: rgb(148 19 30 / 45%);
-  --background: var(--surface-0);
-  --foreground: var(--text-1);
-  --card: var(--surface-2);
-  --card-foreground: var(--text-1);
-  --popover: var(--surface-4);
-  --popover-foreground: var(--text-1);
-  --primary: var(--brand-500);
-  --primary-foreground: var(--text-1);
-  --secondary: var(--surface-3);
-  --secondary-foreground: var(--text-1);
-  --muted: var(--surface-2);
-  --muted-foreground: var(--text-2);
-  --accent: var(--surface-3);
-  --accent-foreground: var(--text-1);
-  --destructive: var(--loss);
-  --border: var(--edge-hairline);
-  --input: rgb(255 255 255 / 12%);
-  --ring: var(--brand-300);
-  --chart-1: var(--profit);
-  --chart-2: var(--brand-300);
-  --chart-3: var(--loss);
-  --chart-4: var(--even);
-  --chart-5: var(--surface-3);
+  /* -- Ground. Cool charcoal, never brown. ------------------------------- */
+  --ink-950: #0b0b0f; /* page */
+  --ink-900: #101015; /* base surface */
+  --ink-800: #1c1c23; /* card */
+  --ink-700: #26262f; /* raised, pill, input */
+  --ink-600: #33333e; /* hover, lit */
+  --ink-500: #44444f; /* disabled fill */
+
+  /* -- Translucency. The metadata pills sit on whatever is under them. --- */
+  --glass-1: rgb(255 255 255 / 6%);
+  --glass-2: rgb(255 255 255 / 10%);
+  --glass-3: rgb(255 255 255 / 14%);
+
+  /* -- Type, against --ink-950 ------------------------------------------- */
+  --text-0: #f5f6f7; /* 17.7:1 */
+  --text-1: #9e9eac; /*  7.2:1 */
+  --text-2: #7b7b8a; /*  4.6:1 -- meta, and still passes body */
+  --text-3: #45454f; /*         disabled */
+
+  /* -- The primary action ------------------------------------------------ */
+  --light: #f5f6f7;
+  --light-ink: #0b0b0f;
+
+  /* -- Money and state. Ink only; nothing is filled in these. ------------ */
+  --red-200: #ffb3c0; /* on a saturated avatar, and the "you" seat on felt */
+  --red-300: #ff7a90;
+  --red-400: #ff4d6a; /*  5.9:1 -- money down, destructive */
+  --red-600: #c22945; /* an avatar body, never chrome */
+  --red-900: #2a0a12; /* badge tint */
+  --red-950: #180509;
+
+  --green-400: #3ddc97; /* 11.7:1 -- money up */
+  --green-500: #1fb97a; /* the felt, as material */
+  --green-900: #062a1d;
+
+  --amber-400: #f5d06a; /* 13.1:1 -- winner, countdown. Nothing else. */
+
+  --profit: var(--green-400);
+  --loss: var(--red-400);
+  --even: var(--text-1);
+
+  /* -- Elevation. Offset and soft blur; the inset highlight is the specular
+        top edge that does the work borders used to do. ------------------- */
+  --elevation-1: inset 0 1px 0 rgb(255 255 255 / 6%), 0 6px 18px -12px rgb(0 0 0 / 88%);
+  --elevation-2: inset 0 1px 0 rgb(255 255 255 / 9%), 0 18px 38px -20px rgb(0 0 0 / 92%);
+  --elevation-3: inset 0 1px 0 rgb(255 255 255 / 12%), 0 34px 70px -26px rgb(0 0 0 / 94%);
+
+  /* -- Stacking. One scale; nothing invents its own. --------------------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-nav: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* -- Semantic roles ---------------------------------------------------- */
+  --background: var(--ink-950);
+  --foreground: var(--text-0);
+  --card: var(--ink-800);
+  --card-foreground: var(--text-0);
+  --popover: var(--ink-700);
+  --popover-foreground: var(--text-0);
+  --primary: var(--light);
+  --primary-foreground: var(--light-ink);
+  --secondary: var(--ink-700);
+  --secondary-foreground: var(--text-0);
+  --muted: var(--ink-800);
+  --muted-foreground: var(--text-1);
+  --accent: var(--ink-700);
+  --accent-foreground: var(--text-0);
+  --destructive: var(--red-400);
+  --border: var(--glass-1);
+  --input: var(--glass-2);
+  --ring: var(--text-0);
+  --chart-1: var(--green-400);
+  --chart-2: var(--red-400);
+  --chart-3: var(--amber-400);
+  --chart-4: var(--text-1);
+  --chart-5: var(--ink-600);
   --radius: 14px;
-  --dur-micro: 120ms;
-  --dur-base: 200ms;
-  --dur-enter: 280ms;
+
+  /* -- Motion -------------------------------------------------------------
+   * Short, exponential, and always from an already-visible default. Nothing
+   * animates in from nothing; things settle into place. */
+  --dur-micro: 110ms;
+  --dur-base: 180ms;
+  --dur-enter: 240ms;
   --dur-count: 600ms;
   --dur-stage: 2600ms;
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --stagger: 28ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --sidebar: var(--surface-0);
-  --sidebar-foreground: var(--text-1);
-  --sidebar-primary: var(--brand-500);
-  --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--surface-3);
-  --sidebar-accent-foreground: var(--text-1);
-  --sidebar-border: var(--edge-hairline);
-  --sidebar-ring: var(--brand-300);
-  --font-app: var(--font-assistant), ui-sans-serif, system-ui, sans-serif;
+  --ease-settle: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 @layer base {
-  * { @apply border-border outline-ring/50; }
+  * { @apply outline-ring/50; }
 
   html {
     @apply font-sans;
-    background: var(--surface-0);
+    background: var(--ink-950);
   }
 
   body {
     @apply bg-background text-foreground;
     min-height: 100dvh;
-    background:
-      radial-gradient(circle at 50% -10%, rgb(53 6 11 / 42%), transparent 32rem),
-      var(--surface-0);
+    background: var(--ink-950);
   }
 
   ::selection {
-    background: rgb(148 19 30 / 55%);
-    color: var(--text-1);
+    background: var(--glass-3);
+    color: var(--text-0);
   }
 
   .app-shell {
     position: relative;
     isolation: isolate;
     min-height: 100dvh;
-    background:
-      radial-gradient(circle at 50% 0%, rgb(74 9 23 / 18%), transparent 28rem),
-      linear-gradient(180deg, rgb(20 16 17 / 94%), var(--surface-0) 34rem);
+    background: var(--ink-950);
     overflow-x: hidden;
-  }
-
-  .app-shell::before {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    content: "";
-    pointer-events: none;
-    background: url("/art/casino-ambience.webp") center top / cover no-repeat;
-    opacity: 0.055;
-    filter: saturate(0.55) sepia(0.25);
-  }
-
-  .app-shell::after {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    content: "";
-    pointer-events: none;
-    opacity: 0.025;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.9'/%3E%3C/svg%3E");
   }
 
   @media (min-width: 480px) {
     .app-shell {
       min-height: min(100dvh, 920px);
       margin-block: max(0px, calc((100dvh - 920px) / 2));
-      border: 1px solid var(--edge-hairline);
-      border-block-start-color: var(--edge-specular);
       border-radius: 28px;
-      box-shadow: 0 42px 110px -18px rgb(4 2 3 / 92%);
-    }
-
-    .app-shell::before,
-    .app-shell::after {
-      position: absolute;
-      border-radius: inherit;
+      box-shadow: 0 42px 110px -18px rgb(0 0 0 / 92%);
     }
   }
 
@@ -223,73 +275,99 @@
 }
 
 @layer components {
+  /* -- Type. Eight steps, and nothing outside them. ---------------------- */
   .t-display {
-    font-family: var(--font-display), var(--font-assistant), serif;
     font-size: 2.5rem;
-    line-height: 2.75rem;
-    font-weight: 400;
-    letter-spacing: -0.02em;
+    line-height: 2.625rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
 
   .t-display-l {
-    font-family: var(--font-display), var(--font-assistant), serif;
     font-size: 1.875rem;
-    line-height: 2.25rem;
-    font-weight: 400;
-    letter-spacing: -0.015em;
+    line-height: 2.125rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
   }
 
-  .t-heading { font-size: 1.375rem; line-height: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
-  .t-title { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; }
+  .t-heading { font-size: 1.375rem; line-height: 1.75rem; font-weight: 600; letter-spacing: -0.02em; }
+  .t-title { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
   .t-body { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
   .t-label { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
   .t-caption { font-size: 0.8125rem; line-height: 1.125rem; font-weight: 400; }
-  .ink-2 { color: var(--text-2); }
-  /* --text-3 tops out at 3.9:1 on the darkest surface, and this class carries the
-     subtitle on every screen. --text-2 is the same intent at 6.5:1. */
-  .ink-3 { color: var(--text-2); }
-  .section-label { font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; color: var(--text-2); }
+  .section-label { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; color: var(--text-2); }
 
+  .ink-2 { color: var(--text-1); }
+  .ink-3 { color: var(--text-2); }
+
+  /* The number is the picture: heavy, wide, tight, and never re-flowing as a
+     digit changes. */
   .money,
   .tabular {
-    font-family: var(--font-numerals), ui-sans-serif, sans-serif;
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    letter-spacing: -0.02em;
   }
 
+  .money-display {
+    font-size: 3rem;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* -- Surfaces. A step of value and a specular edge, never a border. ---- */
+  .surface-card,
+  .casino-panel {
+    background: var(--ink-800);
+    box-shadow: var(--elevation-1);
+  }
+
+  .surface-raised {
+    background: var(--ink-700);
+    box-shadow: var(--elevation-1);
+  }
+
+  /* The metadata pill: translucent, so it belongs to whatever it sits on. */
+  .glass-pill {
+    background: var(--glass-1);
+  }
+
+  /* The empty slot. A seat nobody has taken yet, drawn the way the reference
+     draws a card that has not come out. */
+  .empty-slot {
+    border: 1px dashed var(--glass-3);
+    background: transparent;
+  }
+
+  /* -- The felt. The one coloured surface, and it glows from above. ------ */
   .felt-panel {
     background:
-      repeating-linear-gradient(46deg, rgb(255 255 255 / 1.4%) 0 1px, transparent 1px 4px),
-      radial-gradient(ellipse 80% 105% at 50% 42%, var(--felt-highlight), var(--felt-base) 46%, var(--felt-shadow));
+      radial-gradient(ellipse 90% 70% at 50% 0%, rgb(31 185 122 / 22%), transparent 70%),
+      radial-gradient(ellipse 80% 105% at 50% 45%, var(--green-500), var(--green-900) 62%);
   }
 
-  .casino-panel,
-  .surface-card {
-    background: var(--surface-2);
-    border: 1px solid var(--edge-hairline);
-    border-block-start-color: var(--edge-specular);
-    box-shadow: 0 18px 44px -34px rgb(4 2 3 / 94%);
+  /* A wide, soft light behind whatever the screen is actually about. */
+  .focal-glow {
+    background: radial-gradient(ellipse 70% 60% at 50% 0%, var(--glass-2), transparent 72%);
   }
 
   .accent-rim {
-    border-color: var(--edge-accent);
-    border-block-start-color: rgb(230 176 176 / 30%);
-    box-shadow: 0 18px 44px -28px rgb(148 19 30 / 32%);
+    box-shadow: var(--elevation-2);
   }
 
   .chip-raise {
-    box-shadow:
-      0 10px 24px -15px rgb(148 19 30 / 62%),
-      inset 0 1px 0 rgb(255 255 255 / 28%);
+    box-shadow: 0 8px 20px -12px rgb(0 0 0 / 90%), inset 0 1px 0 rgb(255 255 255 / 22%);
   }
 
   .foil {
-    color: var(--brand-300);
-    text-shadow: 0 0 22px rgb(148 19 30 / 30%);
+    color: var(--amber-400);
   }
 
   /* Chrome forces direction: ltr on date and time inputs and will not let the page
-     override it, not even inline — so in an RTL form the value strands itself against
+     override it, not even inline -- so in an RTL form the value strands itself against
      the far edge, a screen away from every other field's text. The digits must stay
      LTR anyway, so the fix is to push the value box across the control instead. */
   [dir="rtl"] input[type="time"],
@@ -306,13 +384,8 @@
     flex: none;
   }
 
-  .row-list > * + * { border-block-start: 1px solid var(--edge-hairline); }
-
-  .screen-enter { animation: screen-enter var(--dur-enter) var(--ease-out) both; }
-
-  @keyframes screen-enter {
-    from { opacity: 0; transform: translateX(16px); }
-  }
+  /* Rows in a list are separated by space and by their own fill, not by rules. */
+  .row-list > * + * { margin-block-start: 2px; }
 
   @keyframes accent-sheen {
     from { transform: translateX(130%); }
@@ -321,5 +394,5 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .hover-dim:hover { filter: brightness(1.06); }
+  .hover-dim:hover { filter: brightness(1.08); }
 }

@@ -39,7 +39,7 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
   return (
     <main className="flex flex-1 flex-col justify-center gap-7 px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-10">
       <header className="text-center">
-        <h1 className="font-display text-3xl">
+        <h1 className="t-display-l">
           {isSignUp ? "פותחים חשבון" : "מתחברים"}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">

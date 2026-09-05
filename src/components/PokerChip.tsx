@@ -104,7 +104,7 @@ export function PokerChip({
           fill={ink}
           fontSize={inlayFontSize(label)}
           fontWeight="700"
-          fontFamily="var(--font-numerals), ui-sans-serif, sans-serif"
+          fontFamily="var(--font-app), ui-sans-serif, sans-serif"
           style={{ fontVariantNumeric: "tabular-nums" }}
         >
           {label}

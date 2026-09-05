@@ -101,9 +101,9 @@ export function PokerTable({
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
         <div className="relative flex flex-col items-center text-center before:absolute before:inset-[-30px] before:-z-10 before:rounded-full before:bg-[radial-gradient(circle,rgb(245_237_230/0.10),transparent_68%)]">
           <div aria-hidden="true" className="relative h-12 w-16 drop-shadow-[0_9px_10px_rgb(6_37_27/0.65)]">
-            <span className="absolute inset-x-2 bottom-1 h-5 rounded-[50%] border-[5px] border-[#F5EDE6] bg-felt-highlight" />
-            <span className="absolute inset-x-1 bottom-3 h-5 rounded-[50%] border-[5px] border-[#F5EDE6] bg-brand-500" />
-            <span className="absolute inset-x-2 bottom-5 h-5 rounded-[50%] border-[5px] border-[#F5EDE6] bg-surface-4" />
+            <span className="absolute inset-x-2 bottom-1 h-5 rounded-[50%] border-[5px] border-ink-0 bg-felt-highlight" />
+            <span className="absolute inset-x-1 bottom-3 h-5 rounded-[50%] border-[5px] border-ink-0 bg-brand-500" />
+            <span className="absolute inset-x-2 bottom-5 h-5 rounded-[50%] border-[5px] border-ink-0 bg-surface-4" />
           </div>
           <span className="mt-1 block text-[10px] font-medium text-felt-foreground-muted">הקופה על השולחן</span>
           <AnimatedMoney value={pot} className="block text-[2.5rem] leading-[2.5rem] font-semibold tracking-[-0.03em] text-felt-foreground drop-shadow-[0_2px_8px_rgb(6_37_27/0.85)]" />

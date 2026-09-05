@@ -27,7 +27,7 @@ export function ChipAvatar({
 }) {
   const chipKey = deterministicChipKey(avatarKey, personId);
   return (
-    <div className={cn("relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#080305] shadow-[0_8px_18px_-9px_rgb(0_0_0/0.95)] ring-1 ring-ruby/55", className)}>
+    <div className={cn("relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-700 shadow-[0_8px_18px_-9px_rgb(0_0_0/0.95)]", className)}>
       <Image
         src={`/art/${chipKey}.png`}
         alt=""

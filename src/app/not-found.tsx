@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 export default function NotFound() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-5 px-5 py-16 text-center">
-      <p className="t-display text-brand-300">404</p>
+      <p className="t-display text-[var(--text-2)]">404</p>
       <div className="flex flex-col gap-2">
         <h1 className="t-heading">הדף הזה לא קיים</h1>
         <p className="t-body ink-3 max-w-[34ch]">
