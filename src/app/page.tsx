@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { UsersIcon } from "lucide-react";
+import { LayersIcon, UsersIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
+import { motionSafe, rise, stagger } from "@/lib/motion";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -62,83 +62,84 @@ export default function Home() {
 
   return (
     <main className="relative flex min-h-[100dvh] flex-1 flex-col">
-      <motion.header
-        initial={false}
-        className="relative h-[18.5rem] shrink-0 overflow-hidden"
-      >
-        <h1 className="sr-only">Tilted Poker</h1>
-        <Image
-          src="/art/neon-hero.webp"
-          alt="Tilted Poker בשלט ניאון אדום"
-          fill
-          priority
-          sizes="(max-width: 450px) 100vw, 450px"
-          className="object-cover object-center"
+      {/* The masthead is type, not a photograph of a neon sign. A wide soft glow
+          sits behind the wordmark the way the reference lights its pot. */}
+      <header className="relative shrink-0 px-5 pt-[calc(1rem+env(safe-area-inset-top))] pb-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-64 focal-glow"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(5_2_3/0.12),transparent_52%,rgb(9_3_5)_100%)]" />
-        {viewer && (
-          <Link
-            href="/profile"
-            aria-label={`הפרופיל של ${viewer.name}`}
-            className="absolute end-4 top-[calc(0.75rem+env(safe-area-inset-top))] grid size-11 place-items-center rounded-full ring-1 ring-foreground/15 backdrop-blur-sm transition-transform focus-visible:ring-3 focus-visible:ring-ring active:scale-95"
-          >
-            <ChipAvatar
-              avatarKey={viewer.avatarKey}
-              personId={viewer.id}
-              name={viewer.name}
-              className="size-10"
-            />
-          </Link>
-        )}
-        <p className="absolute inset-x-5 bottom-3 mx-auto max-w-[31ch] text-center text-sm font-medium leading-relaxed text-foreground/72">
-          הכניסות, הריבאיים והחשבון מסתדרים בזמן שהמשחק ממשיך.
-        </p>
-      </motion.header>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-5 px-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-        <div className="flex flex-col gap-2.5">
-          <motion.div whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={{ duration: 0.12 }}>
-            <Button asChild className="h-14 w-full text-base font-bold tracking-[-0.01em]">
-              <Link href="/game/new">פותחים שולחן</Link>
-            </Button>
-          </motion.div>
-          <motion.div whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={{ duration: 0.12 }}>
-            <Button asChild variant="outline" className="h-14 w-full text-base font-bold tracking-[-0.01em]">
-              <Link href="/join">מצטרפים למשחק</Link>
-            </Button>
-          </motion.div>
-
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="t-display leading-[0.92]">
+              TILTED
+              <span className="block text-[var(--text-2)]">POKER</span>
+            </h1>
+            <p className="mt-3 max-w-[28ch] text-sm leading-relaxed text-[var(--text-1)]">
+              הכניסות, הריביים והחשבון מסתדרים בזמן שהמשחק ממשיך.
+            </p>
+          </div>
+          {viewer && (
+            <Link
+              href="/profile"
+              aria-label={`הפרופיל של ${viewer.name}`}
+              className="shrink-0 rounded-full transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
+            >
+              <ChipAvatar
+                avatarKey={viewer.avatarKey}
+                personId={viewer.id}
+                name={viewer.name}
+                className="size-11"
+              />
+            </Link>
+          )}
         </div>
+      </header>
+
+      <motion.div
+        variants={motionSafe(stagger, reduceMotion)}
+        initial="hidden"
+        animate="show"
+        className="flex min-h-0 flex-1 flex-col gap-6 px-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+      >
+        <motion.div variants={motionSafe(rise, reduceMotion)} className="flex flex-col gap-2.5">
+          <Button asChild size="lg" className="w-full">
+            <Link href="/game/new">פותחים שולחן</Link>
+          </Button>
+          <Button asChild size="lg" variant="secondary" className="w-full">
+            <Link href="/join">מצטרפים למשחק</Link>
+          </Button>
+        </motion.div>
 
         {activeGame && (
-          <section aria-labelledby="active-game-title">
+          <motion.section variants={motionSafe(rise, reduceMotion)} aria-labelledby="active-game-title">
             <h2 id="active-game-title" className="section-label mb-2.5">שולחן פתוח</h2>
-            <Card className="accent-rim bg-surface-2">
+            <Card className="surface-raised rounded-[20px]">
               <CardContent className="flex items-center justify-between gap-4 py-4">
                 <div className="min-w-0">
                   <p className="truncate text-base font-bold">{activeGame.name ?? "משחק פעיל"}</p>
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="size-2 rounded-full bg-brand-300" />
+                    <span className="size-2 rounded-full bg-[var(--green-400)]" />
                     שולחן פתוח
                     <span className="inline-flex items-center gap-1"><UsersIcon className="size-3.5" />{activeGame.playerCount}</span>
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
-                  <Button asChild className="min-h-11 px-4"><Link href={`/game/${activeGame.id}`}>חזרה לשולחן</Link></Button>
-                  <Button type="button" variant="ghost" className="min-h-10 text-xs text-destructive" onClick={() => setCancelTarget(activeGame)}>ביטול משחק</Button>
+                  <Button asChild size="sm"><Link href={`/game/${activeGame.id}`}>חזרה לשולחן</Link></Button>
+                  <Button type="button" size="sm" variant="ghost" className="text-[var(--text-2)]" onClick={() => setCancelTarget(activeGame)}>ביטול משחק</Button>
                 </div>
               </CardContent>
             </Card>
-          </section>
+          </motion.section>
         )}
 
-        <section className="flex min-h-0 flex-1 flex-col" aria-labelledby="history-title">
+        <motion.section variants={motionSafe(rise, reduceMotion)} className="flex min-h-0 flex-1 flex-col" aria-labelledby="history-title">
           <div className="mb-2.5 flex items-center justify-between gap-3">
             <h2 id="history-title" className="section-label">ערבים קודמים</h2>
             {closedGames.length > 0 && (
               <Link
                 href="/history"
-                className="t-caption font-semibold text-brand-300 hover:text-foreground"
+                className="t-caption font-medium text-[var(--text-1)] hover:text-foreground"
               >
                 כל {closedGames.length} הערבים
               </Link>
@@ -153,29 +154,27 @@ export default function Home() {
           )}
 
           {error && (
-            <div className="flex flex-col items-start gap-2 rounded-2xl border border-destructive/25 bg-destructive/10 px-4 py-3">
+            <div className="flex flex-col items-start gap-3 rounded-[20px] bg-ink-800 px-4 py-4">
               <p className="text-sm text-destructive">{error}</p>
-              <Button type="button" variant="outline" className="min-h-11" onClick={() => { setError(null); setRetryCount((count) => count + 1); }}>נסה שוב</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => { setError(null); setRetryCount((count) => count + 1); }}>נסה שוב</Button>
             </div>
           )}
 
           {games !== null && !error && closedGames.length === 0 && (
-            <Card className="flex flex-1 border-dashed bg-surface-1">
-              <CardContent className="flex flex-1 items-center gap-4 p-5">
-                <Image src="/art/empty.png" alt="" width={88} height={88} className="size-20 shrink-0 object-contain" />
-                <div className="text-start">
-                  <p className="t-title">השולחן הראשון מחכה לכם</p>
-                  <p className="t-caption ink-3 mt-1 leading-relaxed">פותחים משחק, בוחרים מי הגיע, ומכאן הקופה מסתדרת לבד.</p>
-                </div>
-              </CardContent>
-            </Card>
+            // An empty seat, drawn the way the reference draws a card that has not
+            // come out yet -- rather than a 240 KB illustration of a sad chip.
+            <div className="empty-slot flex flex-1 flex-col items-center justify-center gap-2 rounded-[20px] px-6 py-10 text-center">
+              <LayersIcon aria-hidden="true" className="size-6 text-[var(--text-3)]" strokeWidth={1.75} />
+              <p className="t-title mt-1">השולחן הראשון מחכה לכם</p>
+              <p className="t-caption max-w-[30ch] leading-relaxed text-[var(--text-2)]">פותחים משחק, בוחרים מי הגיע, ומכאן הקופה מסתדרת לבד.</p>
+            </div>
           )}
 
           {closedGames.length > 0 && (
-            <ul className="row-list casino-panel overflow-hidden rounded-[20px]">
+            <ul className="row-list">
               {closedGames.slice(0, 3).map((game) => (
                 <li key={game.id}>
-                  <Link href={`/history/${game.id}`} className="flex min-h-18 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/3">
+                  <Link href={`/history/${game.id}`} className="surface-card flex min-h-18 items-center justify-between gap-3 rounded-[18px] px-4 py-3 transition-colors hover:bg-ink-700">
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{game.name ?? "משחק"}</span>
                       <span className="t-caption ink-3 mt-1 flex items-center gap-3">
@@ -183,19 +182,19 @@ export default function Home() {
                         <span className="inline-flex items-center gap-1"><UsersIcon aria-hidden="true" className="size-3.5" />{game.playerCount}</span>
                       </span>
                     </span>
-                    <Money value={game.pot} className="font-semibold text-brand-300" />
+                    <Money value={game.pot} className="font-semibold" />
                   </Link>
                 </li>
               ))}
             </ul>
           )}
-        </section>
-      </div>
+        </motion.section>
+      </motion.div>
 
       <Dialog open={cancelTarget !== null} onOpenChange={(open) => !open && setCancelTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>לבטל את המשחק?</DialogTitle><DialogDescription>המשחק יוסר מההיסטוריה ולא יהיה ניתן להמשיך אותו.</DialogDescription></DialogHeader>
-          <DialogFooter><Button type="button" variant="destructive" className="min-h-12" disabled={cancelling} onClick={() => void cancelGame()}>כן, בטל משחק</Button><Button type="button" variant="outline" className="min-h-12" onClick={() => setCancelTarget(null)}>ביטול</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="destructive" disabled={cancelling} onClick={() => void cancelGame()}>כן, בטל משחק</Button><Button type="button" variant="secondary" onClick={() => setCancelTarget(null)}>ביטול</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </main>

@@ -40,7 +40,7 @@ export function TabBar() {
   return (
     <nav
       aria-label="ניווט ראשי"
-      className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[450px] items-stretch gap-1 border-t border-foreground/10 bg-surface-1/92 px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur-xl"
+      className="fixed inset-x-0 bottom-0 z-30 mx-auto flex w-full max-w-[450px] items-stretch gap-1 bg-ink-950/85 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl"
     >
       {TABS.map((tab) => {
         const active =
@@ -54,8 +54,8 @@ export function TabBar() {
             className={cn(
               // 48px is the stricter of the two platform floors, so it is the one to keep.
               "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] py-1 transition-colors duration-[var(--dur-base)]",
-              "focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
-              active ? "text-brand-300" : "ink-3 hover:text-foreground",
+              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              active ? "text-foreground" : "text-[var(--text-2)] hover:text-[var(--text-1)]",
             )}
           >
             <Icon aria-hidden="true" className="size-5" />
