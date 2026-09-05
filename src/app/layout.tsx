@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Assistant, IBM_Plex_Sans, Suez_One } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { ViewerProvider } from "@/components/ViewerProvider";
+import { LiveSessionBar } from "@/components/shell/LiveSessionBar";
+import { TabBar } from "@/components/shell/TabBar";
+import { getGamesForDevice } from "@/db/queries";
 import { getViewer } from "@/lib/auth/session";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -55,6 +58,14 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const viewer = await getViewer();
+  // Resolved here rather than fetched by the bar itself: the layout is already dynamic
+  // and server-rendered, so an open table is known before the first paint.
+  const activeGame = viewer
+    ? ((await getGamesForDevice(viewer.person.id)).find(
+        (game) => game.status === "active",
+      ) ?? null)
+    : null;
+
   return (
     <html
       lang="he"
@@ -65,7 +76,9 @@ export default async function RootLayout({
         <div className="app-shell flex w-full max-w-[450px] flex-1 flex-col">
           <DirectionProvider dir="rtl">
             <ViewerProvider viewer={viewer?.person ?? null}>
+              <LiveSessionBar game={activeGame} />
               {children}
+              <TabBar />
             </ViewerProvider>
           </DirectionProvider>
         </div>

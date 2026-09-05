@@ -52,6 +52,8 @@ export interface PersonSummary {
   id: string;
   name: string;
   nickname: string | null;
+  /** Chosen chip character, or null to fall back to the deterministic one. */
+  avatarKey: string | null;
 }
 
 /** Public roster payload used by the code-based join screen. */

@@ -7,18 +7,7 @@ import {
 } from "@/db/chip-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
-import { MAX_AGOROT } from "@/lib/money";
-
-const denominationSchema = z.object({
-  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "צבע לא תקין"),
-  value: z.number().int().positive().max(MAX_AGOROT),
-  imageKey: z.string().trim().min(1).max(200).optional(),
-});
-
-const patchChipSetSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  denominations: z.array(denominationSchema).min(1).max(20).optional(),
-});
+import { patchChipSetSchema } from "@/lib/chip-schema";
 
 const idSchema = z.string().uuid();
 

@@ -124,6 +124,10 @@ export const people = pgTable(
   nickname: text("nickname"),
   // v2: used only to compose a payment hand-off (plan item 5). The app never moves money.
   phone: text("phone"),
+  // The chip character this friend picked for themselves. Lives on Person so it is not
+  // rechosen every game; players.avatar_key still overrides it for a single table, where
+  // two people must not wear the same face.
+  avatarKey: text("avatar_key"),
   // v2/M10: the Neon Auth user this friend signs in as (neon_auth."user".id). Kept as a
   // plain text id rather than a foreign key because that table lives in another schema
   // and is owned by the auth service, not by these migrations. Nullable at the database
@@ -286,12 +290,15 @@ export const chipDenominations = pgTable(
     chipSetId: uuid("chip_set_id")
       .notNull()
       .references(() => chipSets.id, { onDelete: "cascade" }),
-    /** Display colour as #rrggbb. Presentation only. */
+    /** Body colour as #rrggbb. Presentation only. */
     color: text("color").notNull(),
+    /**
+     * Edge-spot colour as #rrggbb, or null to derive a contrasting one from the body.
+     * The inlay ink is never stored: it is fully determined by these two.
+     */
+    edgeColor: text("edge_color"),
     /** Agorot. */
     value: integer("value").notNull(),
-    /** Key into public/art, or null to render the flat colour. */
-    imageKey: text("image_key"),
     sortOrder: integer("sort_order").notNull(),
   },
   (table) => [
@@ -306,6 +313,10 @@ export const chipDenominations = pgTable(
       sql`${table.value} <= ${MAX_AGOROT_SQL}`,
     ),
     check("chip_denominations_color_hex", sql`${table.color} ~ '^#[0-9a-fA-F]{6}$'`),
+    check(
+      "chip_denominations_edge_color_hex",
+      sql`${table.edgeColor} IS NULL OR ${table.edgeColor} ~ '^#[0-9a-fA-F]{6}$'`,
+    ),
   ],
 );
 

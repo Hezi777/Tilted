@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { updateProfile } from "@/db/identity-queries";
+import { AVATAR_KEYS } from "@/lib/avatar";
 import { getViewer } from "@/lib/auth/session";
 
 export interface ProfileActionState {
@@ -20,6 +21,9 @@ const profileInput = z.object({
     .trim()
     .regex(/^[0-9+\-\s()]{0,20}$/, "מספר טלפון לא תקין")
     .optional(),
+  // Only one of the twelve committed characters; anything else is discarded rather
+  // than stored, so the avatar path can never be asked for a file that is not there.
+  avatarKey: z.enum(AVATAR_KEYS).optional(),
 });
 
 export async function saveProfileAction(
@@ -33,6 +37,7 @@ export async function saveProfileAction(
     name: formData.get("name"),
     nickname: formData.get("nickname") ?? undefined,
     phone: formData.get("phone") ?? undefined,
+    avatarKey: formData.get("avatarKey") ?? undefined,
   });
   if (!parsed.success) {
     const flat = z.flattenError(parsed.error).fieldErrors;
@@ -46,6 +51,7 @@ export async function saveProfileAction(
     name: parsed.data.name,
     nickname: parsed.data.nickname?.trim() || null,
     phone: parsed.data.phone?.trim() || null,
+    avatarKey: parsed.data.avatarKey ?? null,
   });
   revalidatePath("/profile");
   return { error: null, saved: true };

@@ -204,7 +204,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
                       return (
                         <li key={item.id} className="flex min-h-14 items-center gap-3 border-b border-foreground/8 py-2 text-sm last:border-b-0">
                           <ChipAvatar avatarKey={player?.avatarKey} personId={item.playerId} name={item.playerName} className="size-9" />
-                          <span>{item.playerName} הוסיף ריביי{item.deletedAt && <span className="text-muted-foreground"> — בוטל</span>}</span>
+                          <span>{item.playerName} הוסיף ריביי{item.deletedAt && <span className="text-muted-foreground">, בוטל</span>}</span>
                           <span className="ms-auto text-end"><Money value={item.amount} /><br /><span className="text-xs text-muted-foreground">{time(item.createdAt)}</span></span>
                         </li>
                       );

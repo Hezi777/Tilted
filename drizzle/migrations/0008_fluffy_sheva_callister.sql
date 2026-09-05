@@ -1,0 +1,1 @@
+ALTER TABLE "chip_denominations" DROP COLUMN "image_key";

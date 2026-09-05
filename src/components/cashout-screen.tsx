@@ -39,8 +39,8 @@ interface CashoutChipSet {
   denominations: Array<{
     id: string;
     color: string;
+    edgeColor: string | null;
     value: number;
-    imageKey: string | null;
   }>;
 }
 

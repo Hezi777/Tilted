@@ -12,11 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Money } from "@/components/Money";
 import { useIdentity } from "@/lib/identity";
+import { ChipAvatar } from "@/components/ChipAvatar";
 import { apiFetch, ApiError, type GameSummary } from "@/lib/api";
 
 export default function Home() {
   const reduceMotion = useReducedMotion();
-  const myName = useIdentity()?.name ?? "";
+  const viewer = useIdentity();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<GameSummary | null>(null);
@@ -60,7 +61,7 @@ export default function Home() {
   }
 
   return (
-    <main className="relative flex h-[100dvh] flex-1 flex-col overflow-hidden">
+    <main className="relative flex min-h-[100dvh] flex-1 flex-col">
       <motion.header
         initial={false}
         className="relative h-[18.5rem] shrink-0 overflow-hidden"
@@ -75,12 +76,26 @@ export default function Home() {
           className="object-cover object-center"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(5_2_3/0.12),transparent_52%,rgb(9_3_5)_100%)]" />
+        {viewer && (
+          <Link
+            href="/profile"
+            aria-label={`הפרופיל של ${viewer.name}`}
+            className="absolute end-4 top-[calc(0.75rem+env(safe-area-inset-top))] grid size-11 place-items-center rounded-full ring-1 ring-foreground/15 backdrop-blur-sm transition-transform focus-visible:ring-3 focus-visible:ring-ring active:scale-95"
+          >
+            <ChipAvatar
+              avatarKey={viewer.avatarKey}
+              personId={viewer.id}
+              name={viewer.name}
+              className="size-10"
+            />
+          </Link>
+        )}
         <p className="absolute inset-x-5 bottom-3 mx-auto max-w-[31ch] text-center text-sm font-medium leading-relaxed text-foreground/72">
           הכניסות, הריבאיים והחשבון מסתדרים בזמן שהמשחק ממשיך.
         </p>
       </motion.header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 px-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 px-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
         <div className="flex flex-col gap-2.5">
           <motion.div whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={{ duration: 0.12 }}>
             <Button asChild className="h-14 w-full text-base font-bold tracking-[-0.01em]">
@@ -92,17 +107,7 @@ export default function Home() {
               <Link href="/join">מצטרפים למשחק</Link>
             </Button>
           </motion.div>
-          {myName && (
-            <Button
-              asChild
-              variant="ghost"
-              className="min-h-11 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Link href="/profile">
-                משחקים בתור <span className="font-semibold text-foreground">{myName}</span> · הפרופיל שלי
-              </Link>
-            </Button>
-          )}
+
         </div>
 
         {activeGame && (
@@ -127,10 +132,17 @@ export default function Home() {
           </section>
         )}
 
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-labelledby="history-title">
-          <div className="mb-2.5 flex items-center justify-between">
+        <section className="flex min-h-0 flex-1 flex-col" aria-labelledby="history-title">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
             <h2 id="history-title" className="section-label">ערבים קודמים</h2>
-            {closedGames.length > 0 && <span className="text-xs text-muted-foreground">{closedGames.length} משחקים</span>}
+            {closedGames.length > 0 && (
+              <Link
+                href="/history"
+                className="t-caption font-semibold text-brand-300 hover:text-foreground"
+              >
+                כל {closedGames.length} הערבים
+              </Link>
+            )}
           </div>
 
           {games === null && !error && (
@@ -150,30 +162,32 @@ export default function Home() {
           {games !== null && !error && closedGames.length === 0 && (
             <Card className="flex flex-1 border-dashed bg-surface-1">
               <CardContent className="flex flex-1 items-center gap-4 p-5">
-                <Image src="/art/empty.png" alt="דמות צ׳יפ מחכה לפתיחת שולחן" width={88} height={88} className="size-20 shrink-0 object-contain" />
+                <Image src="/art/empty.png" alt="" width={88} height={88} className="size-20 shrink-0 object-contain" />
                 <div className="text-start">
-                  <p className="font-semibold">השולחן הראשון מחכה לכם</p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">פותחים משחק, בוחרים מי הגיע, ומכאן הקופה מסתדרת לבד.</p>
+                  <p className="t-title">השולחן הראשון מחכה לכם</p>
+                  <p className="t-caption ink-3 mt-1 leading-relaxed">פותחים משחק, בוחרים מי הגיע, ומכאן הקופה מסתדרת לבד.</p>
                 </div>
               </CardContent>
             </Card>
           )}
 
           {closedGames.length > 0 && (
-          <div className="row-list casino-panel min-h-0 overflow-y-auto rounded-[20px]">
-            {closedGames.map((game) => (
-              <Link key={game.id} href={`/history/${game.id}`} className="flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/3">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{game.name ?? "משחק"}</p>
-                  <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{new Date(game.createdAt).toLocaleDateString("he-IL")}</span>
-                    <span className="inline-flex items-center gap-1"><UsersIcon className="size-3.5" />{game.playerCount} שחקנים</span>
-                  </p>
-                </div>
-                <Money value={game.pot} className="font-semibold text-brand-300" />
-              </Link>
-            ))}
-          </div>
+            <ul className="row-list casino-panel overflow-hidden rounded-[20px]">
+              {closedGames.slice(0, 3).map((game) => (
+                <li key={game.id}>
+                  <Link href={`/history/${game.id}`} className="flex min-h-18 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/3">
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">{game.name ?? "משחק"}</span>
+                      <span className="t-caption ink-3 mt-1 flex items-center gap-3">
+                        <span>{new Date(game.createdAt).toLocaleDateString("he-IL")}</span>
+                        <span className="inline-flex items-center gap-1"><UsersIcon aria-hidden="true" className="size-3.5" />{game.playerCount}</span>
+                      </span>
+                    </span>
+                    <Money value={game.pot} className="font-semibold text-brand-300" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       </div>

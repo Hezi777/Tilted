@@ -24,10 +24,10 @@ export function settlementVoiceLine(
   }
 
   const lines = [
-    `אס זוכה, קינג בוכה — ${winner.name} בראש הערימה.`,
-    `Read ’em and weep — ${winner.name} עם המילה האחרונה.`,
-    `קנטה על הקופה — ${winner.name} בראש הערימה.`,
-    `הצ׳יפים דיברו — ${winner.name} בראש הערימה.`,
+    `אס זוכה, קינג בוכה. ${winner.name} בראש הערימה.`,
+    `Read ’em and weep. ${winner.name} עם המילה האחרונה.`,
+    `קנטה על הקופה. ${winner.name} בראש הערימה.`,
+    `הצ׳יפים דיברו. ${winner.name} בראש הערימה.`,
   ];
   const selector = Array.from(gameId).reduce((total, character) => total + character.charCodeAt(0), 0);
   return lines[selector % lines.length];

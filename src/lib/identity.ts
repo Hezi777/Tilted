@@ -18,6 +18,8 @@ import { useViewer } from "@/components/ViewerProvider";
 export interface StoredIdentity {
   id: string;
   name: string;
+  /** Chosen chip character, or null to fall back to the deterministic one. */
+  avatarKey: string | null;
 }
 
 /**
@@ -26,5 +28,7 @@ export interface StoredIdentity {
  */
 export function useIdentity(): StoredIdentity | null {
   const viewer = useViewer();
-  return viewer ? { id: viewer.id, name: viewer.name } : null;
+  return viewer
+    ? { id: viewer.id, name: viewer.name, avatarKey: viewer.avatarKey }
+    : null;
 }

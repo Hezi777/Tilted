@@ -34,12 +34,13 @@ export async function getPeople(): Promise<PersonSummary[]> {
       id: people.id,
       name: people.name,
       nickname: people.nickname,
+      avatarKey: people.avatarKey,
     })
     .from(people)
     .orderBy(people.name);
 }
 
-/** Creates a new Person — "הוסף אורח" (spec 5.2). */
+/** Creates a new Person, "הוסף אורח" (spec 5.2). */
 export async function createPerson(
   name: string,
   nickname?: string | null,
@@ -47,7 +48,12 @@ export async function createPerson(
   const [row] = await db
     .insert(people)
     .values({ name, nickname: nickname ?? null })
-    .returning({ id: people.id, name: people.name, nickname: people.nickname });
+    .returning({
+      id: people.id,
+      name: people.name,
+      nickname: people.nickname,
+      avatarKey: people.avatarKey,
+    });
   return row;
 }
 

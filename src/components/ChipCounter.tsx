@@ -7,20 +7,22 @@
  * milestone) and any chip-set preview here.
  */
 
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Money } from "@/components/Money";
 import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
 import { agorot, formatILS } from "@/lib/money";
+import { PokerChip } from "@/components/PokerChip";
 import { cn } from "@/lib/utils";
 
 export interface ChipCounterDenomination {
   id: string;
   /** Agorot. */
   value: number;
+  /** Body colour. */
   color: string;
-  imageKey?: string | null;
+  /** Edge-spot colour, or null to derive one from the body. */
+  edgeColor?: string | null;
 }
 
 interface ChipCounterProps {
@@ -60,20 +62,11 @@ export function ChipCounter({
             key={denomination.id}
             className="flex items-center gap-3 rounded-[14px] border border-foreground/8 bg-surface-2 p-3"
           >
-            <div
-              className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-foreground/15"
-              style={{ backgroundColor: denomination.color }}
-            >
-              {denomination.imageKey ? (
-                <Image
-                  src={`/art/${denomination.imageKey}`}
-                  alt=""
-                  width={40}
-                  height={40}
-                  className="size-10 object-cover"
-                />
-              ) : null}
-            </div>
+            <PokerChip
+              color={denomination.color}
+              edgeColor={denomination.edgeColor}
+              className="size-11"
+            />
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="text-xs text-muted-foreground">ערך לז׳יטון</span>
               <span className="money text-sm font-semibold">

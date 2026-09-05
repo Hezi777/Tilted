@@ -218,7 +218,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
         <DialogContent className="max-h-[90dvh] overflow-y-auto" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>יד שלא שוכחים</DialogTitle>
-            <DialogDescription>שומרים את הלוח, המשתתפים והתוצאה — בלי להשפיע על הקופה.</DialogDescription>
+            <DialogDescription>שומרים את הלוח, המשתתפים והתוצאה, בלי להשפיע על הקופה.</DialogDescription>
           </DialogHeader>
 
           {showForm ? (
@@ -286,7 +286,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
             <div className="flex flex-col gap-3">
               {records.length === 0 ? (
                 <p className="rounded-[20px] border border-dashed border-brand-500/30 bg-surface-2 px-4 py-5 text-center text-sm text-muted-foreground">
-                  עוד לא נשמרה יד מהערב. כשהריבר עושה בלגן — זה המקום לתעד.
+                  עוד לא נשמרה יד מהערב. כשהריבר עושה בלגן, זה המקום לתעד.
                 </p>
               ) : records.map((record) => (
                 <MemorableHandCard key={record.id} record={record} onDelete={() => void removeHand(record)} />

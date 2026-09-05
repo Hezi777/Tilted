@@ -8,6 +8,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
+import { PokerChip } from "@/components/PokerChip";
+import { deriveEdgeColor } from "@/lib/chip-art";
 import {
   ChipSetEditor,
   createEmptyDenomination,
@@ -27,7 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
-import { AVATAR_KEYS, avatarKeyForPerson } from "@/lib/avatar";
+import { AVATAR_KEYS } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
 import { denominationInputText } from "@/lib/chips";
@@ -44,8 +46,8 @@ interface GameChipSet {
   denominations: Array<{
     id: string;
     color: string;
+    edgeColor: string | null;
     value: number;
-    imageKey: string | null;
   }>;
 }
 
@@ -194,9 +196,9 @@ export default function NewGamePage() {
       denominations: chipSet.denominations.map((denomination) => ({
         id: denomination.id,
         color: denomination.color,
+        edgeColor: denomination.edgeColor ?? deriveEdgeColor(denomination.color),
         value: denomination.value,
         valueText: denominationInputText(agorot(denomination.value)),
-        imageKey: denomination.imageKey,
       })),
     });
     setEditorError(null);
@@ -216,10 +218,13 @@ export default function NewGamePage() {
     setEditorError(null);
     const payload = {
       name,
-      denominations: editorValue.denominations.map(({ color, value, imageKey }) => ({
+      // The draft id is the server row id when editing, and the server keeps rows it
+      // recognises rather than recreating them.
+      denominations: editorValue.denominations.map(({ id, color, edgeColor, value }) => ({
+        id,
         color,
+        edgeColor,
         value,
-        ...(imageKey ? { imageKey } : {}),
       })),
     };
     try {
@@ -263,7 +268,7 @@ export default function NewGamePage() {
     people === null
       ? null
       : !hostInRoster
-        ? "השם שבחרתם לא נמצא ברשימה — בחרו אותו מחדש במסך הבית"
+        ? "השם שבחרתם לא נמצא ברשימה. בחרו אותו מחדש במסך הבית"
         : seated.size > AVATAR_KEYS.length
           ? `אפשר להושיב עד ${AVATAR_KEYS.length} שחקנים בשולחן`
         : !Number.isFinite(buyInShekels) || buyInShekels <= 0
@@ -357,13 +362,13 @@ export default function NewGamePage() {
               key={chip}
               value={chip}
               aria-label={`₪${chip}`}
-              className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(142_22_49/0.6)]"
+              className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(148_19_30/0.6)]"
             >
               <Image src={`/art/buyin-${chip}.webp`} alt="" fill sizes="84px" className="object-contain" />
               <span className="sr-only">₪{chip}</span>
             </ToggleGroupItem>
           ))}
-          <ToggleGroupItem value="custom" aria-label="סכום אחר" className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(142_22_49/0.6)]">
+          <ToggleGroupItem value="custom" aria-label="סכום אחר" className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(148_19_30/0.6)]">
             <Image src="/art/buyin-custom.webp" alt="" fill sizes="84px" className="object-contain" />
             <span className="sr-only">סכום אחר</span>
           </ToggleGroupItem>
@@ -517,9 +522,10 @@ export default function NewGamePage() {
                       key={denomination.id}
                       className="money inline-flex items-center gap-1 rounded-full border border-foreground/10 bg-surface-1 px-2 py-1 text-[11px]"
                     >
-                      <span
-                        className="size-3 rounded-full border border-foreground/20"
-                        style={{ backgroundColor: denomination.color }}
+                      <PokerChip
+                        color={denomination.color}
+                        edgeColor={denomination.edgeColor}
+                        className="size-4"
                       />
                       {formatILS(agorot(denomination.value))}
                     </span>
@@ -598,7 +604,7 @@ export default function NewGamePage() {
                 )}
               >
                 <ChipAvatar
-                  avatarKey={avatarKeyForPerson(person.id)}
+                  avatarKey={person.avatarKey}
                   personId={person.id}
                   name={person.name}
                   className={cn("size-12 transition-opacity duration-[var(--dur-base)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}

@@ -160,7 +160,7 @@ export default function JoinPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3 p-4 pt-2">
               <p className="text-sm text-muted-foreground">
-                לא צריך קוד — המקום שלכם מחכה.
+                לא צריך קוד, המקום שלכם מחכה.
               </p>
               <Button
                 className="h-14 w-full rounded-2xl text-lg font-bold"

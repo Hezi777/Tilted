@@ -25,6 +25,7 @@ export async function getPersonForUser(
       id: people.id,
       name: people.name,
       nickname: people.nickname,
+      avatarKey: people.avatarKey,
     })
     .from(people)
     .where(eq(people.userId, userId))
@@ -39,6 +40,7 @@ export async function getAccountPeople(): Promise<PersonSummary[]> {
       id: people.id,
       name: people.name,
       nickname: people.nickname,
+      avatarKey: people.avatarKey,
     })
     .from(people)
     .where(isNotNull(people.userId))
@@ -74,6 +76,7 @@ export async function ensurePersonForUser(
       id: people.id,
       name: people.name,
       nickname: people.nickname,
+      avatarKey: people.avatarKey,
     });
   if (created) return created;
 
@@ -85,7 +88,12 @@ export async function ensurePersonForUser(
 /** Profile edits the owner may make (plan item 2, and the phone for item 5). */
 export async function updateProfile(
   userId: string,
-  input: { name?: string; nickname?: string | null; phone?: string | null },
+  input: {
+    name?: string;
+    nickname?: string | null;
+    phone?: string | null;
+    avatarKey?: string | null;
+  },
 ): Promise<PersonSummary> {
   const [row] = await db
     .update(people)
@@ -95,6 +103,7 @@ export async function updateProfile(
       id: people.id,
       name: people.name,
       nickname: people.nickname,
+      avatarKey: people.avatarKey,
     });
   if (!row) throw new Error(`No Person for user ${userId}`);
   return row;
