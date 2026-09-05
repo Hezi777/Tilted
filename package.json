@@ -17,6 +17,7 @@
     "db:seed": "tsx --env-file=.env.local src/db/seed.ts"
   },
   "dependencies": {
+    "@neondatabase/auth": "0.5.0-beta",
     "@neondatabase/serverless": "^1.1.0",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",

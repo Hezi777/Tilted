@@ -38,6 +38,7 @@ export interface GameSummary {
   id: string;
   code: string;
   name: string | null;
+  location: string | null;
   status: GameStatus;
   createdAt: string;
   closedAt: string | null;

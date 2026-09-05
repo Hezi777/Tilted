@@ -5,6 +5,7 @@ import {
   SettlementUnavailableError,
 } from "@/db/settlement-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const idSchema = z.string().uuid();
 
@@ -13,6 +14,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const { id: rawId } = await params;
   const parsed = idSchema.safeParse(rawId);
   if (!parsed.success) {

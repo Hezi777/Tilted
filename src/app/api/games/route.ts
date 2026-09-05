@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createGame, getGamesForDevice } from "@/db/queries";
+import { getVisibleChipSet } from "@/db/chip-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 import { AVATAR_KEYS } from "@/lib/avatar";
 import { MAX_AGOROT } from "@/lib/money";
 
@@ -13,33 +15,23 @@ const createGameSchema = z.object({
   rebuyAmount: z.number().int().positive().max(MAX_AGOROT),
   plannedEndAt: z.string().datetime(),
   personIds: z.array(z.string().uuid()).min(1).max(AVATAR_KEYS.length),
-  hostPersonId: z.string().uuid(),
+  chipSetId: z.string().uuid().nullable().optional(),
+  resultEntry: z.enum(["host_only", "players"]).optional(),
 });
 
-function requireDeviceId(request: NextRequest): string | NextResponse {
-  const deviceId = request.headers.get("x-device-id");
-  if (!deviceId) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
-  return deviceId;
-}
-
 /** Past + current games this device has a seat in. Spec 5.1. */
-export async function GET(request: NextRequest) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+export async function GET() {
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
-  const games = await getGamesForDevice(deviceId);
+  const games = await getGamesForDevice(viewer.person.id);
   return NextResponse.json({ games });
 }
 
 /** Creates a game and bootstraps the host. Spec 5.2. */
 export async function POST(request: NextRequest) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const json = await request.json().catch(() => null);
   const parsed = createGameSchema.safeParse(json);
@@ -57,9 +49,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    if (
+      parsed.data.chipSetId &&
+      !(await getVisibleChipSet(parsed.data.chipSetId, viewer.person.id))
+    ) {
+      return NextResponse.json<ApiErrorBody>(
+        { error: "חבילת הז׳יטונים לא זמינה" },
+        { status: 403 },
+      );
+    }
     const id = await createGame(
-      { ...parsed.data, plannedEndAt: new Date(parsed.data.plannedEndAt) },
-      deviceId,
+      {
+        ...parsed.data,
+        hostPersonId: viewer.person.id,
+        plannedEndAt: new Date(parsed.data.plannedEndAt),
+      },
+      viewer.person.id,
     );
     return NextResponse.json({ id }, { status: 201 });
   } catch {

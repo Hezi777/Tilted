@@ -9,6 +9,7 @@
 
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Money } from "@/components/Money";
 import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
 import { agorot, formatILS } from "@/lib/money";
@@ -46,7 +47,7 @@ export function ChipCounter({
   );
 
   function setCount(denominationId: string, next: number) {
-    const clamped = Math.max(0, Math.round(next));
+    const clamped = Number.isFinite(next) ? Math.max(0, Math.round(next)) : 0;
     onChange({ ...counts, [denominationId]: clamped });
   }
 
@@ -74,6 +75,7 @@ export function ChipCounter({
               ) : null}
             </div>
             <div className="flex min-w-0 flex-1 flex-col">
+              <span className="text-xs text-muted-foreground">ערך לז׳יטון</span>
               <span className="money text-sm font-semibold">
                 {formatILS(agorot(denomination.value))}
               </span>
@@ -90,9 +92,19 @@ export function ChipCounter({
               >
                 −
               </Button>
-              <span className="money w-8 text-center text-base font-semibold tabular-nums">
-                {count}
-              </span>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                disabled={disabled}
+                aria-label={`כמות ז׳יטונים בערך ${formatILS(agorot(denomination.value))}`}
+                value={count}
+                onChange={(event) =>
+                  setCount(denomination.id, Number(event.target.value))
+                }
+                className="money h-12 w-16 px-2 text-center text-base font-semibold tabular-nums"
+              />
               <Button
                 type="button"
                 variant="outline"

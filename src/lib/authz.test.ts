@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertCanCashOutEarly,
   assertCanDeleteBuyIn,
+  assertCanEnterResult,
   assertCanInsertBuyIn,
   assertCanManageRoster,
   assertCanSettle,
@@ -193,5 +194,43 @@ describe("host-only operations", () => {
       codeOf(() => assertCanManageRoster("active", actor({ isHost: true }))),
     ).toBe("ok");
     expect(codeOf(() => assertCanManageRoster("active", actor()))).toBe("not_host");
+  });
+});
+
+describe("assertCanEnterResult", () => {
+  it("lets the host write anyone's result under either policy", () => {
+    const host = actor({ isHost: true });
+    expect(
+      codeOf(() => assertCanEnterResult("settling", host, "other", "host_only")),
+    ).toBe("ok");
+    expect(
+      codeOf(() => assertCanEnterResult("settling", host, "other", "players")),
+    ).toBe("ok");
+  });
+
+  it("refuses a player their own result when the table is host-only", () => {
+    expect(
+      codeOf(() => assertCanEnterResult("settling", actor(), "me", "host_only")),
+    ).toBe("not_host");
+  });
+
+  it("lets a player write their own result when the table allows it", () => {
+    expect(
+      codeOf(() => assertCanEnterResult("settling", actor(), "me", "players")),
+    ).toBe("ok");
+  });
+
+  it("never lets a player write someone else's result", () => {
+    expect(
+      codeOf(() => assertCanEnterResult("settling", actor(), "other", "players")),
+    ).toBe("not_your_seat");
+  });
+
+  it("refuses once the game is closed, whoever is asking", () => {
+    expect(
+      codeOf(() =>
+        assertCanEnterResult("closed", actor({ isHost: true }), "me", "players"),
+      ),
+    ).toBe("game_not_active");
   });
 });

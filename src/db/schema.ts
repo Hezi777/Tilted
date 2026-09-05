@@ -41,6 +41,15 @@ export const gameStatusEnum = pgEnum("game_status", [
 
 export const buyInKindEnum = pgEnum("buy_in_kind", ["initial", "rebuy"]);
 
+/**
+ * Who may enter a player's result at the end of the night (requirements item 4). The
+ * host picks this when opening the table, because both answers are legitimate: some
+ * groups count every stack together, others let each player type their own.
+ * 'host_only' keeps the v1 behaviour; 'players' lets a player write their own row and
+ * still leaves the host able to write anyone's.
+ */
+export const resultEntryEnum = pgEnum("result_entry", ["host_only", "players"]);
+
 // Which section 5.5 mismatch resolution, if any, was applied to this game.
 export const mismatchKindEnum = pgEnum("mismatch_kind", [
   "none",
@@ -76,6 +85,8 @@ export const games = pgTable(
     // v2: the chip set this table counts with (plan items 1 / 8). Null keeps the
     // v1 behaviour of entering shekel amounts directly.
     chipSetId: uuid("chip_set_id").references((): AnyPgColumn => chipSets.id),
+    // v2: who may enter results at settlement (requirements item 4).
+    resultEntry: resultEntryEnum("result_entry").notNull().default("host_only"),
     // v2: only this person may delete the game from history (plan item 3).
     createdByPersonId: uuid("created_by_person_id").references(
       (): AnyPgColumn => people.id,
@@ -103,15 +114,27 @@ export const games = pgTable(
 );
 
 // Exists only to make streaks possible (spec section 4) — a friend persists across games.
-export const people = pgTable("people", {
+export const people = pgTable(
+  "people",
+  {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   // Cross-game disambiguation for two friends with the same first name (edge case #6).
   // Lives on Person, not Player, so it is not retyped every game.
   nickname: text("nickname"),
-  // v2: used only to compose a Bit deep link (plan item 5). The app never moves money.
+  // v2: used only to compose a payment hand-off (plan item 5). The app never moves money.
   phone: text("phone"),
-});
+  // v2/M10: the Neon Auth user this friend signs in as (neon_auth."user".id). Kept as a
+  // plain text id rather than a foreign key because that table lives in another schema
+  // and is owned by the auth service, not by these migrations. Nullable at the database
+  // level so the column can be added without a rewrite; the app never creates a Person
+  // without one.
+  userId: text("user_id"),
+}, (table) => [
+  uniqueIndex("people_user_id_unique")
+    .on(table.userId)
+    .where(sql`"user_id" IS NOT NULL`),
+]);
 
 export const players = pgTable(
   "players",

@@ -2,11 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import {
   deleteChipSet,
-  getChipSet,
-  isChipSetOwner,
+  getVisibleChipSet,
   updateChipSet,
 } from "@/db/chip-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 import { MAX_AGOROT } from "@/lib/money";
 
 const denominationSchema = z.object({
@@ -16,21 +16,9 @@ const denominationSchema = z.object({
 });
 
 const patchChipSetSchema = z.object({
-  personId: z.string().uuid(),
   name: z.string().trim().min(1).max(100).optional(),
   denominations: z.array(denominationSchema).min(1).max(20).optional(),
 });
-
-function requireDeviceId(request: NextRequest): string | NextResponse {
-  const deviceId = request.headers.get("x-device-id");
-  if (!deviceId) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
-  return deviceId;
-}
 
 const idSchema = z.string().uuid();
 
@@ -39,8 +27,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const { id } = await params;
   if (!idSchema.safeParse(id).success) {
@@ -50,7 +38,7 @@ export async function GET(
     );
   }
 
-  const chipSet = await getChipSet(id);
+  const chipSet = await getVisibleChipSet(id, viewer.person.id);
   if (!chipSet) {
     return NextResponse.json<ApiErrorBody>(
       { error: "חבילת הז׳יטונים לא נמצאה" },
@@ -62,15 +50,14 @@ export async function GET(
 
 /**
  * Renames a set and/or replaces its denominations. Presets are shared, read-only
- * fixtures here — only the owner of a personal set may edit it, verified by the
- * `personId` the caller sends in the body against `owner_person_id`.
+ * fixtures here — only the signed-in owner of a personal set may edit it.
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const { id } = await params;
   if (!idSchema.safeParse(id).success) {
@@ -95,7 +82,7 @@ export async function PATCH(
     );
   }
 
-  const existing = await getChipSet(id);
+  const existing = await getVisibleChipSet(id, viewer.person.id);
   if (!existing) {
     return NextResponse.json<ApiErrorBody>(
       { error: "חבילת הז׳יטונים לא נמצאה" },
@@ -108,30 +95,27 @@ export async function PATCH(
       { status: 403 },
     );
   }
-  const owner = await isChipSetOwner(id, parsed.data.personId);
-  if (!owner) {
+  if (existing.ownerPersonId !== viewer.person.id) {
     return NextResponse.json<ApiErrorBody>(
       { error: "אין הרשאה לערוך חבילה זו" },
       { status: 403 },
     );
   }
 
-  const updated = await updateChipSet(id, {
+  const updated = await updateChipSet(id, viewer.person.id, {
     name: parsed.data.name,
     denominations: parsed.data.denominations,
   });
   return NextResponse.json(updated);
 }
 
-const deleteQuerySchema = z.object({ personId: z.string().uuid() });
-
 /** Deletes a personal chip set. Presets cannot be deleted through the API. */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const { id } = await params;
   if (!idSchema.safeParse(id).success) {
@@ -141,17 +125,7 @@ export async function DELETE(
     );
   }
 
-  const parsed = deleteQuerySchema.safeParse({
-    personId: request.nextUrl.searchParams.get("personId"),
-  });
-  if (!parsed.success) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "מזהה שחקן לא תקין" },
-      { status: 400 },
-    );
-  }
-
-  const existing = await getChipSet(id);
+  const existing = await getVisibleChipSet(id, viewer.person.id);
   if (!existing) {
     return NextResponse.json<ApiErrorBody>(
       { error: "חבילת הז׳יטונים לא נמצאה" },
@@ -164,14 +138,13 @@ export async function DELETE(
       { status: 403 },
     );
   }
-  const owner = await isChipSetOwner(id, parsed.data.personId);
-  if (!owner) {
+  if (existing.ownerPersonId !== viewer.person.id) {
     return NextResponse.json<ApiErrorBody>(
       { error: "אין הרשאה למחוק חבילה זו" },
       { status: 403 },
     );
   }
 
-  await deleteChipSet(id);
+  await deleteChipSet(id, viewer.person.id);
   return new NextResponse(null, { status: 204 });
 }

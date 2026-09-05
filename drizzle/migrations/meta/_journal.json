@@ -36,6 +36,20 @@
       "when": 1788530588384,
       "tag": "0004_cloudy_nicolaos",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788532153462,
+      "tag": "0005_magenta_barracuda",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788610929720,
+      "tag": "0006_big_caretaker",
+      "breakpoints": true
     }
   ]
 }

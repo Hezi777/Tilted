@@ -9,28 +9,20 @@ import {
 import { AuthzError } from "@/lib/authz";
 import { MAX_AGOROT } from "@/lib/money";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 import { z } from "zod";
 
 const idSchema = z.string().uuid();
-const deviceSchema = z.string().trim().min(1).max(200);
-
-function requireDeviceId(request: NextRequest): string | NextResponse {
-  const parsed = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!parsed.success) {
-    return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-  }
-  return parsed.data;
-}
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = idSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
-  const device = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!device.success) return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-  const game = await getLiveGame(id.data, device.data);
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  const game = await getLiveGame(id.data, viewer.person.id);
   if (!game) return NextResponse.json<ApiErrorBody>({ error: "המשחק לא נמצא" }, { status: 404 });
   // v2: location, notes and who may delete this game layer onto the live-game
   // read model without touching src/db/live-queries.ts (plan item 7).
@@ -61,8 +53,8 @@ export async function PATCH(
 ) {
   const id = idSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const json = await request.json().catch(() => null);
   const parsed = updateRulesSchema.safeParse(json);
@@ -78,7 +70,7 @@ export async function PATCH(
 
   try {
     const { plannedEndAt, ...rest } = parsed.data;
-    const detail = await updateGameRules(id.data, deviceId, {
+    const detail = await updateGameRules(id.data, viewer.person.id, {
       ...rest,
       ...(plannedEndAt !== undefined ? { plannedEndAt: new Date(plannedEndAt) } : {}),
     });
@@ -101,11 +93,11 @@ export async function DELETE(
 ) {
   const id = idSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   try {
-    await deleteGame(id.data, deviceId);
+    await deleteGame(id.data, viewer.person.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof GameDeleteError) {

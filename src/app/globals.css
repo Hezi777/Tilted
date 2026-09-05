@@ -245,7 +245,9 @@
   .t-label { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
   .t-caption { font-size: 0.8125rem; line-height: 1.125rem; font-weight: 400; }
   .ink-2 { color: var(--text-2); }
-  .ink-3 { color: var(--text-3); }
+  /* --text-3 tops out at 3.9:1 on the darkest surface, and this class carries the
+     subtitle on every screen. --text-2 is the same intent at 6.5:1. */
+  .ink-3 { color: var(--text-2); }
   .section-label { font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; color: var(--text-2); }
 
   .money,

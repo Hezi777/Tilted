@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { agorot } from "@/lib/money";
 import {
   countFor,
+  denominationInputText,
   formatDenominationValue,
   totalAgorotForCounts,
   type ChipDenominationLike,
@@ -100,5 +101,11 @@ describe("formatDenominationValue", () => {
 
   it("formats a value with agorot", () => {
     expect(formatDenominationValue(agorot(550))).toBe("₪5.50");
+  });
+});
+
+describe("denominationInputText", () => {
+  it("returns editable shekel text without grouping or a currency sign", () => {
+    expect(denominationInputText(agorot(123450))).toBe("1234.50");
   });
 });

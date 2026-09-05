@@ -6,22 +6,23 @@ import {
   saveCashout,
 } from "@/db/cashout-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const cashoutSchema = z.object({
   playerId: z.uuid(),
-  /** Amount is integer agorot. The client converts keypad shekels at the edge. */
-  amount: z.number().int().min(0).max(100_000_000),
+  /** One of these is required. Chip counts are converted to agorot on the server. */
+  amount: z.number().int().min(0).max(100_000_000).optional(),
+  chipCounts: z.record(z.uuid(), z.number().int().min(0).max(1_000_000)).optional(),
   early: z.boolean().optional().default(false),
+}).superRefine((value, context) => {
+  if ((value.amount === undefined) === (value.chipCounts === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "יש לשלוח סכום או ספירת ז׳יטונים",
+    });
+  }
 });
 const idSchema = z.string().uuid();
-const deviceSchema = z.string().trim().min(1).max(200);
-
-function deviceId(request: NextRequest): string | NextResponse<ApiErrorBody> {
-  const parsed = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  return parsed.success
-    ? parsed.data
-    : NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-}
 
 function errorResponse(error: unknown): NextResponse<ApiErrorBody> {
   if (error && typeof error === "object" && "status" in error) {
@@ -40,17 +41,17 @@ function errorResponse(error: unknown): NextResponse<ApiErrorBody> {
 }
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = deviceId(request);
-  if (id instanceof NextResponse) return id;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) {
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
   }
   const gameId = parsedId.data;
-  const access = await getActorForGame(gameId, id);
+  const access = await getActorForGame(gameId, viewer.person.id);
   if (!access) {
     return NextResponse.json<ApiErrorBody>(
       { error: "אינך משתתף במשחק הזה" },
@@ -67,8 +68,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = deviceId(request);
-  if (id instanceof NextResponse) return id;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) {
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
@@ -88,9 +89,11 @@ export async function POST(
     const gameId = parsedId.data;
     const state = await saveCashout(
       gameId,
-      id,
+      viewer.person.id,
       parsed.data.playerId,
-      parsed.data.amount,
+      parsed.data.amount === undefined
+        ? { chipCounts: parsed.data.chipCounts ?? {} }
+        : { amount: parsed.data.amount },
       parsed.data.early,
     );
     return NextResponse.json(state);

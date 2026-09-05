@@ -6,35 +6,18 @@ import {
 } from "@/db/roster-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { AuthzError } from "@/lib/authz";
+import { requireViewer } from "@/lib/auth/session";
 
 const addPlayerSchema = z
   .object({
     gameId: z.string().uuid(),
-    personId: z.string().uuid().optional(),
-    name: z.string().trim().min(1).max(100).optional(),
-    nickname: z.string().trim().min(1).max(100).nullable().optional(),
-  })
-  .refine((value) => value.personId !== undefined || value.name !== undefined, {
-    message: "חסר שם שחקן",
-    path: ["name"],
+    personId: z.string().uuid(),
   });
-const deviceSchema = z.string().trim().min(1).max(200);
-
-function deviceId(request: NextRequest): string | NextResponse {
-  const parsed = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!parsed.success) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
-  return parsed.data;
-}
 
 /** Host-only missing-player creation for a live room. */
 export async function POST(request: NextRequest) {
-  const actorDevice = deviceId(request);
-  if (actorDevice instanceof NextResponse) return actorDevice;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const parsed = addPlayerSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -48,7 +31,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const player = await addPlayerToGame(parsed.data.gameId, actorDevice, parsed.data);
+    const player = await addPlayerToGame(
+      parsed.data.gameId,
+      viewer.person.id,
+      { personId: parsed.data.personId },
+    );
     return NextResponse.json(player, { status: 201 });
   } catch (error) {
     if (error instanceof AuthzError) {

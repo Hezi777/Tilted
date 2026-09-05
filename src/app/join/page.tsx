@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -43,15 +41,11 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
-  const [forcePlayer, setForcePlayer] = useState<JoinRosterPlayer | null>(null);
   const [avatarPlayer, setAvatarPlayer] = useState<JoinRosterPlayer | null>(null);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
-  const [addName, setAddName] = useState("");
-  const [addNickname, setAddNickname] = useState("");
-  const [adding, setAdding] = useState(false);
 
-  // No route code -> the code prompt itself may be unnecessary. This device may
-  // already have an open seat somewhere it has visited before.
+  // No route code -> the code prompt itself may be unnecessary. This account may
+  // already have an open seat.
   const routeCode = useMemo(
     () => (pathname.startsWith("/join/") ? pathname.slice("/join/".length) : ""),
     [pathname],
@@ -113,20 +107,19 @@ export default function JoinPage() {
     return () => window.clearTimeout(timeoutId);
   }, [findGame, routeCode]);
 
-  async function claim(player: JoinRosterPlayer, avatarKey: string, force = false) {
+  async function claim(player: JoinRosterPlayer, avatarKey: string) {
     if (!game) return;
     setClaiming(player.id);
     setError(null);
     try {
       await apiFetch(`/api/players/${player.id}/claim`, {
         method: "POST",
-        body: JSON.stringify({ gameId: game.id, avatarKey, force }),
+        body: JSON.stringify({ gameId: game.id, avatarKey }),
       });
       router.replace(`/game/${game.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "תפיסת המקום נכשלה");
       setClaiming(null);
-      setForcePlayer(null);
       // A concurrent claim can change the badge; refresh the roster before retrying.
       try {
         const refreshed = await apiFetch<JoinGameDetail>(`/api/games/${game.code}`);
@@ -153,50 +146,8 @@ export default function JoinPage() {
     setAvatarPlayer(player);
   }
 
-  async function addPlayer() {
-    if (!game || !addName.trim() || !game.currentPlayerIsHost) return;
-    setAdding(true);
-    setError(null);
-    try {
-      await apiFetch("/api/players", {
-        method: "POST",
-        body: JSON.stringify({
-          gameId: game.id,
-          name: addName.trim(),
-          nickname: addNickname.trim() || undefined,
-        }),
-      });
-      setAddName("");
-      setAddNickname("");
-      const refreshed = await apiFetch<JoinGameDetail>(`/api/games/${game.code}`);
-      setGame(refreshed);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "הוספת השחקן נכשלה");
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  async function release(player: JoinRosterPlayer) {
-    if (!game || !game.currentPlayerIsHost) return;
-    setClaiming(player.id);
-    setError(null);
-    try {
-      await apiFetch(`/api/players/${player.id}/release`, {
-        method: "POST",
-        body: JSON.stringify({ gameId: game.id }),
-      });
-      const refreshed = await apiFetch<JoinGameDetail>(`/api/games/${game.code}`);
-      setGame(refreshed);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "שחרור המקום נכשל");
-    } finally {
-      setClaiming(null);
-    }
-  }
-
-  // Fast path: this device already declared who it is and already has an open
-  // seat somewhere. Asking it to hunt for a code it never needed is friction the
+  // Fast path: this account already has an open seat somewhere. Asking it to hunt
+  // for a code it never needed is friction the
   // spec calls out explicitly, so return straight to the table instead.
   if (!routeCode && !showCodeForm && myActiveGame) {
     return (
@@ -232,7 +183,7 @@ export default function JoinPage() {
     );
   }
 
-  // Still checking whether this device has an open seat — a beat of skeleton
+  // Still checking whether this account has an open seat — a beat of skeleton
   // rather than flashing the code form and yanking it away a moment later.
   if (!routeCode && !showCodeForm && myActiveGame === undefined) {
     return (
@@ -324,8 +275,17 @@ export default function JoinPage() {
               <h2 id="roster-title" className="text-2xl font-black tracking-tight">
                 {game.name ?? "משחק"}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">מצאו את השם שלכם ברשימה</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                החשבון שלכם מזוהה אוטומטית
+              </p>
             </div>
+            {game.players.length === 0 && (
+              <Card className="border-foreground/10 bg-card/80 shadow-none" size="sm">
+                <CardContent className="p-4 text-sm text-muted-foreground">
+                  החשבון שלכם עדיין לא נמצא בשולחן הזה. בקשו מהמארח להוסיף אתכם.
+                </CardContent>
+              </Card>
+            )}
             <div className="flex flex-col gap-2">
               {game.players.map((player) => (
                 <Card key={player.id} className="border-foreground/10 bg-card/80 shadow-none" size="sm">
@@ -342,7 +302,6 @@ export default function JoinPage() {
                         )}
                       </CardTitle>
                     </div>
-                    {player.claimed && <Badge variant="secondary">תפוס</Badge>}
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2 p-4 pt-2">
                     {player.claimedByCurrentDevice ? (
@@ -353,14 +312,9 @@ export default function JoinPage() {
                         המשך למשחק
                       </Button>
                     ) : player.claimed ? (
-                      <Button
-                        variant="outline"
-                        className="h-12 w-full rounded-xl border-ruby/45 text-foreground"
-                        disabled={claiming === player.id}
-                        onClick={() => setForcePlayer(player)}
-                      >
-                        קחו את המקום בכל זאת
-                      </Button>
+                      <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                        אי אפשר להצטרף למקום הזה כרגע. בקשו מהמארח לשחרר אותו.
+                      </p>
                     ) : (
                       <Button
                         className="h-12 w-full rounded-xl"
@@ -370,49 +324,10 @@ export default function JoinPage() {
                         {claiming === player.id ? "שומר..." : "זה אני"}
                       </Button>
                     )}
-                    {game.currentPlayerIsHost && player.claimed && !player.claimedByCurrentDevice && (
-                      <Button
-                        variant="ghost"
-                        className="h-12 w-full rounded-xl"
-                        disabled={claiming === player.id}
-                        onClick={() => void release(player)}
-                      >
-                        שחרור המקום
-                      </Button>
-                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
-
-            {game.currentPlayerIsHost && game.status === "active" && (
-              <Card className="border-ruby/35 bg-ruby/5 shadow-none">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle>מישהו חסר ברשימה?</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3 p-4 pt-2">
-                  <Input
-                    className="h-12 rounded-xl border-foreground/15 bg-card"
-                    placeholder="שם השחקן"
-                    value={addName}
-                    onChange={(event) => setAddName(event.target.value)}
-                  />
-                  <Input
-                    className="h-12 rounded-xl border-foreground/15 bg-card"
-                    placeholder="כינוי (לא חובה)"
-                    value={addNickname}
-                    onChange={(event) => setAddNickname(event.target.value)}
-                  />
-                  <Button
-                    className="h-12 rounded-xl"
-                    disabled={!addName.trim() || adding}
-                    onClick={() => void addPlayer()}
-                  >
-                    {adding ? "מוסיף..." : "הוסף שחקן"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </section>
         )}
       </div>
@@ -457,31 +372,6 @@ export default function JoinPage() {
             </Button>
             <Button type="button" variant="outline" className="h-12" onClick={() => setAvatarPlayer(null)}>
               חזרה לרשימה
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={forcePlayer !== null} onOpenChange={(open) => !open && setForcePlayer(null)}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>המקום תפוס במכשיר אחר</DialogTitle>
-            <DialogDescription>
-              לקחתם את הטלפון של {forcePlayer?.name}? תפיסת המקום תנתק את המכשיר הקודם.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" className="h-12" onClick={() => setForcePlayer(null)}>
-              ביטול
-            </Button>
-            <Button
-              className="h-12"
-              disabled={forcePlayer !== null && claiming === forcePlayer.id}
-              onClick={() => {
-                if (forcePlayer) void claim(forcePlayer, forcePlayer.avatarKey ?? AVATAR_KEYS[0], true);
-              }}
-            >
-              תפיסת המקום
             </Button>
           </DialogFooter>
         </DialogContent>

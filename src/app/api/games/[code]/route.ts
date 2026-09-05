@@ -3,28 +3,17 @@ import { z } from "zod";
 import { getGameByRoomCode } from "@/db/roster-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { isValidRoomCode, normalizeRoomCode } from "@/lib/codes";
+import { requireViewer } from "@/lib/auth/session";
 
 const codeSchema = z.string().transform(normalizeRoomCode).refine(isValidRoomCode);
-const deviceSchema = z.string().trim().min(1).max(200);
-
-function requireDeviceId(request: NextRequest): string | NextResponse {
-  const parsed = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!parsed.success) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
-  return parsed.data;
-}
 
 /** Resolves a room code only while its game is active or settling. */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ code: string }> },
 ) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const { code: rawCode } = await params;
   const parsedCode = codeSchema.safeParse(rawCode);
@@ -35,7 +24,7 @@ export async function GET(
     );
   }
 
-  const game = await getGameByRoomCode(parsedCode.data, deviceId);
+  const game = await getGameByRoomCode(parsedCode.data, viewer.person.id);
   if (!game) {
     return NextResponse.json<ApiErrorBody>(
       { error: "המשחק לא נמצא או שכבר נסגר" },

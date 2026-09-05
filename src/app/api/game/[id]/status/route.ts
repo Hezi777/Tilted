@@ -5,12 +5,12 @@ import {
   closeSettlingGame,
 } from "@/db/cashout-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const statusSchema = z.object({
   status: z.enum(["settling", "closed"]),
 });
 const idSchema = z.string().uuid();
-const deviceSchema = z.string().trim().min(1).max(200);
 
 function errorResponse(error: unknown): NextResponse<ApiErrorBody> {
   if (error && typeof error === "object" && "status" in error) {
@@ -32,13 +32,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const parsedDevice = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!parsedDevice.success) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const parsedId = idSchema.safeParse((await params).id);
   if (!parsedId.success) {
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
@@ -56,8 +51,8 @@ export async function POST(
 
   try {
     const state = parsed.data.status === "settling"
-      ? await beginSettling(parsedId.data, parsedDevice.data)
-      : await closeSettlingGame(parsedId.data, parsedDevice.data);
+      ? await beginSettling(parsedId.data, viewer.person.id)
+      : await closeSettlingGame(parsedId.data, viewer.person.id);
     return NextResponse.json(state);
   } catch (error) {
     return errorResponse(error);

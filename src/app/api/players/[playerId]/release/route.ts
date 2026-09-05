@@ -6,25 +6,17 @@ import {
 } from "@/db/roster-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { AuthzError } from "@/lib/authz";
+import { requireViewer } from "@/lib/auth/session";
 
 const releaseSchema = z.object({ gameId: z.string().uuid() });
-const deviceSchema = z.string().trim().min(1).max(200);
 
-function deviceId(request: NextRequest): string | NextResponse {
-  const parsed = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!parsed.success) {
-    return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-  }
-  return parsed.data;
-}
-
-/** Host-only claim release for a dead or replaced phone. */
+/** Host-only claim release; the account owner can claim it again. */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ playerId: string }> },
 ) {
-  const actorDevice = deviceId(request);
-  if (actorDevice instanceof NextResponse) return actorDevice;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const parsed = releaseSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json<ApiErrorBody>(
@@ -41,7 +33,7 @@ export async function POST(
   }
 
   try {
-    await releasePlayerClaim(parsed.data.gameId, playerId, actorDevice);
+    await releasePlayerClaim(parsed.data.gameId, playerId, viewer.person.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof AuthzError) {

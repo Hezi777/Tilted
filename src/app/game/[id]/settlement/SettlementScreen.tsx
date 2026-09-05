@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { SettlementPlayer, SettlementState } from "@/db/settlement-queries";
 import type { TransferRecord } from "@/db/transfer-queries";
 import { apiFetch, ApiError } from "@/lib/api";
-import { buildBitLink } from "@/lib/bit";
+import { normalizeIsraeliPhone } from "@/lib/bit";
 import { cn } from "@/lib/utils";
 
 type SequenceStage = "pending" | "playing" | "complete";
@@ -106,6 +106,15 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<SequenceStage>("pending");
   const [transfers, setTransfers] = useState<TransferRecord[] | null>(null);
+
+  async function copyPaymentPhone(phone: string) {
+    try {
+      await navigator.clipboard.writeText(phone);
+      toast.success("המספר הועתק. פתחו Bit והדביקו אותו");
+    } catch {
+      toast.error("העתקת המספר נכשלה");
+    }
+  }
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -370,7 +379,9 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                       `${transfer.fromPlayerId}:${transfer.toPlayerId}`,
                     );
                     const paid = record?.paidAt != null;
-                    const bitLink = record ? buildBitLink(record.to.phone, record.amount) : null;
+                    const paymentPhone = record
+                      ? normalizeIsraeliPhone(record.to.phone)
+                      : null;
                     return (
                       <motion.div
                         key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`}
@@ -393,9 +404,14 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                         </div>
                         {record && (
                           <div className="flex gap-2">
-                            {bitLink && (
-                              <Button asChild variant="outline" className="h-12 flex-1 text-sm">
-                                <a href={bitLink}>פתחו ב-Bit</a>
+                            {paymentPhone && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-12 flex-1 text-sm"
+                                onClick={() => void copyPaymentPhone(paymentPhone)}
+                              >
+                                <CopyIcon /> העתיקו מספר ל-Bit
                               </Button>
                             )}
                             <Button

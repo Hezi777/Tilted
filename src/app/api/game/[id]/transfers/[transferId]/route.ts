@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { setTransferPaid } from "@/db/transfer-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const idSchema = z.string().uuid();
-const deviceSchema = z.string().trim().min(1).max(200);
 const bodySchema = z.object({ paid: z.boolean() });
 
 function errorResponse(error: unknown): NextResponse<ApiErrorBody> {
@@ -28,10 +28,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; transferId: string }> },
 ) {
-  const deviceId = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!deviceId.success) {
-    return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-  }
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const { id, transferId } = await params;
   const gameId = idSchema.safeParse(id);
   const parsedTransferId = idSchema.safeParse(transferId);
@@ -52,7 +50,7 @@ export async function POST(
   try {
     const records = await setTransferPaid(
       gameId.data,
-      deviceId.data,
+      viewer.person.id,
       parsedTransferId.data,
       body.data.paid,
     );

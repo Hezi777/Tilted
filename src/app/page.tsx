@@ -11,19 +11,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Money } from "@/components/Money";
-import { IdentityGate } from "@/components/IdentityGate";
-import { clearIdentity, useIdentity } from "@/lib/identity";
+import { useIdentity } from "@/lib/identity";
 import { apiFetch, ApiError, type GameSummary } from "@/lib/api";
 
 export default function Home() {
-  return (
-    <IdentityGate>
-      <HomeScreen />
-    </IdentityGate>
-  );
-}
-
-function HomeScreen() {
   const reduceMotion = useReducedMotion();
   const myName = useIdentity()?.name ?? "";
   const [games, setGames] = useState<GameSummary[] | null>(null);
@@ -102,13 +93,15 @@ function HomeScreen() {
             </Button>
           </motion.div>
           {myName && (
-            <button
-              type="button"
-              className="h-8 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => clearIdentity()}
+            <Button
+              asChild
+              variant="ghost"
+              className="min-h-11 text-xs text-muted-foreground hover:text-foreground"
             >
-              משחקים בתור <span className="font-semibold text-foreground">{myName}</span> · לא אתה?
-            </button>
+              <Link href="/profile">
+                משחקים בתור <span className="font-semibold text-foreground">{myName}</span> · הפרופיל שלי
+              </Link>
+            </Button>
           )}
         </div>
 

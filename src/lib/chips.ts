@@ -48,3 +48,8 @@ export function totalAgorotForCounts(
 export function formatDenominationValue(value: Agorot): string {
   return formatILS(value);
 }
+
+/** Editable shekel text for an existing denomination, without doing money arithmetic. */
+export function denominationInputText(value: Agorot): string {
+  return formatILS(value).replace("₪", "").replaceAll(",", "");
+}

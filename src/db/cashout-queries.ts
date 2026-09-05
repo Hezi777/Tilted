@@ -8,12 +8,21 @@
 
 import { and, asc, eq, exists, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { buyIns, cashOuts, games, players } from "@/db/schema";
+import {
+  buyIns,
+  cashOutChips,
+  cashOuts,
+  games,
+  players,
+} from "@/db/schema";
+import { getChipSet, type ChipSetDetail } from "@/db/chip-queries";
 import {
   assertCanCashOutEarly,
+  assertCanEnterResult,
   assertCanSettle,
   requireActor,
   type ActorPlayer,
+  type ResultEntry,
 } from "@/lib/authz";
 import {
   agorot,
@@ -27,6 +36,7 @@ import {
   type MismatchResolution,
   type PlayerLedger,
 } from "@/lib/settlement";
+import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
 
 export interface CashoutPlayer {
   id: string;
@@ -38,6 +48,7 @@ export interface CashoutPlayer {
   buyInCount: number;
   cashOut: number | null;
   adjustment: number;
+  chipCounts: ChipCounts;
 }
 
 export interface CashoutState {
@@ -52,6 +63,7 @@ export interface CashoutState {
   mismatchKind: "none" | "recount" | "split" | "assigned";
   mismatchAmount: number | null;
   mismatchPlayerId: string | null;
+  chipSet: ChipSetDetail | null;
   players: CashoutPlayer[];
 }
 
@@ -64,6 +76,8 @@ interface GameRow {
   mismatchKind: CashoutState["mismatchKind"];
   mismatchAmount: number | null;
   mismatchPlayerId: string | null;
+  chipSetId: string | null;
+  resultEntry: ResultEntry;
 }
 
 interface ActorLookup {
@@ -92,6 +106,8 @@ async function getGameRow(gameId: string): Promise<GameRow | null> {
       mismatchKind: games.mismatchKind,
       mismatchAmount: games.mismatchAmount,
       mismatchPlayerId: games.mismatchPlayerId,
+      chipSetId: games.chipSetId,
+      resultEntry: games.resultEntry,
     })
     .from(games)
     .where(eq(games.id, gameId));
@@ -174,6 +190,22 @@ export async function getCashoutState(
     buyInRows.map((row) => [row.playerId, { totalIn: Number(row.totalIn), buyInCount: Number(row.buyInCount) }]),
   );
 
+  const chipCountRows = await db
+    .select({
+      playerId: cashOuts.playerId,
+      denominationId: cashOutChips.denominationId,
+      count: cashOutChips.count,
+    })
+    .from(cashOutChips)
+    .innerJoin(cashOuts, eq(cashOutChips.cashOutId, cashOuts.id))
+    .where(eq(cashOuts.gameId, gameId));
+  const countsByPlayer = new Map<string, ChipCounts>();
+  for (const row of chipCountRows) {
+    const counts = countsByPlayer.get(row.playerId) ?? {};
+    counts[row.denominationId] = row.count;
+    countsByPlayer.set(row.playerId, counts);
+  }
+
   const resultPlayers: CashoutPlayer[] = playerRows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -184,6 +216,7 @@ export async function getCashoutState(
     buyInCount: totals.get(row.id)?.buyInCount ?? 0,
     cashOut: row.cashOut === null ? null : Number(row.cashOut),
     adjustment: Number(row.adjustment ?? 0),
+    chipCounts: countsByPlayer.get(row.id) ?? {},
   }));
   const ledgers = resultPlayers.map(toLedger);
 
@@ -199,6 +232,7 @@ export async function getCashoutState(
     mismatchKind: game.mismatchKind,
     mismatchAmount: game.mismatchAmount,
     mismatchPlayerId: game.mismatchPlayerId,
+    chipSet: game.chipSetId ? await getChipSet(game.chipSetId) : null,
     players: resultPlayers,
   };
 }
@@ -209,6 +243,79 @@ function assertAmount(amount: number): asserts amount is number {
   }
 }
 
+const MAX_CHIP_COUNT = 1_000_000;
+
+export type CashoutEntry =
+  | { amount: number; chipCounts?: never }
+  | { amount?: never; chipCounts: ChipCounts };
+
+async function resolveCashoutEntry(
+  chipSetId: string | null,
+  entry: CashoutEntry,
+): Promise<{ amount: number; chipCounts: ChipCounts | null }> {
+  if (entry.chipCounts === undefined) {
+    assertAmount(entry.amount);
+    return { amount: entry.amount, chipCounts: null };
+  }
+  if (!chipSetId) throw new Error("לא הוגדרה חבילת ז׳יטונים למשחק");
+
+  const chipSet = await getChipSet(chipSetId);
+  if (!chipSet) throw new Error("חבילת הז׳יטונים לא נמצאה");
+  const denominationIds = new Set(
+    chipSet.denominations.map((denomination) => denomination.id),
+  );
+  for (const [denominationId, count] of Object.entries(entry.chipCounts)) {
+    if (!denominationIds.has(denominationId)) {
+      throw new Error("ז׳יטון לא שייך לחבילה של המשחק");
+    }
+    if (!Number.isInteger(count) || count < 0 || count > MAX_CHIP_COUNT) {
+      throw new Error("כמות ז׳יטונים לא תקינה");
+    }
+  }
+
+  const canonicalCounts = Object.fromEntries(
+    chipSet.denominations
+      .map((denomination) => [
+        denomination.id,
+        entry.chipCounts[denomination.id] ?? 0,
+      ] as const)
+      .filter(([, count]) => count > 0),
+  );
+  const amount = Number(
+    totalAgorotForCounts(
+      chipSet.denominations.map((denomination) => ({
+        id: denomination.id,
+        value: agorot(denomination.value),
+      })),
+      canonicalCounts,
+    ),
+  );
+  assertAmount(amount);
+  return { amount, chipCounts: canonicalCounts };
+}
+
+function insertChipCountsSql(chipCounts: ChipCounts | null) {
+  const rows = Object.entries(chipCounts ?? {});
+  if (rows.length === 0) {
+    return sql`SELECT NULL::uuid AS id WHERE false`;
+  }
+  const values = sql.join(
+    rows.map(
+      ([denominationId, count]) =>
+        sql`(${denominationId}::uuid, ${count}::integer)`,
+    ),
+    sql.raw(", "),
+  );
+  return sql`
+    INSERT INTO cash_out_chips (id, cash_out_id, denomination_id, count)
+    SELECT gen_random_uuid(), saved.id, chip_value.denomination_id, chip_value.count
+    FROM saved
+    CROSS JOIN (VALUES ${values}) AS chip_value(denomination_id, count)
+    CROSS JOIN (SELECT count(*) FROM deleted_counts) AS deletion_barrier
+    RETURNING id
+  `;
+}
+
 /**
  * Saves one count. A raw edit clears every old adjustment and mismatch marker,
  * forcing the host to resolve the newly observed difference again.
@@ -217,12 +324,16 @@ export async function saveCashout(
   gameId: string,
   deviceId: string,
   playerId: string,
-  amount: number,
+  entry: CashoutEntry,
   early: boolean,
 ): Promise<CashoutState> {
-  assertAmount(amount);
   const access = await getActorForGame(gameId, deviceId);
   if (!access) throw new Error("המשחק לא נמצא");
+  const { amount, chipCounts } = await resolveCashoutEntry(
+    access.game.chipSetId,
+    entry,
+  );
+  const insertedChipCounts = insertChipCountsSql(chipCounts);
 
   const [target] = await db
     .select({
@@ -254,17 +365,30 @@ export async function saveCashout(
           AND p.deleted_at IS NULL
         ON CONFLICT (game_id, player_id)
         DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
-        RETURNING player_id
+        RETURNING id, player_id
+      ), deleted_counts AS (
+        DELETE FROM cash_out_chips
+        WHERE cash_out_id IN (SELECT id FROM saved)
+        RETURNING id
+      ), inserted_counts AS (
+        ${insertedChipCounts}
+      ), settled AS (
+        UPDATE players p
+        SET settled_at = coalesce(p.settled_at, now())
+        FROM saved
+        WHERE p.id = saved.player_id
+        RETURNING p.id
       )
-      UPDATE players p
-      SET settled_at = coalesce(p.settled_at, now())
-      FROM saved
-      WHERE p.id = saved.player_id
-      RETURNING p.id
+      SELECT id FROM saved
     `);
     if (!saved.rows[0]) throw new Error("השחקן או המשחק כבר לא פעילים");
   } else {
-    assertCanSettle(access.game.status, access.actor);
+    assertCanEnterResult(
+      access.game.status,
+      access.actor,
+      playerId,
+      access.game.resultEntry,
+    );
     // Guard every write by settling status. If close wins a race first, this
     // statement inserts nothing and cannot edit an already closed game.
     const saved = await db.execute<{ id: string }>(sql`
@@ -281,17 +405,25 @@ export async function saveCashout(
           AND p.deleted_at IS NULL
         ON CONFLICT (game_id, player_id)
         DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
-        RETURNING game_id
+        RETURNING id, game_id
+      ), deleted_counts AS (
+        DELETE FROM cash_out_chips
+        WHERE cash_out_id IN (SELECT id FROM saved)
+        RETURNING id
+      ), inserted_counts AS (
+        ${insertedChipCounts}
       ), cleared AS (
         UPDATE cash_outs
         SET adjustment = 0
         WHERE game_id IN (SELECT game_id FROM saved)
         RETURNING game_id
+      ), cleared_game AS (
+        UPDATE games
+        SET mismatch_kind = 'none', mismatch_amount = NULL, mismatch_player_id = NULL
+        WHERE id IN (SELECT game_id FROM cleared)
+        RETURNING id
       )
-      UPDATE games
-      SET mismatch_kind = 'none', mismatch_amount = NULL, mismatch_player_id = NULL
-      WHERE id IN (SELECT game_id FROM cleared)
-      RETURNING id
+      SELECT id FROM saved
     `);
     if (!saved.rows[0]) throw new Error("השחקן או המשחק כבר לא פעילים");
   }

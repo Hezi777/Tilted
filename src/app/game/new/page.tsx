@@ -3,14 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, PlusIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import {
+  ChipSetEditor,
+  createEmptyDenomination,
+  type ChipSetEditorValue,
+} from "@/components/ChipSetEditor";
+import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -23,11 +29,25 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
 import { AVATAR_KEYS, avatarKeyForPerson } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
-import { shekelsToAgorot } from "@/lib/money";
+import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
+import { denominationInputText } from "@/lib/chips";
 import { useIdentity } from "@/lib/identity";
 
 const BUY_IN_CHIPS = ["20", "30", "50", "100"] as const;
 type BuyInChoice = (typeof BUY_IN_CHIPS)[number] | "custom";
+
+interface GameChipSet {
+  id: string;
+  name: string;
+  ownerPersonId: string | null;
+  isPreset: boolean;
+  denominations: Array<{
+    id: string;
+    color: string;
+    value: number;
+    imageKey: string | null;
+  }>;
+}
 
 function defaultGameName(): string {
   return new Date().toLocaleDateString("he-IL");
@@ -60,6 +80,9 @@ export default function NewGamePage() {
   const [buyInChoice, setBuyInChoice] = useState<BuyInChoice>("50");
   const [customBuyIn, setCustomBuyIn] = useState("");
   const [rebuyDifferent, setRebuyDifferent] = useState(false);
+  // Requirements item 4: some groups count every stack together, others let each
+  // player type their own. The host decides here rather than the app deciding for them.
+  const [resultEntry, setResultEntry] = useState<"host_only" | "players">("host_only");
   const [customRebuy, setCustomRebuy] = useState("");
 
   const [people, setPeople] = useState<PersonSummary[] | null>(null);
@@ -67,10 +90,17 @@ export default function NewGamePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [peopleRetryCount, setPeopleRetryCount] = useState(0);
 
-  const [addGuestOpen, setAddGuestOpen] = useState(false);
-  const [guestName, setGuestName] = useState("");
-  const [addingGuest, setAddingGuest] = useState(false);
-  const [guestError, setGuestError] = useState<string | null>(null);
+  const [chipSets, setChipSets] = useState<GameChipSet[] | null>(null);
+  const [selectedChipSetId, setSelectedChipSetId] = useState<string | null>(null);
+  const [chipSetError, setChipSetError] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingChipSetId, setEditingChipSetId] = useState<string | null>(null);
+  const [editorValue, setEditorValue] = useState<ChipSetEditorValue>({
+    name: "",
+    denominations: [createEmptyDenomination()],
+  });
+  const [savingChipSet, setSavingChipSet] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -95,6 +125,25 @@ export default function NewGamePage() {
       cancelled = true;
     };
   }, [peopleRetryCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<{ chipSets: GameChipSet[] }>("/api/chip-sets")
+      .then(({ chipSets: loaded }) => {
+        if (cancelled) return;
+        setChipSets(loaded);
+        setSelectedChipSetId((current) => current ?? loaded[0]?.id ?? null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setChipSetError(
+          error instanceof ApiError ? error.message : "טעינת חבילות הז׳יטונים נכשלה",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const buyInShekels = useMemo(() => {
     if (buyInChoice === "custom") return Number(customBuyIn);
@@ -131,24 +180,71 @@ export default function NewGamePage() {
     });
   }
 
-  async function handleAddGuest() {
-    const trimmed = guestName.trim();
-    if (!trimmed) return;
-    setAddingGuest(true);
-    setGuestError(null);
+  function openNewChipSet() {
+    setEditingChipSetId(null);
+    setEditorValue({ name: "", denominations: [createEmptyDenomination()] });
+    setEditorError(null);
+    setEditorOpen(true);
+  }
+
+  function openChipSetEditor(chipSet: GameChipSet) {
+    setEditingChipSetId(chipSet.id);
+    setEditorValue({
+      name: chipSet.name,
+      denominations: chipSet.denominations.map((denomination) => ({
+        id: denomination.id,
+        color: denomination.color,
+        value: denomination.value,
+        valueText: denominationInputText(agorot(denomination.value)),
+        imageKey: denomination.imageKey,
+      })),
+    });
+    setEditorError(null);
+    setEditorOpen(true);
+  }
+
+  async function saveChipSet() {
+    const name = editorValue.name.trim();
+    const validDenominations = editorValue.denominations.every(
+      (denomination) => denomination.value > 0,
+    );
+    if (!name || editorValue.denominations.length === 0 || !validDenominations) {
+      setEditorError("צריך שם ולפחות ז׳יטון אחד עם ערך תקין");
+      return;
+    }
+    setSavingChipSet(true);
+    setEditorError(null);
+    const payload = {
+      name,
+      denominations: editorValue.denominations.map(({ color, value, imageKey }) => ({
+        color,
+        value,
+        ...(imageKey ? { imageKey } : {}),
+      })),
+    };
     try {
-      const person = await apiFetch<PersonSummary>("/api/people", {
-        method: "POST",
-        body: JSON.stringify({ name: trimmed }),
+      const saved = await apiFetch<GameChipSet>(
+        editingChipSetId ? `/api/chip-sets/${editingChipSetId}` : "/api/chip-sets",
+        {
+          method: editingChipSetId ? "PATCH" : "POST",
+          body: JSON.stringify(payload),
+        },
+      );
+      setChipSets((current) => {
+        if (!current) return [saved];
+        const exists = current.some((chipSet) => chipSet.id === saved.id);
+        return exists
+          ? current.map((chipSet) => (chipSet.id === saved.id ? saved : chipSet))
+          : [...current, saved];
       });
-      setPeople((prev) => [...(prev ?? []), person]);
-      setSelected((prev) => new Set(prev).add(person.id));
-      setGuestName("");
-      setAddGuestOpen(false);
-    } catch (err) {
-      setGuestError(err instanceof ApiError ? err.message : "הוספת האורח נכשלה");
+      setSelectedChipSetId(saved.id);
+      setEditorOpen(false);
+    } catch (error) {
+      setEditorError(
+        error instanceof ApiError ? error.message : "שמירת חבילת הז׳יטונים נכשלה",
+      );
     } finally {
-      setAddingGuest(false);
+      setSavingChipSet(false);
     }
   }
 
@@ -192,7 +288,8 @@ export default function NewGamePage() {
           rebuyAmount,
           plannedEndAt: exitTimeToIso(exitTime),
           personIds: Array.from(seated),
-          hostPersonId,
+          chipSetId: selectedChipSetId,
+          resultEntry,
         }),
       });
       router.push(`/game/${id}`);
@@ -306,17 +403,150 @@ export default function NewGamePage() {
         )}
       </div>
 
+      <section
+        className="flex flex-col gap-3 rounded-2xl border border-foreground/10 bg-card/60 p-4"
+        aria-labelledby="result-entry-heading"
+      >
+        <div>
+          <Label id="result-entry-heading" className="text-sm font-bold">
+            מי מזין את התוצאות?
+          </Label>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            בסוף הערב צריך להזין כמה כל אחד סיים איתו. כמארח תמיד תוכלו להזין ולתקן
+            לכולם.
+          </p>
+        </div>
+        <ToggleGroup
+          type="single"
+          value={resultEntry}
+          onValueChange={(value) => {
+            if (value) setResultEntry(value as "host_only" | "players");
+          }}
+          variant="outline"
+          aria-label="מי מזין את התוצאות"
+          className="w-full gap-2"
+        >
+          <ToggleGroupItem
+            value="host_only"
+            className="h-auto flex-1 flex-col items-start gap-1 rounded-xl px-3 py-3 text-start data-[state=on]:border-brand-500/45 data-[state=on]:bg-surface-3"
+          >
+            <span className="text-sm font-bold">רק אני</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              סופרים יחד, אני מקליד
+            </span>
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="players"
+            className="h-auto flex-1 flex-col items-start gap-1 rounded-xl px-3 py-3 text-start data-[state=on]:border-brand-500/45 data-[state=on]:bg-surface-3"
+          >
+            <span className="text-sm font-bold">כל אחד לעצמו</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              כל שחקן מזין את הסכום שלו
+            </span>
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </section>
+
+      <section className="flex flex-col gap-3" aria-labelledby="chip-set-heading">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label id="chip-set-heading" className="text-sm font-bold">
+              חבילת ז׳יטונים
+            </Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              החבילה תשמש לספירה אוטומטית בסוף הערב
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-11 shrink-0 rounded-xl"
+            onClick={openNewChipSet}
+          >
+            <PlusIcon aria-hidden="true" />
+            חבילה חדשה
+          </Button>
+        </div>
+
+        {chipSetError && (
+          <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {chipSetError}
+          </p>
+        )}
+        {chipSets === null && !chipSetError && <Skeleton className="h-24 w-full" />}
+
+        <div className="flex snap-x gap-3 overflow-x-auto pb-1">
+          <button
+            type="button"
+            aria-pressed={selectedChipSetId === null}
+            onClick={() => setSelectedChipSetId(null)}
+            className={cn(
+              "min-h-24 w-36 shrink-0 snap-start rounded-[20px] border bg-surface-2 p-3 text-start transition-[background-color,border-color] focus-visible:ring-3 focus-visible:ring-ring/40",
+              selectedChipSetId === null
+                ? "border-brand-500/55 bg-surface-3"
+                : "border-foreground/10",
+            )}
+          >
+            <span className="font-bold">ללא חבילה</span>
+            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+              מזינים סכום ידנית
+            </span>
+          </button>
+
+          {chipSets?.map((chipSet) => (
+            <div
+              key={chipSet.id}
+              className={cn(
+                "relative min-h-24 w-52 shrink-0 snap-start rounded-[20px] border bg-surface-2 transition-[background-color,border-color]",
+                selectedChipSetId === chipSet.id
+                  ? "border-brand-500/55 bg-surface-3"
+                  : "border-foreground/10",
+              )}
+            >
+              <button
+                type="button"
+                aria-pressed={selectedChipSetId === chipSet.id}
+                onClick={() => setSelectedChipSetId(chipSet.id)}
+                className="flex min-h-24 w-full flex-col p-3 pe-12 text-start focus-visible:ring-3 focus-visible:ring-ring/40"
+              >
+                <span className="font-bold">{chipSet.name}</span>
+                <span className="mt-2 flex flex-wrap gap-1.5">
+                  {chipSet.denominations.map((denomination) => (
+                    <span
+                      key={denomination.id}
+                      className="money inline-flex items-center gap-1 rounded-full border border-foreground/10 bg-surface-1 px-2 py-1 text-[11px]"
+                    >
+                      <span
+                        className="size-3 rounded-full border border-foreground/20"
+                        style={{ backgroundColor: denomination.color }}
+                      />
+                      {formatILS(agorot(denomination.value))}
+                    </span>
+                  ))}
+                </span>
+              </button>
+              {!chipSet.isPreset && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute top-2 end-2"
+                  aria-label={`עריכת ${chipSet.name}`}
+                  onClick={() => openChipSetEditor(chipSet)}
+                >
+                  <PencilIcon aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-bold">מי סביב השולחן?</Label>
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-12 rounded-xl text-foreground"
-            onClick={() => setAddGuestOpen(true)}
-          >
-            צרפו אורח
-          </Button>
+          <span className="text-xs text-muted-foreground">רק שחקנים עם חשבון</span>
         </div>
 
         {people === null && !loadError && (
@@ -347,7 +577,7 @@ export default function NewGamePage() {
         {people !== null && people.length === 0 && !loadError && (
           <div className="flex items-center gap-3 rounded-2xl border border-dashed border-foreground/15 bg-card/50 p-4">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              הרשימה עדיין ריקה. צרפו את השחקן הראשון כדי להתחיל.
+              אין עדיין שחקנים נוספים עם חשבון.
             </p>
           </div>
         )}
@@ -405,28 +635,28 @@ export default function NewGamePage() {
         <p className="text-muted-foreground -mt-2 text-center text-sm">{disabledReason}</p>
       )}
 
-      <Dialog open={addGuestOpen} onOpenChange={setAddGuestOpen}>
-        <DialogContent>
+      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>מצרפים אורח</DialogTitle>
+            <DialogTitle>
+              {editingChipSetId ? "עריכת חבילת ז׳יטונים" : "חבילת ז׳יטונים חדשה"}
+            </DialogTitle>
+            <DialogDescription>
+              לכל צבע מגדירים ערך משלו. אפשר לתת לשני צבעים את אותו הערך.
+            </DialogDescription>
           </DialogHeader>
-          <Input
-            className="h-12 rounded-xl"
-            autoFocus
-            placeholder="שם"
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleAddGuest();
-            }}
+          <ChipSetEditor
+            value={editorValue}
+            onChange={setEditorValue}
+            disabled={savingChipSet}
           />
-          {guestError && <p className="text-destructive text-sm">{guestError}</p>}
+          {editorError && <p className="text-sm text-destructive">{editorError}</p>}
           <DialogFooter>
             <Button
-              disabled={!guestName.trim() || addingGuest}
-              onClick={() => void handleAddGuest()}
+              disabled={savingChipSet}
+              onClick={() => void saveChipSet()}
             >
-              {addingGuest ? "מצרפים..." : "צרפו לשולחן"}
+              {savingChipSet ? "שומרים..." : "שמרו חבילה"}
             </Button>
           </DialogFooter>
         </DialogContent>

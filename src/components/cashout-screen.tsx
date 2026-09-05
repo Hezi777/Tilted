@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { AmountInput } from "@/components/AmountInput";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
+import { ChipCounter } from "@/components/ChipCounter";
 import { Money } from "@/components/Money";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { agorot } from "@/lib/money";
+import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
 import { computeNets, countedTotal, mismatchDelta, type PlayerLedger } from "@/lib/settlement";
 
 interface CashoutPlayer {
@@ -28,6 +30,18 @@ interface CashoutPlayer {
   totalIn: number;
   cashOut: number | null;
   adjustment: number;
+  chipCounts: ChipCounts;
+}
+
+interface CashoutChipSet {
+  id: string;
+  name: string;
+  denominations: Array<{
+    id: string;
+    color: string;
+    value: number;
+    imageKey: string | null;
+  }>;
 }
 
 interface CashoutState {
@@ -40,6 +54,7 @@ interface CashoutState {
   mismatchKind: "none" | "recount" | "split" | "assigned";
   mismatchAmount: number | null;
   mismatchPlayerId: string | null;
+  chipSet: CashoutChipSet | null;
   players: CashoutPlayer[];
 }
 
@@ -66,6 +81,8 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [savingId, setSavingId] = React.useState<string | null>(null);
   const [assigning, setAssigning] = React.useState(false);
+  const chipSaveTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const chipSaveVersions = React.useRef(new Map<string, number>());
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -85,6 +102,13 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     void load();
   }, [load]);
 
+  React.useEffect(
+    () => () => {
+      for (const timer of chipSaveTimers.current.values()) clearTimeout(timer);
+    },
+    [],
+  );
+
   function optimisticAmount(playerId: string, amount: number | null) {
     setState((current) => {
       if (!current) return current;
@@ -97,6 +121,39 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         ...next,
         counted: Number(countedTotal(nextLedgers)),
         difference: mismatchDelta(nextLedgers),
+        mismatchKind: "none",
+        mismatchAmount: null,
+        mismatchPlayerId: null,
+      };
+    });
+  }
+
+  function optimisticChipCounts(playerId: string, chipCounts: ChipCounts) {
+    setState((current) => {
+      if (!current?.chipSet) return current;
+      const amount = Number(
+        totalAgorotForCounts(
+          current.chipSet.denominations.map((denomination) => ({
+            id: denomination.id,
+            value: agorot(denomination.value),
+          })),
+          chipCounts,
+        ),
+      );
+      const players = current.players.map((player) =>
+        player.id === playerId
+          ? { ...player, chipCounts, cashOut: amount }
+          : player,
+      );
+      const next = { ...current, players };
+      const nextLedgers = ledgers(next);
+      return {
+        ...next,
+        counted: Number(countedTotal(nextLedgers)),
+        difference: mismatchDelta(nextLedgers),
+        mismatchKind: "none",
+        mismatchAmount: null,
+        mismatchPlayerId: null,
       };
     });
   }
@@ -120,6 +177,78 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function persistChipCounts(
+    playerId: string,
+    chipCounts: ChipCounts,
+    version: number,
+  ) {
+    if (!state) return;
+    setSavingId(playerId);
+    try {
+      const next = await apiFetch<CashoutState>(`/api/game/${gameId}/cashout`, {
+        method: "POST",
+        body: JSON.stringify({
+          playerId,
+          chipCounts,
+          early: state.status === "active",
+        }),
+      });
+      if (chipSaveVersions.current.get(playerId) !== version) return;
+      setState((current) => {
+        if (!current) return next;
+        const savedPlayer = next.players.find((player) => player.id === playerId);
+        if (!savedPlayer) return current;
+        const merged = {
+          ...current,
+          mismatchKind: next.mismatchKind,
+          mismatchAmount: next.mismatchAmount,
+          mismatchPlayerId: next.mismatchPlayerId,
+          players: current.players.map((player) =>
+            player.id === playerId ? savedPlayer : player,
+          ),
+        };
+        const nextLedgers = ledgers(merged);
+        return {
+          ...merged,
+          counted: Number(countedTotal(nextLedgers)),
+          difference: mismatchDelta(nextLedgers),
+        };
+      });
+    } catch (error) {
+      if (chipSaveVersions.current.get(playerId) === version) {
+        toast.error(errorText(error));
+        void load();
+      }
+    } finally {
+      if (chipSaveVersions.current.get(playerId) === version) setSavingId(null);
+    }
+  }
+
+  function updateChipCounts(playerId: string, chipCounts: ChipCounts) {
+    if (!state) return;
+    optimisticChipCounts(playerId, chipCounts);
+    if (state.status !== "settling") return;
+    setSavingId(playerId);
+
+    const currentTimer = chipSaveTimers.current.get(playerId);
+    if (currentTimer) clearTimeout(currentTimer);
+    const version = (chipSaveVersions.current.get(playerId) ?? 0) + 1;
+    chipSaveVersions.current.set(playerId, version);
+    chipSaveTimers.current.set(
+      playerId,
+      setTimeout(() => {
+        chipSaveTimers.current.delete(playerId);
+        void persistChipCounts(playerId, chipCounts, version);
+      }, 350),
+    );
+  }
+
+  function saveEarlyChipCounts(player: CashoutPlayer) {
+    const version = (chipSaveVersions.current.get(player.id) ?? 0) + 1;
+    chipSaveVersions.current.set(player.id, version);
+    void persistChipCounts(player.id, player.chipCounts, version);
   }
 
   async function changeStatus(status: "settling" | "closed") {
@@ -263,54 +392,81 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                     </div>
                     {player.settledAt && <Badge variant="secondary">סגר חשבון</Badge>}
                   </CardHeader>
-                  <CardContent className="flex items-end gap-3 p-4 pt-1">
-                    <div className="flex-1">
-                      <Label className="text-muted-foreground mb-1 block text-xs">
-                        כמה נשאר ל{player.name}?
-                      </Label>
-                      <AmountInput
-                        aria-label={`סכום נספר עבור ${player.name}`}
-                        disabled={state.status === "closed" || savingId === player.id}
-                        initialAmount={player.cashOut}
-                        onChange={(amount) => optimisticAmount(player.id, amount)}
-                        onCommit={(amount) => void save(player.id, amount)}
-                      />
-                      <div className="mt-2 flex min-h-6 items-center justify-between text-xs">
-                        <span className="text-muted-foreground">מאזן כרגע</span>
-                        <AnimatePresence mode="wait">
-                          {player.cashOut !== null && (
-                            <motion.span
-                              key={Math.sign(liveNets.get(player.id) ?? 0)}
-                              initial={{ opacity: 0, y: 4 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -4 }}
-                              transition={{ duration: 0.16 }}
-                            >
-                              <Money
-                                value={liveNets.get(player.id) ?? 0}
-                                signed
-                                className={cn(
-                                  "text-base font-bold",
-                                  (liveNets.get(player.id) ?? 0) > 0
-                                    ? "text-profit"
-                                    : (liveNets.get(player.id) ?? 0) < 0
-                                      ? "text-loss"
-                                      : "text-even",
-                                )}
-                              />
-                            </motion.span>
-                          )}
-                        </AnimatePresence>
+                  <CardContent className="flex flex-col gap-3 p-4 pt-1">
+                    {state.chipSet ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          {state.chipSet.name} · הכמות נשמרת אוטומטית
+                        </p>
+                        <ChipCounter
+                          denominations={state.chipSet.denominations}
+                          counts={player.chipCounts}
+                          onChange={(counts) => updateChipCounts(player.id, counts)}
+                          disabled={state.status === "closed"}
+                        />
+                        {savingId === player.id && (
+                          <p className="text-xs text-muted-foreground" role="status">
+                            שומרים את הספירה...
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <Label className="mb-1 block text-xs text-muted-foreground">
+                            כמה נשאר ל{player.name}?
+                          </Label>
+                          <AmountInput
+                            aria-label={`סכום נספר עבור ${player.name}`}
+                            disabled={state.status === "closed" || savingId === player.id}
+                            initialAmount={player.cashOut}
+                            onChange={(amount) => optimisticAmount(player.id, amount)}
+                            onCommit={(amount) => void save(player.id, amount)}
+                          />
+                        </div>
                       </div>
+                    )}
+
+                    <div className="flex min-h-6 items-center justify-between text-xs">
+                      <span className="text-muted-foreground">מאזן כרגע</span>
+                      <AnimatePresence mode="wait">
+                        {player.cashOut !== null && (
+                          <motion.span
+                            key={Math.sign(liveNets.get(player.id) ?? 0)}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.16 }}
+                          >
+                            <Money
+                              value={liveNets.get(player.id) ?? 0}
+                              signed
+                              className={cn(
+                                "text-base font-bold",
+                                (liveNets.get(player.id) ?? 0) > 0
+                                  ? "text-profit"
+                                  : (liveNets.get(player.id) ?? 0) < 0
+                                    ? "text-loss"
+                                    : "text-even",
+                              )}
+                            />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
                     </div>
+
                     {state.status === "active" && (
                       <Button
-                        className="min-h-12"
+                        className="min-h-12 w-full"
                         disabled={savingId === player.id || player.cashOut === null}
                         variant="outline"
-                        onClick={() => player.cashOut !== null && void save(player.id, player.cashOut)}
+                        onClick={() =>
+                          state.chipSet
+                            ? saveEarlyChipCounts(player)
+                            : player.cashOut !== null && void save(player.id, player.cashOut)
+                        }
                       >
-                        שמור מוקדם
+                        שמרו סגירת חשבון מוקדמת
                       </Button>
                     )}
                   </CardContent>
@@ -412,8 +568,8 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 )}
                 <Button
                   className="min-h-14 w-full rounded-xl text-base font-black disabled:opacity-50"
-                  disabled={missing || (mismatch && !resolved)}
-                  aria-disabled={missing || (mismatch && !resolved)}
+                  disabled={savingId !== null || missing || (mismatch && !resolved)}
+                  aria-disabled={savingId !== null || missing || (mismatch && !resolved)}
                   onClick={() => void changeStatus("closed")}
                 >
                   סגרו את החשבון

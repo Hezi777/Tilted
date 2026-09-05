@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createChipSet, listChipSetsVisibleTo } from "@/db/chip-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 import { MAX_AGOROT } from "@/lib/money";
 
 const denominationSchema = z.object({
@@ -12,47 +13,23 @@ const denominationSchema = z.object({
 
 const createChipSetSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  ownerPersonId: z.string().uuid().optional(),
   denominations: z.array(denominationSchema).min(1).max(20),
 });
 
-function requireDeviceId(request: NextRequest): string | NextResponse {
-  const deviceId = request.headers.get("x-device-id");
-  if (!deviceId) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
-  return deviceId;
-}
-
 /**
- * Lists chip sets visible to the caller: the two shared presets plus, when
- * `personId` is given, that person's own sets. There is no login yet, so
- * `personId` is a query param the caller already knows from its game/roster
- * context, not something inferred from `x-device-id`.
+ * Lists the built-in presets plus the signed-in viewer's personal sets.
  */
-export async function GET(request: NextRequest) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
-
-  const personId = request.nextUrl.searchParams.get("personId");
-  if (personId !== null && !z.string().uuid().safeParse(personId).success) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "מזהה שחקן לא תקין" },
-      { status: 400 },
-    );
-  }
-
-  const chipSets = await listChipSetsVisibleTo(personId);
+export async function GET() {
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  const chipSets = await listChipSetsVisibleTo(viewer.person.id);
   return NextResponse.json({ chipSets });
 }
 
 /** Creates a chip set — "חבילת ז׳יטונים" — with its denominations. */
 export async function POST(request: NextRequest) {
-  const deviceId = requireDeviceId(request);
-  if (deviceId instanceof NextResponse) return deviceId;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const json = await request.json().catch(() => null);
   const parsed = createChipSetSchema.safeParse(json);
@@ -72,8 +49,7 @@ export async function POST(request: NextRequest) {
   try {
     const chipSet = await createChipSet({
       name: parsed.data.name,
-      ownerPersonId: parsed.data.ownerPersonId ?? null,
-      isPreset: false,
+      ownerPersonId: viewer.person.id,
       denominations: parsed.data.denominations,
     });
     return NextResponse.json(chipSet, { status: 201 });

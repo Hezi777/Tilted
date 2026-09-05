@@ -11,44 +11,48 @@ import { db } from "@/db";
 import {
   buyIns,
   cashOuts,
-  chipDenominations,
-  chipSets,
   games,
   people,
   players,
+  playlists,
 } from "@/db/schema";
 
 const BUY_IN = 5000; // ₪50
 const REBUY = 5000; // ₪50
 
-/** Two shared presets every game can pick without owning a chip set (plan item 1/8). */
-async function seedChipSetPresets() {
-  const [standard] = await db
-    .insert(chipSets)
-    .values({ name: "חבילה סטנדרטית", isPreset: true })
-    .returning();
-  await db.insert(chipDenominations).values([
-    { chipSetId: standard.id, color: "#F5EDE6", value: 100, sortOrder: 0 }, // ₪1
-    { chipSetId: standard.id, color: "#C21E3A", value: 500, sortOrder: 1 }, // ₪5
-    { chipSetId: standard.id, color: "#1A6B4E", value: 2000, sortOrder: 2 }, // ₪20
-    { chipSetId: standard.id, color: "#141011", value: 10000, sortOrder: 3 }, // ₪100
-  ]);
+/** Starter playlists behind the music button (plan item 11). */
+async function seedPlaylists() {
+  const existing = await db.select({ id: playlists.id }).from(playlists).limit(1);
+  if (existing.length > 0) return;
 
-  const [highStakes] = await db
-    .insert(chipSets)
-    .values({ name: "חבילת סטייקים גבוהים", isPreset: true })
-    .returning();
-  await db.insert(chipDenominations).values([
-    { chipSetId: highStakes.id, color: "#F5EDE6", value: 500, sortOrder: 0 }, // ₪5
-    { chipSetId: highStakes.id, color: "#C21E3A", value: 2500, sortOrder: 1 }, // ₪25
-    { chipSetId: highStakes.id, color: "#1A6B4E", value: 10000, sortOrder: 2 }, // ₪100
-    { chipSetId: highStakes.id, color: "#4A0917", value: 50000, sortOrder: 3 }, // ₪500
-    { chipSetId: highStakes.id, color: "#141011", value: 100000, sortOrder: 4 }, // ₪1,000
+  await db.insert(playlists).values([
+    {
+      name: "פוקר עד מאוחר",
+      url: "https://open.spotify.com/playlist/37i9dQZF1DX4UtSsGT1Sbe",
+      sortOrder: 0,
+    },
+    {
+      name: "ג׳אז לשולחן",
+      url: "https://open.spotify.com/playlist/37i9dQZF1DXbITWG1ZJKYt",
+      sortOrder: 1,
+    },
+    {
+      name: "בלוז מעושן",
+      url: "https://open.spotify.com/playlist/37i9dQZF1DXd9rSDyQguIk",
+      sortOrder: 2,
+    },
   ]);
 }
 
 async function seed() {
-  await seedChipSetPresets();
+  await seedPlaylists();
+
+  // The fake game below predates accounts: it inserts People with no `user_id`, which
+  // the roster now filters out. Skip it unless explicitly asked for.
+  if (!process.env.SEED_DEMO_GAME) {
+    console.log("Seeded playlists. Chip-set presets install themselves on first use.");
+    return;
+  }
 
   const [game] = await db
     .insert(games)

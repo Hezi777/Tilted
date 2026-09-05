@@ -67,6 +67,7 @@ export async function getGamesForDevice(
       id: games.id,
       code: games.code,
       name: games.name,
+      location: games.location,
       status: games.status,
       createdAt: games.createdAt,
       closedAt: games.closedAt,
@@ -95,6 +96,7 @@ export async function getGamesForDevice(
     id: row.id,
     code: row.code,
     name: row.name,
+    location: row.location,
     status: row.status as GameStatus,
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt ? row.closedAt.toISOString() : null,
@@ -170,7 +172,10 @@ export interface CreateGameInput {
   name?: string;
   /** v2: where the evening is, e.g. "הבית של עידו" (plan item 7). */
   location?: string;
+  /** Who may enter results at the end (requirements item 4). */
+  resultEntry?: "host_only" | "players";
   notes?: string;
+  chipSetId?: string | null;
   /** Agorot. Converted from shekels on the client via src/lib/money.ts. */
   buyIn: number;
   /** Agorot. */
@@ -271,7 +276,9 @@ export async function createGame(
           code,
           name,
           location: input.location?.trim() || null,
+          resultEntry: input.resultEntry ?? "host_only",
           notes: input.notes?.trim() || null,
+          chipSetId: input.chipSetId ?? null,
           buyIn: input.buyIn,
           rebuyAmount: input.rebuyAmount,
           plannedEndAt: input.plannedEndAt,

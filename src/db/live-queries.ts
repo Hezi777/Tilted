@@ -51,6 +51,10 @@ export interface LiveGame {
   id: string;
   code: string;
   name: string | null;
+  /** Added by the game route's ownership/detail projection. */
+  location?: string | null;
+  notes?: string | null;
+  createdByPersonId?: string | null;
   status: "active" | "settling" | "closed" | "cancelled";
   buyIn: number;
   rebuyAmount: number;

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { deleteLivePlayer, setTableSeat, MAX_TABLE_SEATS } from "@/db/live-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 import { z } from "zod";
 
 const SEAT_ERROR_MESSAGE: Record<string, string> = {
@@ -17,12 +18,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; playerId: string }> },
 ) {
-  const deviceId = z.string().trim().min(1).max(200).safeParse(request.headers.get("x-device-id"));
-  if (!deviceId.success) return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const route = z.object({ id: z.string().uuid(), playerId: z.string().uuid() }).safeParse(await params);
   if (!route.success) return NextResponse.json<ApiErrorBody>({ error: "שחקן או משחק לא תקין" }, { status: 400 });
   try {
-    await deleteLivePlayer(route.data.id, route.data.playerId, deviceId.data);
+    await deleteLivePlayer(route.data.id, route.data.playerId, viewer.person.id);
     return NextResponse.json({ deleted: true });
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status?: unknown }).status) : 409;
@@ -34,14 +35,19 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; playerId: string }> },
 ) {
-  const deviceId = z.string().trim().min(1).max(200).safeParse(request.headers.get("x-device-id"));
-  if (!deviceId.success) return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const route = z.object({ id: z.string().uuid(), playerId: z.string().uuid() }).safeParse(await params);
   if (!route.success) return NextResponse.json<ApiErrorBody>({ error: "שחקן או משחק לא תקין" }, { status: 400 });
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json<ApiErrorBody>({ error: "קלט לא תקין" }, { status: 400 });
   try {
-    await setTableSeat(route.data.id, route.data.playerId, deviceId.data, parsed.data.tableSeat);
+    await setTableSeat(
+      route.data.id,
+      route.data.playerId,
+      viewer.person.id,
+      parsed.data.tableSeat,
+    );
     return NextResponse.json({ tableSeat: parsed.data.tableSeat });
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status?: unknown }).status) : 409;

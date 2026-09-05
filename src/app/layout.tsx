@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Assistant, IBM_Plex_Sans, Suez_One } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
+import { ViewerProvider } from "@/components/ViewerProvider";
+import { getViewer } from "@/lib/auth/session";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -44,11 +46,15 @@ export const viewport: Viewport = {
   themeColor: "#0B0809",
 };
 
-export default function RootLayout({
+// The layout resolves the signed-in Person, so nothing below it can be static.
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const viewer = await getViewer();
   return (
     <html
       lang="he"
@@ -57,7 +63,11 @@ export default function RootLayout({
     >
       <body className="text-foreground flex min-h-full flex-col items-center">
         <div className="app-shell flex w-full max-w-[450px] flex-1 flex-col">
-          <DirectionProvider dir="rtl">{children}</DirectionProvider>
+          <DirectionProvider dir="rtl">
+            <ViewerProvider viewer={viewer?.person ?? null}>
+              {children}
+            </ViewerProvider>
+          </DirectionProvider>
         </div>
         <Toaster position="top-center" richColors closeButton />
       </body>

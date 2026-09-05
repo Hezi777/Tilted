@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, PlusIcon, RefreshCwIcon, Share2Icon } from "lucide-react";
+import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, RefreshCwIcon, Settings2Icon, Share2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
@@ -11,6 +11,9 @@ import { useLiveGame } from "@/hooks/useLiveGame";
 import type { LivePlayer } from "@/db/live-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
+import { HandRecorder } from "@/components/HandRecorder";
+import { MusicButton } from "@/components/MusicButton";
+import { GameRulesDialog } from "@/components/GameRulesDialog";
 import { PlayerCard } from "@/components/PlayerCard";
 import { PokerTable } from "@/components/PokerTable";
 import { RebuyButton } from "@/components/RebuyButton";
@@ -33,14 +36,12 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const { game, loading, error, addRebuy, undo, refresh } = useLiveGame(gameId);
   const [customPlayer, setCustomPlayer] = useState<{ id: string; name: string } | null>(null);
   const [customAmount, setCustomAmount] = useState("");
-  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newNickname, setNewNickname] = useState("");
   const [deletePlayer, setDeletePlayer] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [earlyExitOpen, setEarlyExitOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [earlyAmount, setEarlyAmount] = useState<number | null>(null);
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
 
@@ -74,20 +75,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     } catch {
       toast.error("נא להזין סכום תקין");
     }
-  }
-
-  async function addPlayer() {
-    if (!newName.trim()) return;
-    setBusy(true);
-    try {
-      await apiFetch(`/api/game/${gameId}/players`, { method: "POST", body: JSON.stringify({ name: newName, nickname: newNickname || null }) });
-      setNewName("");
-      setNewNickname("");
-      setAddPlayerOpen(false);
-      await refresh();
-    } catch (reason) {
-      toast.error(reason instanceof ApiError ? reason.message : "הוספת השחקן נכשלה");
-    } finally { setBusy(false); }
   }
 
   async function removePlayer() {
@@ -228,14 +215,34 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   }
 
   return (
-    <main className="flex h-[100dvh] flex-1 flex-col gap-2 overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
+    <main className="flex min-h-[100dvh] flex-1 flex-col gap-2 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <AppHeader
         title={game.name ?? "משחק"}
-        subtitle={`התחיל לפני ${elapsed(game.startedAt)}`}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            {game.location ? <span className="text-foreground/80">{game.location}</span> : null}
+            <span>התחיל לפני {elapsed(game.startedAt)}</span>
+          </span>
+        }
         backHref="/"
         backLabel="לדף הבית"
         action={
-          <Button type="button" variant="outline" onClick={copyCode} className="flex h-11 items-center gap-1 border-brand-500/25 bg-surface-2/75 px-3 text-sm font-semibold" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money">{game.code}</span></Button>
+          <div className="flex items-center gap-2">
+            <MusicButton gameId={gameId} isHost={game.isHost} />
+            {game.isHost && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-lg"
+                className="h-11 w-11 border-brand-500/25 bg-surface-2/75"
+                aria-label="עריכת פרטי הערב"
+                onClick={() => setRulesOpen(true)}
+              >
+                <Settings2Icon aria-hidden="true" />
+              </Button>
+            )}
+            <Button type="button" variant="outline" onClick={copyCode} className="flex h-11 items-center gap-1 border-brand-500/25 bg-surface-2/75 px-3 text-sm font-semibold" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money">{game.code}</span></Button>
+          </div>
         }
       />
 
@@ -308,9 +315,9 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 border-t border-foreground/10 bg-surface-4/92 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-18px_44px_-24px_rgb(4_2_3/0.95)] backdrop-blur-xl" aria-label="פעולות מארח">
-        {game.isHost && <Button type="button" variant="secondary" className="h-12 flex-1 px-2 text-xs" onClick={() => setAddPlayerOpen(true)}><PlusIcon /> שחקן</Button>}
         <Button type="button" variant="outline" className="h-12 flex-1 border-foreground/12 px-2 text-xs" onClick={() => void shareInvite()}><Share2Icon /> הזמנה</Button>
         <Button type="button" variant="outline" className="h-12 flex-1 border-foreground/12 px-2 text-xs" onClick={() => setHistoryOpen(true)}><HistoryIcon /> היסטוריה</Button>
+        {game.isHost && <HandRecorder gameId={gameId} players={seated} />}
         {game.isHost && <Button asChild type="button" className="h-12 flex-1 px-2 text-xs"><Link href={`/game/${gameId}/cashout`}>סגירת קופה</Link></Button>}
       </nav>
 
@@ -356,7 +363,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       </Dialog>
 
       <Dialog open={customPlayer !== null} onOpenChange={(open) => !open && setCustomPlayer(null)}><DialogContent><DialogHeader><DialogTitle>ריביי אחר</DialogTitle><DialogDescription>כמה להוסיף עבור {customPlayer?.name}?</DialogDescription></DialogHeader><Label htmlFor="custom-rebuy">סכום בשקלים</Label><Input id="custom-rebuy" type="number" min="1" inputMode="decimal" value={customAmount} onChange={(event) => setCustomAmount(event.target.value)} autoFocus /><DialogFooter><Button type="button" onClick={() => void submitCustom()}>הוסיפו לקופה</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={addPlayerOpen} onOpenChange={setAddPlayerOpen}><DialogContent><DialogHeader><DialogTitle>מושיבים שחקן</DialogTitle><DialogDescription>הכניסה הראשונה תתווסף לקופה מיד</DialogDescription></DialogHeader><Label htmlFor="new-player">שם</Label><Input id="new-player" value={newName} onChange={(event) => setNewName(event.target.value)} autoFocus /><Label htmlFor="new-nickname">כינוי (לא חובה)</Label><Input id="new-nickname" value={newNickname} onChange={(event) => setNewNickname(event.target.value)} /><DialogFooter><Button type="button" disabled={busy || !newName.trim()} onClick={() => void addPlayer()}>הושיבו בשולחן</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={deletePlayer !== null} onOpenChange={(open) => !open && setDeletePlayer(null)}><DialogContent><DialogHeader><DialogTitle>להסיר מהשולחן?</DialogTitle><DialogDescription>כל הכניסות של {deletePlayer?.name} יוסרו יחד איתו.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="destructive" disabled={busy} onClick={() => void removePlayer()}>הסירו שחקן</Button><Button type="button" variant="outline" onClick={() => setDeletePlayer(null)}>השאירו</Button></DialogFooter></DialogContent></Dialog>
 
       {seatPickerPlayer && (
@@ -368,6 +374,24 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           targetName={seatPickerPlayer.isYou ? "אתם" : seatPickerPlayer.name}
           saving={savingSeat}
           onSelect={(seat) => void saveSeat(seatPickerPlayer.id, seat)}
+        />
+      )}
+      {rulesOpen && (
+        <GameRulesDialog
+          gameId={gameId}
+          rules={{
+            name: game.name,
+            location: game.location ?? null,
+            notes: game.notes ?? null,
+            buyIn: game.buyIn,
+            rebuyAmount: game.rebuyAmount,
+            plannedEndAt: game.plannedEndAt,
+          }}
+          open
+          onOpenChange={setRulesOpen}
+          onSaved={async () => {
+            await refresh();
+          }}
         />
       )}
     </main>

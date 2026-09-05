@@ -1,3 +1,5 @@
 allowBuilds:
+  # core-js only prints a funding notice on postinstall; nothing to build.
+  core-js: false
   esbuild: true
   unrs-resolver: true

@@ -6,6 +6,7 @@ import {
   getSettlementStreakContext,
 } from "@/db/streak-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const querySchema = z.object({
   view: z.enum(["home", "live", "settlement"]).default("home"),
@@ -13,19 +14,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const deviceResult = z
-    .string()
-    .trim()
-    .min(1)
-    .max(200)
-    .safeParse(request.headers.get("x-device-id"));
-  if (!deviceResult.success) {
-    return NextResponse.json<ApiErrorBody>(
-      { error: "חסר מזהה מכשיר" },
-      { status: 400 },
-    );
-  }
-  const deviceId = deviceResult.data;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const parsed = querySchema.safeParse({
     view: request.nextUrl.searchParams.get("view") ?? undefined,
@@ -51,5 +41,7 @@ export async function GET(request: NextRequest) {
   if (view === "settlement") {
     return NextResponse.json({ context: await getSettlementStreakContext(gameId!) });
   }
-  return NextResponse.json({ streaks: await getActiveStreakStrip(deviceId) });
+  return NextResponse.json({
+    streaks: await getActiveStreakStrip(viewer.person.id),
+  });
 }

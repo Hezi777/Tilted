@@ -2,19 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { extendPlannedEnd } from "@/db/live-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const bodySchema = z.object({ minutes: z.union([z.literal(30), z.literal(60)]) });
 const idSchema = z.string().uuid();
-const deviceSchema = z.string().trim().min(1).max(200);
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const deviceId = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!deviceId.success) {
-    return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-  }
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
   const gameId = idSchema.safeParse((await params).id);
   if (!gameId.success) {
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
@@ -25,7 +23,11 @@ export async function POST(
   }
 
   try {
-    const plannedEndAt = await extendPlannedEnd(gameId.data, deviceId.data, body.data.minutes);
+    const plannedEndAt = await extendPlannedEnd(
+      gameId.data,
+      viewer.person.id,
+      body.data.minutes,
+    );
     return NextResponse.json({ plannedEndAt });
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error

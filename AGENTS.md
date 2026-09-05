@@ -63,11 +63,13 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
   money maths outside `src/lib/money.ts`. Format only at display time.
 - **`money.ts` and `settlement.ts` are hand-written and test-locked.** Do not edit them and
   do not reimplement net or transfer logic anywhere else. If they lack something, say so.
-- **One authorization rule, enforced server-side:** a phone writes only for the player whose
-  `device_id` matches the `x-device-id` header. The host is the single exception. There is no
-  other permission check anywhere, and no more should be added.
-- **No authentication, ever.** No Clerk, NextAuth, Supabase Auth, passwords, emails or
-  sessions. Identity is a `device_id` in localStorage and a name picked off a roster.
+- **One authorization rule, enforced server-side:** the signed-in Person writes only for
+  their own Player row. The host is the single exception. Derive the Person from the Neon
+  Auth session on every route and action; never trust a person id or device id supplied by
+  the client as identity.
+- **Authentication is required.** Neon Managed Better Auth with email and password is the
+  only identity system. Every playable Person is bound to one auth user; do not create
+  accountless guests or restore the old localStorage identity picker.
 - **RTL: Tailwind logical properties only** — `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`/
   `text-start`/`text-end`. ESLint fails the build on `ml-`, `pr-`, `text-left` and friends.
 - **Hebrew UI, English code.** Every user-facing string is Hebrew; every identifier,

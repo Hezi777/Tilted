@@ -8,6 +8,7 @@
  */
 
 import * as React from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -187,8 +188,18 @@ export function ChipSetEditor({
                   key={option.key ?? "none"}
                   value={option.key ?? "none"}
                   aria-label={`תמונה ${option.label}`}
+                  className="h-12 min-w-12 gap-1.5 px-2"
                 >
-                  {option.label}
+                  {option.key ? (
+                    <Image
+                      src={`/art/${option.key}`}
+                      alt=""
+                      width={32}
+                      height={32}
+                      className="size-8 object-contain"
+                    />
+                  ) : null}
+                  <span className={option.key ? "sr-only" : undefined}>{option.label}</span>
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>

@@ -16,6 +16,9 @@ export const UNDO_WINDOW_MS = 60_000;
 
 export type GameStatus = "active" | "settling" | "closed" | "cancelled";
 
+/** Who may type a player's final number. Mirrors the `result_entry` enum. */
+export type ResultEntry = "host_only" | "players";
+
 export interface ActorPlayer {
   id: string;
   isHost: boolean;
@@ -163,6 +166,24 @@ export function assertCanDeleteBuyIn(
     now.getTime() - row.createdAt.getTime() <= UNDO_WINDOW_MS,
     "undo_window_closed",
   );
+}
+
+/**
+ * Entering a player's result. The host may always write anyone's row; whether a player
+ * may write their own is the table's own policy, chosen when the game was opened
+ * (requirements item 4). This is not a second permission system — it is the same single
+ * rule, with the host exception, narrowed by a setting.
+ */
+export function assertCanEnterResult(
+  status: GameStatus,
+  actor: ActorPlayer,
+  targetPlayerId: string,
+  resultEntry: ResultEntry,
+): void {
+  assert(status === "active" || status === "settling", "game_not_active");
+  if (actor.isHost) return;
+  assert(resultEntry === "players", "not_host");
+  assert(actor.id === targetPlayerId, "not_your_seat");
 }
 
 /** Final counting, mismatch resolution, closing and cancelling are host-only. */

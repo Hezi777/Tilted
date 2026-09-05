@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { ArrowLeftIcon, CrownIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import type { HistoryState } from "@/db/history-queries";
+import type { MemorableHandRecord } from "@/db/music-hand-queries";
 import { apiFetch, ApiError, type GameOwnershipInfo } from "@/lib/api";
 import { useIdentity } from "@/lib/identity";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
+import { MemorableHandCard } from "@/components/HandRecorder";
 import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +37,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
   const identity = useIdentity();
   const [state, setState] = useState<HistoryState | null>(null);
   const [ownership, setOwnership] = useState<GameOwnershipInfo | null>(null);
+  const [hands, setHands] = useState<MemorableHandRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -63,6 +66,14 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
     apiFetch<GameOwnershipInfo>(`/api/game/${gameId}`)
       .then((next) => { if (!cancelled) setOwnership(next); })
       .catch(() => {});
+    return () => { cancelled = true; };
+  }, [gameId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<MemorableHandRecord[]>(`/api/game/${gameId}/hands`)
+      .then((next) => { if (!cancelled) setHands(next); })
+      .catch(() => { if (!cancelled) setHands([]); });
     return () => { cancelled = true; };
   }, [gameId]);
 
@@ -174,6 +185,14 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
               </CardContent>
             </Card>
           )}
+          {hands === null ? (
+            <Skeleton className="h-40 w-full" />
+          ) : hands.length > 0 ? (
+            <section className="flex flex-col gap-3" aria-labelledby="memorable-hands-title">
+              <h2 id="memorable-hands-title" className="t-title px-1">ידיים שלא שוכחים</h2>
+              {hands.map((hand) => <MemorableHandCard key={hand.id} record={hand} />)}
+            </section>
+          ) : null}
           <Card>
             <CardHeader><CardTitle>מהלך הריבאיים</CardTitle></CardHeader>
             <CardContent>

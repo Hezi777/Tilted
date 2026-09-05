@@ -130,17 +130,17 @@ export async function listTransfers(gameId: string): Promise<TransferRecord[] | 
 
 /**
  * Toggles one transfer's paid state. Authorization reuses the single existing rule
- * (src/lib/authz.ts): the device whose seat is the payer may mark their own transfer,
- * and the host may mark any transfer in the game. `getActorForGame` already applies
+ * (src/lib/authz.ts): the signed-in payer may mark their own transfer, and the host may
+ * mark any transfer in the game. `getActorForGame` already applies
  * `requireActor`, so `access.actor` is guaranteed to be a live, undeleted seat.
  */
 export async function setTransferPaid(
   gameId: string,
-  deviceId: string,
+  actorPersonId: string,
   transferId: string,
   paid: boolean,
 ): Promise<TransferRecord[]> {
-  const access = await getActorForGame(gameId, deviceId);
+  const access = await getActorForGame(gameId, actorPersonId);
   if (!access) throw new Error("המשחק לא נמצא");
   const actor = access.actor;
 
@@ -157,7 +157,8 @@ export async function setTransferPaid(
     .update(transfers)
     .set({
       paidAt: paid ? new Date() : null,
-      markedByDevice: paid ? deviceId : null,
+      // Legacy column name; this value is now the authenticated Person id.
+      markedByDevice: paid ? actorPersonId : null,
     })
     .where(and(eq(transfers.id, transferId), eq(transfers.gameId, gameId)));
 

@@ -2,29 +2,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { claimPlayer, ClaimConflictError } from "@/db/roster-queries";
 import type { ApiErrorBody } from "@/lib/api";
+import { requireViewer } from "@/lib/auth/session";
 
 const claimSchema = z.object({
   gameId: z.string().uuid(),
   avatarKey: z.string().regex(/^chip-(0[1-9]|1[0-2])$/),
-  force: z.boolean().optional().default(false),
 });
-const deviceSchema = z.string().trim().min(1).max(200);
 
-function deviceId(request: NextRequest): string | NextResponse {
-  const parsed = deviceSchema.safeParse(request.headers.get("x-device-id"));
-  if (!parsed.success) {
-    return NextResponse.json<ApiErrorBody>({ error: "חסר מזהה מכשיר" }, { status: 400 });
-  }
-  return parsed.data;
-}
-
-/** Claims an empty seat, or repeats a claim from the same device. */
+/** Claims only the seat tied to the signed-in account. */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ playerId: string }> },
 ) {
-  const actorDevice = deviceId(request);
-  if (actorDevice instanceof NextResponse) return actorDevice;
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
 
   const parsed = claimSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -45,9 +36,8 @@ export async function POST(
     const player = await claimPlayer(
       parsed.data.gameId,
       playerId,
-      actorDevice,
+      viewer.person.id,
       parsed.data.avatarKey,
-      parsed.data.force,
     );
     return NextResponse.json(player);
   } catch (error) {

@@ -32,7 +32,7 @@ export function AppHeader({
 
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="t-display truncate">{title}</h1>
+          <h1 className="t-display line-clamp-2 text-balance break-words">{title}</h1>
           {subtitle ? (
             <div className="t-caption ink-3 mt-1">{subtitle}</div>
           ) : null}
