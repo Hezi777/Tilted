@@ -20,7 +20,32 @@ function required(name: string): string {
   return value;
 }
 
-export const auth = createNeonAuth({
-  baseUrl: required("NEON_AUTH_BASE_URL"),
-  cookies: { secret: required("NEON_AUTH_COOKIE_SECRET") },
+/**
+ * Built on first use, not at import.
+ *
+ * `proxy.ts`, the root layout and every route handler import this module, so building
+ * the client at module scope ran the env check during `next build`'s page-data
+ * collection — where the variables do not exist unless they happen to be configured for
+ * the build environment. A missing variable then failed the whole build on
+ * `/_not-found` instead of failing the one request that actually needs auth.
+ */
+let instance: ReturnType<typeof createNeonAuth> | null = null;
+
+function client(): ReturnType<typeof createNeonAuth> {
+  instance ??= createNeonAuth({
+    baseUrl: required("NEON_AUTH_BASE_URL"),
+    cookies: { secret: required("NEON_AUTH_COOKIE_SECRET") },
+  });
+  return instance;
+}
+
+/**
+ * Same surface as the client itself — `auth.getSession()`, `auth.handler()`,
+ * `auth.middleware()`, `auth.signIn.email(...)` — with construction deferred to the
+ * first property access. Callers are unchanged.
+ */
+export const auth = new Proxy({} as ReturnType<typeof createNeonAuth>, {
+  get(_target, property, receiver) {
+    return Reflect.get(client(), property, receiver);
+  },
 });
