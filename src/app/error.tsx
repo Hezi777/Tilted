@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import { RefreshCwIcon } from "lucide-react";
@@ -22,6 +23,7 @@ export default function ErrorScreen({
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-5 px-5 py-16 text-center">
+      <Image src="/art/states/broke.webp" alt="" width={112} height={112} className="size-28 object-contain" />
       <div className="flex flex-col gap-2">
         <h1 className="t-heading">משהו השתבש</h1>
         <p className="t-body ink-3 max-w-[34ch]">

@@ -40,7 +40,7 @@ export default async function HistoryPage() {
         {closed.length === 0 ? (
           <div className="empty-slot flex flex-1 items-center gap-4 rounded-[20px] p-5">
             <Image
-              src="/art/empty.png"
+              src="/art/states/empty.webp"
               alt=""
               width={88}
               height={88}

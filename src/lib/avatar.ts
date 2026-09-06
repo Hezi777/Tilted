@@ -36,9 +36,38 @@ export const OPEN_AVATAR_KEYS = [
   "cigar",
 ] as const;
 
+/**
+ * The original twelve, kept as extras.
+ *
+ * They are faces without people attached -- plain coloured chips rather than someone's
+ * likeness -- so they are open to anyone and make good defaults. Keeping them costs 116 KB
+ * and gives the picker enough range that a nine-seat table never repeats.
+ */
+export const LEGACY_AVATAR_KEYS = [
+  "legacy-01",
+  "legacy-02",
+  "legacy-03",
+  "legacy-04",
+  "legacy-05",
+  "legacy-06",
+  "legacy-07",
+  "legacy-08",
+  "legacy-09",
+  "legacy-10",
+  "legacy-11",
+  "legacy-12",
+] as const;
+
+/** Everything a stranger may choose from. */
+export const SELECTABLE_AVATAR_KEYS = [
+  ...OPEN_AVATAR_KEYS,
+  ...LEGACY_AVATAR_KEYS,
+] as const;
+
 export const AVATAR_KEYS = [
   ...RESERVED_AVATAR_KEYS,
   ...OPEN_AVATAR_KEYS,
+  ...LEGACY_AVATAR_KEYS,
 ] as const;
 
 export type AvatarKey = (typeof AVATAR_KEYS)[number];
@@ -111,10 +140,24 @@ export function reservedAvatarForName(name: string): ReservedAvatarKey | null {
 export function selectableAvatarKeys(currentKey: string | null): AvatarKey[] {
   const own =
     currentKey && isReservedAvatarKey(currentKey) ? [currentKey] : [];
-  return [...own, ...OPEN_AVATAR_KEYS];
+  return [...own, ...SELECTABLE_AVATAR_KEYS];
 }
 
-const OPEN_COUNT = OPEN_AVATAR_KEYS.length;
+/**
+ * Where a character's picture lives.
+ *
+ * The originals keep their own filenames under `legacy/` rather than being renumbered:
+ * renaming twelve committed files to make one function tidier is churn that breaks every
+ * `people.avatar_key` already in the database.
+ */
+export function avatarSrc(key: string): string {
+  if (key.startsWith("legacy-")) {
+    return `/art/legacy/chip-${key.slice("legacy-".length)}.webp`;
+  }
+  return `/art/avatar-${key}.webp`;
+}
+
+const OPEN_COUNT = SELECTABLE_AVATAR_KEYS.length;
 
 /**
  * A stable default for anyone who never picks.
@@ -127,17 +170,17 @@ export function avatarKeyForPerson(personId: string): AvatarKey {
   for (const character of personId) {
     hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
   }
-  return OPEN_AVATAR_KEYS[hash % OPEN_COUNT];
+  return SELECTABLE_AVATAR_KEYS[hash % OPEN_COUNT];
 }
 
 /** Unique-by-seat default for a single table, so no two chairs wear the same face. */
 export function avatarKeyForSeat(seatOrder: number): AvatarKey {
-  return OPEN_AVATAR_KEYS[seatOrder % OPEN_COUNT];
+  return SELECTABLE_AVATAR_KEYS[seatOrder % OPEN_COUNT];
 }
 
 export function firstAvailableAvatarKey(
   usedKeys: Iterable<string | null>,
 ): AvatarKey | null {
   const used = new Set(usedKeys);
-  return OPEN_AVATAR_KEYS.find((key) => !used.has(key)) ?? null;
+  return SELECTABLE_AVATAR_KEYS.find((key) => !used.has(key)) ?? null;
 }

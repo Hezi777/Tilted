@@ -21,3 +21,5 @@ output
 
 # Local backup of the generated chip avatars, kept out of the repo (4.4 MB)
 public/art/_avatar_backup
+
+.DS_Store

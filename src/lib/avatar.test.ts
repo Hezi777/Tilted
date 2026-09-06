@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   AVATAR_KEYS,
-  OPEN_AVATAR_KEYS,
   RESERVED_AVATAR_KEYS,
+  SELECTABLE_AVATAR_KEYS,
+  avatarSrc,
   avatarKeyForPerson,
   avatarKeyForSeat,
   isReservedAvatarKey,
@@ -55,8 +56,9 @@ describe("defaults", () => {
   });
 
   it("gives consecutive seats different faces", () => {
-    const seats = OPEN_AVATAR_KEYS.map((_, seat) => avatarKeyForSeat(seat));
-    expect(new Set(seats).size).toBe(OPEN_AVATAR_KEYS.length);
+    // A nine-seat table is the largest the app allows, so that is the bar.
+    const seats = Array.from({ length: 9 }, (_, seat) => avatarKeyForSeat(seat));
+    expect(new Set(seats).size).toBe(9);
   });
 
   it("never seats a stranger in a reserved character either", () => {
@@ -67,13 +69,16 @@ describe("defaults", () => {
 });
 
 describe("selectableAvatarKeys", () => {
-  it("offers only the open six to someone holding none", () => {
-    expect(selectableAvatarKeys(null)).toEqual([...OPEN_AVATAR_KEYS]);
-    expect(selectableAvatarKeys("bald")).toEqual([...OPEN_AVATAR_KEYS]);
+  it("offers every open character to someone holding none", () => {
+    expect(selectableAvatarKeys(null)).toEqual([...SELECTABLE_AVATAR_KEYS]);
+    expect(selectableAvatarKeys("bald")).toEqual([...SELECTABLE_AVATAR_KEYS]);
   });
 
-  it("offers a regular their own character on top of the open six", () => {
-    expect(selectableAvatarKeys("ido")).toEqual(["ido", ...OPEN_AVATAR_KEYS]);
+  it("offers a regular their own character on top of the open ones", () => {
+    expect(selectableAvatarKeys("ido")).toEqual([
+      "ido",
+      ...SELECTABLE_AVATAR_KEYS,
+    ]);
   });
 
   it("never offers a reserved character belonging to someone else", () => {
@@ -86,8 +91,22 @@ describe("selectableAvatarKeys", () => {
 });
 
 describe("the set itself", () => {
-  it("is twelve distinct keys", () => {
-    expect(AVATAR_KEYS).toHaveLength(12);
-    expect(new Set(AVATAR_KEYS).size).toBe(12);
+  it("has no duplicate keys", () => {
+    expect(new Set(AVATAR_KEYS).size).toBe(AVATAR_KEYS.length);
+  });
+
+  it("is six reserved plus everything selectable", () => {
+    expect(RESERVED_AVATAR_KEYS).toHaveLength(6);
+    expect(AVATAR_KEYS).toHaveLength(
+      RESERVED_AVATAR_KEYS.length + SELECTABLE_AVATAR_KEYS.length,
+    );
+  });
+
+  it("resolves every key to a file that exists", async () => {
+    const { access } = await import("node:fs/promises");
+    for (const key of AVATAR_KEYS) {
+      const path = `public${avatarSrc(key)}`;
+      await expect(access(path)).resolves.toBeUndefined();
+    }
   });
 });

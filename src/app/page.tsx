@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LayersIcon, UsersIcon } from "lucide-react";
+import Image from "next/image";
+import { UsersIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { useEffect, useState } from "react";
@@ -169,9 +170,9 @@ export default function Home() {
           {games !== null && !error && closedGames.length === 0 && (
             // An empty seat, drawn the way the reference draws a card that has not
             // come out yet -- rather than a 240 KB illustration of a sad chip.
-            <div className="empty-slot flex flex-1 flex-col items-center justify-center gap-2 rounded-[20px] px-6 py-10 text-center">
-              <LayersIcon aria-hidden="true" className="size-6 text-[var(--text-3)]" strokeWidth={1.75} />
-              <p className="t-title mt-1">השולחן הראשון מחכה לכם</p>
+            <div className="empty-slot flex flex-1 flex-col items-center justify-center gap-3 rounded-[20px] px-6 py-10 text-center">
+              <Image src="/art/states/empty.webp" alt="" width={96} height={96} className="size-24 object-contain" />
+              <p className="t-title">השולחן הראשון מחכה לכם</p>
               <p className="t-caption max-w-[30ch] leading-relaxed text-[var(--text-2)]">פותחים משחק, בוחרים מי הגיע, ומכאן הקופה מסתדרת לבד.</p>
             </div>
           )}
