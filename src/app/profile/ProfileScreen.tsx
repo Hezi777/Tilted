@@ -339,19 +339,23 @@ export function ProfileScreen({
                       aria-checked={selected}
                       aria-label={key}
                       onClick={() => setDraftKey(key)}
+                      // A square tile, not a disc. The artwork is a square figure with
+                      // hair above the chip and legs below it, so a circular highlight
+                      // sits its visual mass high and looks mis-centred no matter how
+                      // the image is aligned.
                       className={cn(
-                        "rounded-full p-1 transition-[transform,opacity]",
+                        "grid aspect-square place-items-center rounded-2xl p-1.5 transition-[background-color,opacity]",
                         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                         selected
-                          ? "scale-100 bg-ink-700 opacity-100"
-                          : "scale-95 opacity-55",
+                          ? "bg-ink-700 opacity-100"
+                          : "bg-transparent opacity-55 hover:opacity-80",
                       )}
                     >
                       <ChipAvatar
                         avatarKey={key}
                         personId={profile.id}
                         name={key}
-                        className="size-12"
+                        className="size-full"
                       />
                     </button>
                   );
