@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LayersIcon, UsersIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
@@ -16,6 +17,7 @@ import { ChipAvatar } from "@/components/ChipAvatar";
 import { apiFetch, ApiError, type GameSummary } from "@/lib/api";
 
 export default function Home() {
+  const router = useRouter();
   const reduceMotion = useReducedMotion();
   const viewer = useIdentity();
   const [games, setGames] = useState<GameSummary[] | null>(null);
@@ -53,6 +55,10 @@ export default function Home() {
       setGames((previous) => previous?.filter((game) => game.id !== cancelTarget.id) ?? previous);
       setCancelTarget(null);
       toast.success("המשחק בוטל");
+      // The open-table strip lives in the server-rendered layout, so dropping the game
+      // from local state here is not enough -- without this the bar keeps offering a
+      // way back into a game that no longer exists.
+      router.refresh();
     } catch (reason) {
       toast.error(reason instanceof ApiError ? reason.message : "ביטול המשחק נכשל");
     } finally {

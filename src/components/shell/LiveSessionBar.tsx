@@ -15,7 +15,9 @@ import type { GameSummary } from "@/lib/api";
  * this with a Live Activity or an ongoing notification; a web app's equivalent is a
  * persistent bar that is also the way back in.
  *
- * Hidden on the game's own routes, where it would only point at the current screen.
+ * Hidden on the game's own routes, where it would only point at the current screen, and
+ * on home, which already leads with the open table -- two ways into the same game, one
+ * directly above the other, reads as two different games.
  */
 export function LiveSessionBar({ game }: { game: GameSummary | null }) {
   const pathname = usePathname();
@@ -34,6 +36,7 @@ export function LiveSessionBar({ game }: { game: GameSummary | null }) {
   }, []);
 
   if (!game) return null;
+  if (pathname === "/") return null;
   if (pathname.startsWith(`/game/${game.id}`)) return null;
 
   const minutes =

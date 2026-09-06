@@ -261,7 +261,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         body: JSON.stringify({ status }),
       });
       setState(next);
-      if (status === "closed") router.push(`/game/${gameId}/settlement`);
+      // Closing the game has to reach the server layout too, or the open-table strip
+      // keeps advertising a table that has just been settled.
+      if (status === "closed") {
+        router.refresh();
+        router.push(`/game/${gameId}/settlement`);
+      }
     } catch (error) {
       toast.error(errorText(error));
       void load();

@@ -104,7 +104,7 @@ export function PokerTable({
         compact && "w-[min(350px,100%,calc((100dvh-21rem)*0.625))]",
       )}
     >
-      <div aria-hidden="true" className="felt-panel absolute inset-[1.5%] overflow-hidden rounded-[50%] drop-shadow-[0_28px_30px_rgb(0_0_0/0.72)]" />
+      <div aria-hidden="true" className="felt-panel felt-rail absolute inset-[1.5%] overflow-hidden rounded-[50%] drop-shadow-[0_28px_30px_rgb(0_0_0/0.72)]" />
 
       {emptySlots.map((slot) => (
         <div

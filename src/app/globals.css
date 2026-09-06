@@ -364,7 +364,12 @@
    * Green is therefore free to mean one thing in this app -- money up -- which
    * is the whole point of rationing colour. */
   .felt-panel {
-    position: absolute;
+    /* `relative`, not `absolute`: this class is also used as an ordinary card on the
+       cash-out screen, and absolute positioning here pulled it out of flow and dropped
+       it on top of the card above it. PokerTable passes its own `absolute`, and a
+       Tailwind utility outranks this layer, so the table is unaffected. The position
+       is only here at all so the rail pseudo-element has something to sit in. */
+    position: relative;
     background:
       /* the light hanging over the far rail */
       radial-gradient(ellipse 72% 34% at 50% 1%, rgb(123 92 255 / 30%), transparent 64%),
@@ -375,9 +380,13 @@
       inset 0 -30px 60px -30px rgb(0 0 0 / 80%);
   }
 
-  /* The rail: an inset ring that catches the same light a beat later, which is
-     what gives the table an edge instead of a border. */
-  .felt-panel::after {
+  /* The rail: an inset ring that catches the same light a beat later, which is what
+     gives the table an edge instead of a border.
+
+     Deliberately its own class rather than a pseudo-element on .felt-panel. The surface
+     is reused as an ordinary rectangular card on the cash-out, settlement and history
+     screens, and a 50%-radius ring inside those drew a stray ellipse across them. */
+  .felt-rail::after {
     position: absolute;
     inset: 4.5%;
     z-index: 0;

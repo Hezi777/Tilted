@@ -140,7 +140,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
           </div>
         )}
         {state && <>
-          <Card className="felt-panel border-brand-900/65 text-felt-foreground">
+          <Card className="felt-panel text-felt-foreground">
             <CardContent className="flex items-center justify-between gap-3">
               <div><p className="text-sm text-felt-foreground-muted">הקופה</p><Money value={state.pot} className="mt-1 text-4xl font-semibold" /></div>
               <span className="rounded-full border border-felt-foreground/15 bg-felt-deep/45 px-3 py-1 text-xs text-felt-foreground-muted">{state.players.length} שחקנים</span>

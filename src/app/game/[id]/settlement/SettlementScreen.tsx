@@ -50,7 +50,7 @@ function outcomeClass(player: SettlementPlayer): string {
 function ShareCard({ state, winner }: { state: SettlementState; winner?: SettlementPlayer }) {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-surface-0 p-12 text-foreground">
-      <div className="felt-panel relative flex min-h-[260px] flex-col items-center justify-center overflow-hidden rounded-[40px] border-[3px] border-brand-700/50 px-12 text-center">
+      <div className="felt-panel relative flex min-h-[260px] flex-col items-center justify-center overflow-hidden rounded-[40px] px-12 text-center">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,transparent,rgb(6_37_27/0.45))]" />
         <p className="relative text-[28px] font-semibold text-felt-foreground-muted">{state.name ?? "ערב פוקר"}</p>
         <Money value={state.pot} className="relative mt-2 text-[84px] font-semibold leading-none text-felt-foreground" />
@@ -320,7 +320,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
             <motion.section
               initial={staged ? { opacity: 0 } : false}
               animate={{ opacity: 1 }}
-              className="felt-panel relative -mx-5 flex min-h-52 flex-col items-center justify-center overflow-hidden border-y border-brand-900/70 px-5 text-center"
+              className="felt-panel relative -mx-5 flex min-h-52 flex-col items-center justify-center overflow-hidden px-5 text-center"
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgb(245_237_230/0.08),transparent_48%)]" />
               {CHIP_PATHS.map((path, index) => (
