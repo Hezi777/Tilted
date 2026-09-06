@@ -1,26 +1,31 @@
 import type { MetadataRoute } from "next";
 
-/** Installable app metadata. Colours are sampled from the rendered tokens so the
- * launch splash matches the app instead of flashing the old light ground. */
+/** Installable app metadata. Colours are the app's own tokens, so the launch splash
+ * matches what paints a moment later instead of flashing something else first. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "פוקר | הקופה שלנו",
-    short_name: "פוקר",
+    name: "Tilted Poker",
+    short_name: "Tilted",
     description: "מעקב אחרי הקופה וסגירת החשבון בערב פוקר ביתי",
     lang: "he",
     dir: "rtl",
     start_url: "/",
     display: "standalone",
-    // Sampled from --background and --felt. The previous value was the old cream
-    // palette, so the splash screen flashed light before the dark app painted.
-    background_color: "#080305",
-    theme_color: "#9f1228",
+    // --ink-950 and --light: the ground the app actually paints, and the mark on it.
+    background_color: "#0b0b0f",
+    theme_color: "#0b0b0f",
     icons: [
-      // One 1024px source, declared at its real size. "any" keeps the full artwork;
-      // "maskable" is safe because the chip was generated with padding to survive
-      // being cropped to a circle or squircle.
-      { src: "/art/icon-premium.png", sizes: "1024x1024", type: "image/png", purpose: "any" },
-      { src: "/art/icon-premium.png", sizes: "1024x1024", type: "image/png", purpose: "maskable" },
+      { src: "/art/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      // A separate crop, not the same file declared twice. Android clips roughly a fifth
+      // off every edge of an adaptive icon, so the maskable one draws the mark at 56% of
+      // the frame instead of 76% -- the previous manifest reused one full-bleed file for
+      // both and lost the top of the artwork on every Android launcher.
+      {
+        src: "/art/icon-maskable.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
     ],
   };
 }

@@ -77,7 +77,17 @@ export default function Home() {
           className="pointer-events-none absolute inset-x-0 top-0 h-64 focal-glow"
         />
         <div className="relative flex items-start justify-between gap-4">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Vector, so it scales with the type rather than against it, and already
+                drawn in --light with an --ink-950 clock face -- no tinting needed. */}
+            <Image
+              src="/art/logo.svg"
+              alt=""
+              width={40}
+              height={96}
+              priority
+              className="h-[3.25rem] w-auto shrink-0"
+            />
             <h1 className="t-display leading-[0.92]">
               TILTED
               <span className="block text-[var(--text-2)]">POKER</span>
