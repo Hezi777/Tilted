@@ -32,7 +32,7 @@ import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
 import { AVATAR_KEYS } from "@/lib/avatar";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
+import { agorot, shekelsToAgorot } from "@/lib/money";
 import { denominationInputText } from "@/lib/chips";
 import { useIdentity } from "@/lib/identity";
 
@@ -51,6 +51,10 @@ const BUY_IN_CHIPS = [
   { amount: "50", body: "#14713D", edge: "#F4F1E8" },
   { amount: "100", body: "#14110F", edge: "#F4F1E8" },
 ] as const;
+
+/** The custom amount's chip. Purple sits outside the four conventional bodies above. */
+const CUSTOM_CHIP = { body: "#5B2C83", edge: "#F4F1E8" } as const;
+
 type BuyInChoice = (typeof BUY_IN_CHIPS)[number]["amount"] | "custom";
 
 /** The three-step disclosure of the setup form. */
@@ -60,6 +64,9 @@ const STEPS = ["הערב", "הכסף", "מי משחק"] as const;
 const FIELD_CLASS = "h-12 rounded-xl bg-ink-800 px-4";
 
 const NO_CHIP_SET = "none";
+
+/** How many chips a set's card previews before it just states the count. */
+const MAX_PREVIEW_DENOMINATIONS = 5;
 
 interface GameChipSet {
   id: string;
@@ -163,6 +170,7 @@ export default function NewGamePage() {
   const hostPersonId = identity === undefined ? undefined : (identity?.id ?? null);
 
   const [step, setStep] = useState(0);
+  const [customOpen, setCustomOpen] = useState(false);
 
   const [name, setName] = useState(defaultGameName);
   const [location, setLocation] = useState("");
@@ -468,7 +476,7 @@ export default function NewGamePage() {
                     <PokerChip
                       color={chip.body}
                       edgeColor={chip.edge}
-                      label={chip.amount}
+                      label={`₪${chip.amount}`}
                       className="size-full"
                     />
                     <span className="sr-only">₪{chip.amount}</span>
@@ -479,24 +487,71 @@ export default function NewGamePage() {
                 <ToggleGroupItem
                   value="custom"
                   aria-label="סכום אחר"
-                  className="empty-slot grid aspect-square h-auto flex-1 place-items-center rounded-full bg-transparent p-0 text-[var(--text-2)] opacity-60 transition-[transform,opacity] data-[state=on]:-translate-y-1 data-[state=on]:text-foreground data-[state=on]:opacity-100"
+                  onClick={() => setCustomOpen(true)}
+                  className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
                 >
-                  <PlusIcon aria-hidden="true" strokeWidth={1.75} className="size-5" />
+                  {customBuyIn ? (
+                    <PokerChip
+                      color={CUSTOM_CHIP.body}
+                      edgeColor={CUSTOM_CHIP.edge}
+                      label={`₪${customBuyIn}`}
+                      className="size-full"
+                    />
+                  ) : (
+                    <span className="empty-slot grid size-full place-items-center rounded-full text-[var(--text-2)]">
+                      <PlusIcon aria-hidden="true" strokeWidth={1.75} className="size-5" />
+                    </span>
+                  )}
                   <span className="sr-only">סכום אחר</span>
                 </ToggleGroupItem>
               </ToggleGroup>
-              {buyInChoice === "custom" && (
-                <Input
-                  className={FIELD_CLASS}
-                  type="number"
-                  inputMode="decimal"
-                  min={1}
-                  placeholder="סכום בשקלים"
-                  value={customBuyIn}
-                  onChange={(e) => setCustomBuyIn(e.target.value)}
-                />
-              )}
             </motion.div>
+
+            <Dialog
+              open={customOpen}
+              onOpenChange={(open) => {
+                setCustomOpen(open);
+                // Closing with nothing typed means they changed their mind, so the
+                // row must not stay parked on an empty custom chip.
+                if (!open && !customBuyIn.trim()) setBuyInChoice("20");
+              }}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>כניסה בסכום אחר</DialogTitle>
+                  <DialogDescription>הז׳יטון מתעדכן בזמן שאתם מקלידים.</DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center gap-5 py-2">
+                  <PokerChip
+                    color={CUSTOM_CHIP.body}
+                    edgeColor={CUSTOM_CHIP.edge}
+                    label={customBuyIn ? `₪${customBuyIn}` : "₪"}
+                    className="size-28"
+                  />
+                  <Input
+                    className={cn(FIELD_CLASS, "money w-40 text-center text-xl")}
+                    type="number"
+                    inputMode="decimal"
+                    min={1}
+                    dir="ltr"
+                    autoFocus
+                    placeholder="150"
+                    aria-label="סכום הכניסה בשקלים"
+                    value={customBuyIn}
+                    onChange={(e) => setCustomBuyIn(e.target.value)}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    disabled={!customBuyIn.trim() || Number(customBuyIn) <= 0}
+                    onClick={() => setCustomOpen(false)}
+                  >
+                    זה הסכום
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <motion.div variants={motionSafe(rise, reduceMotion)} className="surface-card flex flex-col gap-2.5 rounded-[20px] p-4">
               <div className="flex items-center justify-between gap-3">
@@ -592,7 +647,7 @@ export default function NewGamePage() {
                 }}
                 variant="outline"
                 aria-label="חבילת ז׳יטונים"
-                className="flex snap-x flex-nowrap justify-start gap-3 overflow-x-auto pb-1"
+                className="flex snap-x flex-nowrap items-stretch justify-start gap-3 overflow-x-auto overflow-y-visible py-1"
               >
                 <ToggleGroupItem
                   value={NO_CHIP_SET}
@@ -611,20 +666,24 @@ export default function NewGamePage() {
                       className="flex min-h-24 w-52 flex-col items-start justify-start gap-0 rounded-[20px] bg-ink-800 p-3 pe-12 text-start data-[state=on]:bg-ink-700"
                     >
                       <span className="t-label">{chipSet.name}</span>
-                      <span className="mt-2 flex flex-wrap gap-1.5">
-                        {chipSet.denominations.map((denomination) => (
-                          <span
-                            key={denomination.id}
-                            className="money t-caption inline-flex items-center gap-1 rounded-full bg-ink-900 px-2 py-1"
-                          >
+                      {/* The tray, seen face on. Amount pills could not fit this card
+                          without wrapping, and the row scrolls horizontally, which
+                          makes overflow-y compute to `auto` and clip them. Colours
+                          identify a set at a glance; the amounts live in the editor. */}
+                      <span className="mt-2 flex items-center">
+                        {chipSet.denominations
+                          .slice(0, MAX_PREVIEW_DENOMINATIONS)
+                          .map((denomination, index) => (
                             <PokerChip
+                              key={denomination.id}
                               color={denomination.color}
                               edgeColor={denomination.edgeColor}
-                              className="size-4"
+                              className={cn("size-7", index > 0 && "-ms-2.5")}
                             />
-                            {formatILS(agorot(denomination.value))}
-                          </span>
-                        ))}
+                          ))}
+                        <span className="t-caption ms-2 text-[var(--text-2)]">
+                          {chipSet.denominations.length} ערכים
+                        </span>
                       </span>
                     </ToggleGroupItem>
                     {!chipSet.isPreset && (

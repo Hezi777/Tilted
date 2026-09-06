@@ -78,7 +78,7 @@ export function SeatPicker({
                   isMine
                     ? "border-brand-300 bg-brand-500/25 text-brand-200 ring-2 ring-brand-300"
                     : occupant
-                      ? "border-foreground/10 bg-surface-2 text-muted-foreground"
+                      ? "bg-ink-800 text-[var(--text-3)]"
                       : "border-brand-500/30 bg-surface-1 text-foreground hover:bg-surface-2",
                   disabled && !isMine && "opacity-60",
                 )}

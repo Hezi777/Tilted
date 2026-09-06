@@ -52,7 +52,7 @@ export function AmountInput({
   return (
     <Input
       aria-label={ariaLabel}
-      className="money h-14 min-w-0 rounded-[14px] border-foreground/15 border-t-foreground/22 bg-surface-3 text-end text-xl shadow-inner focus-visible:border-brand-500 focus-visible:ring-brand-500/30"
+      className="money h-14 min-w-0 rounded-[14px] border-0 bg-ink-700 text-end text-xl focus-visible:ring-2 focus-visible:ring-ring/60"
       disabled={disabled}
       inputMode="decimal"
       pattern="[0-9]*[.,]?[0-9]*"

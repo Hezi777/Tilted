@@ -162,7 +162,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
             <CardHeader><CardTitle>המאזן הסופי</CardTitle></CardHeader>
             <CardContent className="flex flex-col">
               {state.players.map((player) => (
-                <div key={player.id} className="flex min-h-14 items-center gap-3 border-b border-foreground/8 py-2 last:border-b-0">
+                <div key={player.id} className="flex min-h-14 items-center gap-3 py-2">
                   <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
                   <span className="font-medium">{player.name}</span>
                   <Money value={player.net} signed className={player.outcome === "winner" ? "ms-auto font-bold text-profit" : player.outcome === "loser" ? "ms-auto font-bold text-loss" : "ms-auto text-even"} />
@@ -175,7 +175,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
               <CardHeader><CardTitle>מי העביר למי</CardTitle></CardHeader>
               <CardContent className="flex flex-col">
                 {state.transfers.map((transfer) => (
-                  <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-14 items-center gap-2 border-b border-foreground/8 py-2 last:border-b-0">
+                  <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-14 items-center gap-2 py-2">
                     <span>{transfer.fromName}</span>
                     <span className="flex flex-1 items-center gap-1 text-brand-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></span>
                     <span>{transfer.toName}</span>
@@ -202,7 +202,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
                     {state.timeline.map((item) => {
                       const player = playersById.get(item.playerId);
                       return (
-                        <li key={item.id} className="flex min-h-14 items-center gap-3 border-b border-foreground/8 py-2 text-sm last:border-b-0">
+                        <li key={item.id} className="flex min-h-14 items-center gap-3 py-2 text-sm">
                           <ChipAvatar avatarKey={player?.avatarKey} personId={item.playerId} name={item.playerName} className="size-9" />
                           <span>{item.playerName} הוסיף ריביי{item.deletedAt && <span className="text-muted-foreground">, בוטל</span>}</span>
                           <span className="ms-auto text-end"><Money value={item.amount} /><br /><span className="text-xs text-muted-foreground">{time(item.createdAt)}</span></span>

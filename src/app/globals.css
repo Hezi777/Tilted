@@ -383,6 +383,21 @@
     flex: none;
   }
 
+  /* Every `type="number"` in this app is money, and money is typed, not nudged. The
+     native spinner is an OS control that ignores the design system on every platform
+     and puts a 12px hit target inside a 48px field. Where stepping is genuinely the
+     interaction -- counting a stack of chips -- ChipCounter draws its own buttons. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   /* Rows in a list are separated by space and by their own fill, not by rules. */
   .row-list > * + * { margin-block-start: 2px; }
 

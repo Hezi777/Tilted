@@ -73,7 +73,7 @@ function ShareCard({ state, winner }: { state: SettlementState; winner?: Settlem
 
       <div className="mt-6 grid grid-cols-2 gap-3">
         {state.players.map((player) => (
-          <div key={player.id} className="flex min-h-[68px] items-center gap-3 rounded-[22px] border-2 border-foreground/8 bg-surface-2 px-4">
+          <div key={player.id} className="flex min-h-[68px] items-center gap-3 rounded-[22px] bg-surface-2 px-4">
             <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-12" />
             <span className="truncate text-[22px] font-semibold">{player.name}</span>
             <Money value={player.net} signed className={cn("ms-auto text-[23px] font-bold", outcomeClass(player))} />
@@ -97,7 +97,7 @@ function ShareCard({ state, winner }: { state: SettlementState; winner?: Settlem
         </div>
       )}
 
-      <div className="mt-auto flex items-end justify-between border-t-2 border-foreground/10 pt-5">
+      <div className="mt-auto flex items-end justify-between pt-8">
         <p dir="ltr" className="font-heading text-[30px] text-brand-300">Tilted Poker</p>
         <p className="text-[20px] text-muted-foreground">{new Date(state.closedAt ?? state.createdAt).toLocaleDateString("he-IL")}</p>
       </div>
@@ -375,7 +375,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                     initial={staged ? { opacity: 0, y: 10 } : false}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: staged ? 1.6 + index * 0.06 : 0, duration: 0.2 }}
-                    className="flex min-h-14 items-center gap-3 border-b border-foreground/8 py-2 last:border-b-0"
+                    className="flex min-h-14 items-center gap-3 py-2"
                   >
                     <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
                     <span className="min-w-0 truncate font-semibold">{player.name}</span>
@@ -404,7 +404,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                         animate={{ opacity: 1 }}
                         transition={{ delay: staged ? 2.2 + index * 0.08 : 0 }}
                         className={cn(
-                          "flex flex-col gap-2 border-b border-foreground/8 py-3 last:border-b-0",
+                          "flex flex-col gap-2 py-3",
                           paid && "opacity-60",
                         )}
                       >
@@ -451,7 +451,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
 
             {state.resolution && <p className="text-sm text-muted-foreground">{state.resolution.kind === "split" ? "ההפרש בספירה פוצל בין המנצחים" : "ההפרש בספירה הוקצה לשחקן"}</p>}
 
-            <motion.div initial={staged ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: staged ? 2.6 : 0 }} className="sticky bottom-0 z-50 -mx-5 mt-auto flex flex-col gap-2 border-t border-foreground/10 bg-surface-4/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
+            <motion.div initial={staged ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: staged ? 2.6 : 0 }} className="sticky bottom-0 z-50 -mx-5 mt-auto flex flex-col gap-2 bg-ink-950/85 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
               <Button className="h-14 text-base" disabled={sharing} onClick={() => void shareImage()}><Share2Icon />{sharing ? "מכינים תמונה..." : "שתפו את הסיכום"}</Button>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" className="h-12" onClick={() => void copySummary()}><CopyIcon />העתיקו טקסט</Button>
