@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   detachAndDeletePerson,
+  getProfile,
   updateProfile,
 } from "@/db/identity-queries";
-import { AVATAR_KEYS } from "@/lib/avatar";
+import { AVATAR_KEYS, isReservedAvatarKey } from "@/lib/avatar";
 import { auth } from "@/lib/auth/server";
 import { getViewer } from "@/lib/auth/session";
 
@@ -31,9 +32,9 @@ const identityInput = z.object({
 /**
  * The character a person is at every table.
  *
- * One of the twelve committed avatars and nothing else -- anything unrecognised is
- * discarded rather than stored, so the avatar path can never be asked for a file that
- * is not there.
+ * Only one of the twelve, and never a reserved one that belongs to somebody else. The
+ * picker already hides those, but a hidden option is not a rule -- the client posts this
+ * form and can post whatever it likes, so the entitlement is checked here.
  */
 const avatarInput = z.object({
   avatarKey: z.enum(AVATAR_KEYS),
@@ -90,7 +91,14 @@ export async function saveChipAction(
   const parsed = avatarInput.safeParse({ avatarKey: formData.get("avatarKey") });
   if (!parsed.success) return { error: "דמות לא מוכרת", saved: false };
 
-  await updateProfile(viewer.userId, { avatarKey: parsed.data.avatarKey });
+  const next = parsed.data.avatarKey;
+  const current = await getProfile(viewer.userId);
+  // A reserved character is only yours if it was already handed to you at sign-up.
+  if (isReservedAvatarKey(next) && current?.avatarKey !== next) {
+    return { error: "הדמות הזאת שמורה לשחקן אחר", saved: false };
+  }
+
+  await updateProfile(viewer.userId, { avatarKey: next });
   revalidatePath("/profile");
   return { error: null, saved: true };
 }

@@ -18,47 +18,61 @@ six leave — because six friends who all have dark hair and a beard are not tel
 
 ## What a chip-creature is
 
-The chip **is** the character: a rounded clay poker chip standing upright, with a face on its
-pressed inlay, hair sitting on top of the disc, and the edge spots reading as its rim. Short
-stub arms. No legs — the chip sits in a circular frame in the app, so anything below the disc
-is cropped away.
+The chip **is** the head. Not a face on a disc, and not a head behind a disc — the face,
+hair and beard are all **moulded into the chip's own surface**, the way a portrait is struck
+into a coin. The chip's pressed inner circle is the face; the hair is a raised shape sitting
+inside the disc's outline, cut off by the rim exactly as a coin's relief is.
+
+**The single hardest constraint: nothing may cross the rim.** The app renders every avatar
+inside a circular mask, so hair rising above the disc, ears poking past its edge, or arms at
+its sides are not stylistic choices — they are pixels that get sliced off. If the artwork
+does not fit inside its own circle, it is wrong.
 
 **This must not read as a denomination chip.** The app draws real chips everywhere — the
-buy-in row, the counter, the chip-set cards — and those are flat, face-on, numbered and never
-have a face. The creature is three-dimensional, has hair and eyes, and never carries a number.
-Keep those two apart or the seat ring and the buy-in row start looking like the same thing.
+buy-in row, the counter, the chip-set cards — and those are flat, face-on, numbered and have
+no face. A creature has a face and hair and never carries a number. Keep those apart or the
+seat ring and the buy-in row start looking like the same object.
 
 ## Shared style block
 
 Prepend to every character prompt, unchanged.
 
 ```
-A single stylised 3D character shaped like an upright poker chip, seen straight on. The
-chip's body is a thick rounded disc of soft matte clay with a visible pressed inner
-circle, and six evenly spaced rectangular edge spots around its rim in a contrasting
-cream. Two small rounded stub arms at its sides.
+A single stylised 3D poker chip seen face on, with a character's face moulded into it
+like a portrait struck into a coin.
 
-Its face sits on the pressed inner circle: two simple rounded eyes, a small nose, a calm
-closed mouth. Human hair sits on top of the disc as a separate solid shape with clear
-silhouette, and facial hair reads as one solid shape, never as individual strands.
+The chip is a thick rounded disc of soft matte clay with six evenly spaced rectangular
+edge spots around its rim in a contrasting cream, and a pressed circular inner face. The
+character's features rise gently out of that inner face in shallow relief: two simple
+rounded eyes, a small nose, a calm closed mouth. Hair is a raised clay shape filling the
+upper part of the inner face, and facial hair is one solid raised shape, never individual
+strands.
+
+CRITICAL: the entire image is contained within the circular outline of the chip. The hair
+is cropped by the chip's rim and does not rise above it. No ears, no arms, no shoulders,
+no neck, no accessories extend past the disc's edge. The chip's circle is the outer
+boundary of everything.
 
 Material: soft matte clay-plastic, gentle subsurface warmth, no gloss, no sculpted detail
 finer than a fingertip. Lighting: broad soft key from the upper left, deep ambient fill,
-and a subtle cool violet rim light along the upper right edge. No harsh speculars, no
-neon, no glow.
+and a subtle cool violet rim light along the upper right edge of the disc. No harsh
+speculars, no neon, no glow.
 
-Composition: centred, facing camera, filling the frame with a small even margin. Fully
-transparent background — no circle, no backdrop, no ground, no cast shadow.
+Composition: the chip centred and filling the frame with a small even margin. Fully
+transparent background — no backdrop, no ground, no cast shadow.
 ```
 
 ## Negative prompt
 
 ```
+hair above the chip, hair outside the circle, head on top of chip, head behind chip,
+separate head, floating head, ears outside the rim, protruding ears, arms, hands,
+shoulders, neck, body, torso, anything crossing the rim, elements outside the circle,
 numbers, denominations, text, letters, digits, logos, watermark, signature, playing
 cards, dice, money, stacks of chips, multiple chips, casino table, green felt, legs,
-feet, full body, background, backdrop, circle behind, gradient, vignette, cast shadow,
-ground plane, photorealism, human body, human torso, realistic skin, glossy, wet, neon,
-glow, lens flare, sparkles, cluttered, busy, extra limbs, deformed, two heads
+feet, background, backdrop, circle behind, gradient, vignette, cast shadow, ground plane,
+photorealism, realistic skin, glossy, wet, neon, glow, lens flare, sparkles, extra limbs,
+deformed, two heads
 ```
 
 ## Output spec
@@ -89,10 +103,12 @@ Full prompt for one, as the pattern:
 ```
 <shared style block>
 
-The chip body is coral #F2795B with cream edge spots. On top sits a tall mass of tightly
-curled black hair, wide and textured, tapering close at the sides. The face has a thin
-black moustache and a small pointed chin beard, and a single small silver stud in one
-ear. Warm olive skin tone on the face. Calm, level expression.
+The chip body is coral #F2795B with cream edge spots. Moulded into its pressed inner
+face is a young man with warm olive skin, a thin black moustache and a small pointed chin
+beard. His tightly curled black hair is a raised clay shape filling the top of the inner
+face, wide and textured, and it is cut off cleanly by the chip's rim rather than rising
+above it. A single small silver stud sits flat against the face beside one temple. Calm,
+level expression. Everything stays inside the chip's circle.
 ```
 
 **Two things settled, so they do not get re-opened:**

@@ -14,6 +14,7 @@ import "server-only";
 import { eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { people, players } from "@/db/schema";
+import { reservedAvatarForName } from "@/lib/avatar";
 import type { PersonSummary } from "@/lib/api";
 
 /** The Person this user signs in as, or null before their first one is created. */
@@ -61,6 +62,26 @@ export async function getPhoneForUser(userId: string): Promise<string | null> {
  * session can race, so a duplicate insert re-reads rather than failing — the partial
  * unique index on `user_id` is what makes that safe.
  */
+/**
+ * The character this name is entitled to, if it is still free.
+ *
+ * Six of the twelve belong to the regulars and are handed out automatically the first time
+ * that person signs up, so they never have to go and find themselves in a picker. First
+ * come, first served: if the character is already held, the newcomer simply gets a default
+ * open one, which is what `avatarKeyForPerson` gives them.
+ */
+async function claimAvatarFor(name: string): Promise<string | null> {
+  const claimed = reservedAvatarForName(name);
+  if (!claimed) return null;
+
+  const [taken] = await db
+    .select({ id: people.id })
+    .from(people)
+    .where(eq(people.avatarKey, claimed))
+    .limit(1);
+  return taken ? null : claimed;
+}
+
 export async function ensurePersonForUser(
   userId: string,
   name: string,
@@ -70,7 +91,7 @@ export async function ensurePersonForUser(
 
   const [created] = await db
     .insert(people)
-    .values({ name, userId })
+    .values({ name, userId, avatarKey: await claimAvatarFor(name) })
     .onConflictDoNothing()
     .returning({
       id: people.id,

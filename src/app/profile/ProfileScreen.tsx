@@ -11,7 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Money } from "@/components/Money";
 import { ChipAvatar } from "@/components/ChipAvatar";
-import { AVATAR_KEYS, type AvatarKey } from "@/lib/avatar";
+import {
+  AVATAR_KEYS,
+  selectableAvatarKeys,
+  type AvatarKey,
+} from "@/lib/avatar";
 import { signOutAction } from "@/lib/auth/actions";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import {
@@ -275,7 +279,7 @@ export function ProfileScreen({
                 aria-label="בחירת דמות"
                 className="grid grid-cols-6 gap-2"
               >
-                {AVATAR_KEYS.map((key) => {
+                {selectableAvatarKeys(profile.avatarKey).map((key) => {
                   const selected = key === avatarKey;
                   return (
                     <button
