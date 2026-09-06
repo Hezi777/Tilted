@@ -25,6 +25,7 @@ import { apiFetch, ApiError } from "@/lib/api";
 import type { GameSummary, JoinGameDetail, JoinRosterPlayer } from "@/lib/api";
 import { AVATAR_KEYS } from "@/lib/avatar";
 import { useIdentity } from "@/lib/identity";
+import { cn } from "@/lib/utils";
 import {
   isValidRoomCode,
   normalizeRoomCode,
@@ -154,18 +155,15 @@ export default function JoinPage() {
       <main className="flex flex-1 flex-col">
         <AppHeader title="חוזרים לשולחן" subtitle="המקום שלכם עדיין פתוח" backHref="/" />
         <div className="flex flex-1 flex-col justify-center gap-4 p-5 pb-8">
-          <Card className="border-ruby/35 bg-ruby/5 shadow-none" size="sm">
+          <Card className="surface-raised rounded-[20px] shadow-none">
             <CardHeader className="p-4 pb-2">
-              <CardTitle>{myActiveGame.name ?? "משחק פעיל"}</CardTitle>
+              <CardTitle className="t-title">{myActiveGame.name ?? "משחק פעיל"}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 p-4 pt-2">
-              <p className="text-sm text-muted-foreground">
+              <p className="t-caption text-[var(--text-2)]">
                 לא צריך קוד, המקום שלכם מחכה.
               </p>
-              <Button
-                className="h-14 w-full rounded-2xl text-lg font-bold"
-                onClick={() => router.push(`/game/${myActiveGame.id}`)}
-              >
+              <Button size="lg" className="w-full" onClick={() => router.push(`/game/${myActiveGame.id}`)}>
                 חזרה לשולחן
               </Button>
             </CardContent>
@@ -173,7 +171,6 @@ export default function JoinPage() {
           <Button
             type="button"
             variant="ghost"
-            className="h-10 text-muted-foreground"
             onClick={() => setShowCodeForm(true)}
           >
             יש לכם קוד לשולחן אחר?
@@ -235,7 +232,7 @@ export default function JoinPage() {
             />
             <div
               aria-hidden="true"
-              className="peer-focus-visible:[&_[data-active]]:ring-ruby/60 pointer-events-none flex justify-center gap-2.5"
+              className="pointer-events-none flex justify-center gap-2.5"
               dir="ltr"
             >
               {[0, 1, 2, 3].map((slot) => {
@@ -244,14 +241,11 @@ export default function JoinPage() {
                 return (
                   <span
                     key={slot}
-                    data-active={active ? "" : undefined}
-                    className={[
-                      "flex h-20 w-16 items-center justify-center rounded-2xl border-2 bg-card text-4xl font-black tabular transition-[color,border-color,box-shadow,transform] duration-150 ease-[var(--ease-out)]",
-                      char
-                        ? "border-ruby-bright text-ruby-bright scale-[1.03]"
-                        : "border-foreground/15 text-transparent",
-                      active ? "border-ruby/70 ring-4 ring-ruby/25" : "",
-                    ].join(" ")}
+                    className={cn(
+                      "money flex h-20 w-16 items-center justify-center rounded-[20px] text-4xl font-black transition-[background-color,color,box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-out)]",
+                      char ? "scale-[1.03] bg-ink-700 text-foreground" : "bg-ink-800 text-[var(--text-3)]",
+                      active && "ring-2 ring-ring/60",
+                    )}
                   >
                     {char || "0"}
                   </span>
@@ -259,65 +253,65 @@ export default function JoinPage() {
               })}
             </div>
           </div>
-          <p id="room-code-help" className="text-muted-foreground text-center text-sm">
+          <p id="room-code-help" className="t-caption text-center text-[var(--text-2)]">
             ארבעה תווים שהמארח מקריא בקול.
           </p>
-          <Button type="submit" className="h-16 w-full rounded-2xl text-lg font-bold disabled:bg-secondary disabled:text-muted-foreground disabled:opacity-100" disabled={loading || code.length < 4}>
+          <Button type="submit" size="lg" className="w-full" disabled={loading || code.length < 4}>
             {loading ? "מחפשים את השולחן..." : "מצאו את השולחן"}
           </Button>
         </form>
 
-        {error && <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+        {error && <p className="t-body rounded-[20px] bg-ink-800 px-4 py-3 text-destructive">{error}</p>}
 
         {game && (
           <section className="flex flex-col gap-3" aria-labelledby="roster-title">
-            <div className="border-b border-foreground/10 pb-2">
-              <h2 id="roster-title" className="text-2xl font-black tracking-tight">
+            <div className="pb-2">
+              <h2 id="roster-title" className="t-heading">
                 {game.name ?? "משחק"}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="t-caption mt-1 text-[var(--text-2)]">
                 החשבון שלכם מזוהה אוטומטית
               </p>
             </div>
             {game.players.length === 0 && (
-              <Card className="border-foreground/10 bg-card/80 shadow-none" size="sm">
-                <CardContent className="p-4 text-sm text-muted-foreground">
+              <Card className="surface-card shadow-none">
+                <CardContent className="t-body text-[var(--text-2)]">
                   החשבון שלכם עדיין לא נמצא בשולחן הזה. בקשו מהמארח להוסיף אתכם.
                 </CardContent>
               </Card>
             )}
             <div className="flex flex-col gap-2">
               {game.players.map((player) => (
-                <Card key={player.id} className="border-foreground/10 bg-card/80 shadow-none" size="sm">
-                  <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
+                <Card key={player.id} className="surface-card shadow-none" size="sm">
+                  <CardHeader className="flex flex-row items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <ChipAvatar avatarKey={player.avatarKey} name={player.name} className="size-12" />
-                      <CardTitle className="truncate">
+                      <CardTitle className="t-title truncate">
                         {player.name}
                         {player.nickname ? ` (${player.nickname})` : ""}
                         {player.isHost && (
-                          <span className="text-muted-foreground ms-2 text-xs font-normal">
+                          <span className="t-caption ms-2 text-[var(--text-2)]">
                             מארח
                           </span>
                         )}
                       </CardTitle>
                     </div>
                   </CardHeader>
-                  <CardContent className="flex flex-col gap-2 p-4 pt-2">
+                  <CardContent className="flex flex-col gap-2">
                     {player.claimedByCurrentDevice ? (
                       <Button
-                        className="h-12 w-full rounded-xl"
+                        className="w-full"
                         onClick={() => router.replace(`/game/${game.id}`)}
                       >
                         המשך למשחק
                       </Button>
                     ) : player.claimed ? (
-                      <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      <p className="t-body rounded-[16px] bg-ink-800 px-4 py-3 text-destructive">
                         אי אפשר להצטרף למקום הזה כרגע. בקשו מהמארח לשחרר אותו.
                       </p>
                     ) : (
                       <Button
-                        className="h-12 w-full rounded-xl"
+                        className="w-full"
                         disabled={claiming === player.id || game.status !== "active"}
                         onClick={() => chooseAvatar(player)}
                       >
@@ -354,7 +348,7 @@ export default function JoinPage() {
                   className="relative h-auto aspect-square rounded-full p-1 disabled:opacity-20"
                   onClick={() => setSelectedAvatar(avatarKey)}
                 >
-                  <ChipAvatar avatarKey={avatarKey} name={`דמות ${index + 1}`} className={selected ? "size-full ring-2 ring-ruby-bright" : "size-full"} />
+                  <ChipAvatar avatarKey={avatarKey} name={`דמות ${index + 1}`} className={selected ? "size-full ring-2 ring-ring" : "size-full"} />
                 </Button>
               );
             })}
@@ -362,7 +356,6 @@ export default function JoinPage() {
           <DialogFooter>
             <Button
               type="button"
-              className="h-12"
               disabled={!avatarPlayer || !selectedAvatar || claiming === avatarPlayer.id}
               onClick={() => {
                 if (avatarPlayer && selectedAvatar) void claim(avatarPlayer, selectedAvatar);
@@ -370,7 +363,7 @@ export default function JoinPage() {
             >
               זו הדמות שלי
             </Button>
-            <Button type="button" variant="outline" className="h-12" onClick={() => setAvatarPlayer(null)}>
+            <Button type="button" variant="secondary" onClick={() => setAvatarPlayer(null)}>
               חזרה לרשימה
             </Button>
           </DialogFooter>
