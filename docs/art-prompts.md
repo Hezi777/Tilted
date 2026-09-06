@@ -95,15 +95,14 @@ black moustache and a small pointed chin beard, and a single small silver stud i
 ear. Warm olive skin tone on the face. Calm, level expression.
 ```
 
-**Two calls I made without you, both easy to reverse:**
+**Two things settled, so they do not get re-opened:**
 
-- *Ido's dog.* Your photo had a small ginger dog, and tucking it under one arm would make him
-  the most recognisable of the twelve instantly. It breaks the one-accessory rule, which is
-  why it is not in the table above. Say the word and it goes in.
-- *How literal.* These capture hair shape, facial hair and one accessory and nothing finer —
-  partly because nothing finer survives 44px, and partly so nobody ends up with an
-  unflattering caricature of themselves sitting at the table all night. Tell me if any of the
-  six should be pushed further toward likeness.
+- *No pet for Ido.* One accessory each, no exceptions — the rule is what keeps the set
+  readable at 44px, and an exception in the brief becomes three exceptions by the twelfth
+  prompt.
+- *Abstraction level is final.* Hair shape, facial hair and one accessory; nothing finer.
+  Nothing finer survives 44px anyway, and it keeps the six regulars as characters rather
+  than caricatures of themselves.
 
 ## The other six
 
