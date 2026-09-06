@@ -30,6 +30,19 @@ export const metadata: Metadata = {
   title: "Tilted Poker",
   description: "ניהול כניסות, ריבאיים וסגירת חשבון בערב פוקר ביתי",
   manifest: "/manifest.webmanifest",
+  // iOS reads none of the manifest. Without an apple-touch-icon it puts a screenshot of
+  // the page on the home screen, and it will not composite a background behind a
+  // transparent icon -- it renders one as a black slab -- so this file is opaque.
+  icons: {
+    apple: [{ url: "/art/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Tilted",
+    // The app paints its own near-black ground, so the status bar should sit on it
+    // rather than above a separate bar in a different colour.
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {

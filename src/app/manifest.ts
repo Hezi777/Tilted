@@ -15,13 +15,21 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#0b0b0f",
     theme_color: "#0b0b0f",
     icons: [
+      // Chrome's install prompt requires a 192; the 512 drives the splash.
+      { src: "/art/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/art/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      // A separate crop, not the same file declared twice. Android clips roughly a fifth
-      // off every edge of an adaptive icon, so the maskable one draws the mark at 56% of
-      // the frame instead of 76% -- the previous manifest reused one full-bleed file for
-      // both and lost the top of the artwork on every Android launcher.
+      // Separate files, not the same one declared twice. An adaptive launcher clips to a
+      // circle, a squircle or a square depending on the device, and only a circle of 80%
+      // diameter is guaranteed to survive -- so the maskable pair draws the mark smaller.
+      // Declaring a full-bleed icon as maskable is what loses the roof on Android.
       {
-        src: "/art/icon-maskable.png",
+        src: "/art/icon-maskable-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "maskable",
+      },
+      {
+        src: "/art/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
