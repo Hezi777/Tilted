@@ -10,10 +10,11 @@ import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { ChipCounter } from "@/components/ChipCounter";
 import { Money } from "@/components/Money";
+import { ArcPill } from "@/components/ui/arc-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DUR, EASE_OUT } from "@/lib/motion";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -80,6 +81,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [savingId, setSavingId] = React.useState<string | null>(null);
+  const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [assigning, setAssigning] = React.useState(false);
   const chipSaveTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const chipSaveVersions = React.useRef(new Map<string, number>());
@@ -185,6 +187,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     version: number,
   ) {
     if (!state) return;
+    setPendingId(null);
     setSavingId(playerId);
     try {
       const next = await apiFetch<CashoutState>(`/api/game/${gameId}/cashout`, {
@@ -230,7 +233,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     if (!state) return;
     optimisticChipCounts(playerId, chipCounts);
     if (state.status !== "settling") return;
-    setSavingId(playerId);
+    setPendingId(playerId);
 
     const currentTimer = chipSaveTimers.current.get(playerId);
     if (currentTimer) clearTimeout(currentTimer);
@@ -329,96 +332,92 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         )}
 
         {!loading && loadError && (
-          <Card className="border-destructive/45 bg-destructive/5 shadow-none">
-            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
-              <p className="text-destructive text-sm">{loadError}</p>
-              <Button
-                className="min-h-12 rounded-xl"
-                variant="outline"
-                onClick={() => void load()}
-              >
-                נסה שוב
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="surface-card flex flex-col items-center gap-3 rounded-3xl p-5 text-center">
+            <p className="t-body text-loss">{loadError}</p>
+            <Button variant="secondary" onClick={() => void load()}>
+              נסה שוב
+            </Button>
+          </div>
         )}
 
         {!loading && state && (
           <>
             {state.status === "closed" && (
-              <Card className="border-ruby/40 bg-ruby/10 shadow-none">
-                <CardContent className="flex flex-col gap-3 p-4 text-center">
-                  <p className="text-sm">המשחק כבר נסגר וסוכם. אפשר לצפות בסיכום ולשתף אותו.</p>
-                  <Button
-                    asChild
-                    className="min-h-12 w-full rounded-xl"
-                  >
-                    <Link href={`/game/${gameId}/settlement`}>למסך הסיכום</Link>
-                  </Button>
-                </CardContent>
-              </Card>
+              <div className="surface-card flex flex-col gap-3 rounded-3xl p-4 text-center">
+                <p className="t-body">המשחק כבר נסגר וסוכם. אפשר לצפות בסיכום ולשתף אותו.</p>
+                <Button asChild className="w-full">
+                  <Link href={`/game/${gameId}/settlement`}>למסך הסיכום</Link>
+                </Button>
+              </div>
             )}
 
             {state.status === "active" && (
-              <Card className="border-ruby/35 bg-ruby/5 shadow-none">
-                <CardContent className="flex flex-col gap-3 p-4">
-                  <p className="text-sm">ספירה מוקדמת מקפיאה שחקן ומאפשרת למשחק להמשיך.</p>
-                  <Button className="min-h-12 w-full rounded-xl" onClick={() => void changeStatus("settling")}>
-                    סיימנו לשחק. מתחילים לספור
-                  </Button>
-                </CardContent>
-              </Card>
+              <div className="surface-card flex flex-col gap-3 rounded-3xl p-4">
+                <p className="t-body">ספירה מוקדמת מקפיאה שחקן ומאפשרת למשחק להמשיך.</p>
+                <Button className="w-full" onClick={() => void changeStatus("settling")}>
+                  סיימנו לשחק. מתחילים לספור
+                </Button>
+              </div>
             )}
 
-            <Card className="felt-panel border-brand-900/65 text-felt-foreground">
-              <CardContent className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-felt-foreground-muted">הקופה לספירה</p>
-                  <Money value={state.pot} className="mt-1 text-3xl font-semibold" />
-                </div>
-                <span className="rounded-full border border-felt-foreground/15 bg-felt-deep/40 px-3 py-1 text-xs text-felt-foreground-muted">
-                  {state.players.length} שחקנים
-                </span>
-              </CardContent>
-            </Card>
+            <div className="felt-panel flex items-center justify-between rounded-3xl p-5 text-felt-foreground">
+              <div>
+                <p className="t-label text-felt-foreground-muted">הקופה לספירה</p>
+                <Money value={state.pot} className="money-display mt-1 text-felt-foreground" />
+              </div>
+              <span className="glass-pill t-caption rounded-full px-3 py-1 text-felt-foreground-muted">
+                {state.players.length} שחקנים
+              </span>
+            </div>
 
             <section className="flex flex-col gap-3" aria-label="ספירת שחקנים">
-              {state.players.map((player) => (
-                <Card key={player.id} className="border-foreground/10 bg-card/80 shadow-none">
-                  <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
-                    <div className="flex items-center gap-3">
-                      <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-11" />
-                      <CardTitle className="text-base font-bold">{player.name}</CardTitle>
+              {state.players.map((player) => {
+                const isPending = pendingId === player.id;
+                const isSaving = savingId === player.id;
+                const net = liveNets.get(player.id) ?? 0;
+                return (
+                  <div
+                    key={player.id}
+                    className={cn(
+                      "surface-card flex flex-col gap-3 rounded-3xl p-4 transition-opacity",
+                      isPending || isSaving ? "opacity-70" : "opacity-100",
+                    )}
+                    style={{ transitionDuration: `${DUR.base * 1000}ms` }}
+                  >
+                    <div className="flex flex-row items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-11" />
+                        <p className="t-title">{player.name}</p>
+                      </div>
+                      {player.settledAt && <Badge variant="secondary">סגר חשבון</Badge>}
                     </div>
-                    {player.settledAt && <Badge variant="secondary">סגר חשבון</Badge>}
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3 p-4 pt-1">
+
                     {state.chipSet ? (
                       <>
-                        <p className="text-xs text-muted-foreground">
-                          {state.chipSet.name} · הכמות נשמרת אוטומטית
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="t-caption ink-3">{state.chipSet.name}</p>
+                          {(isPending || isSaving) && (
+                            <ArcPill progress="indeterminate">
+                              {isSaving ? "שומר..." : "רגע..."}
+                            </ArcPill>
+                          )}
+                        </div>
                         <ChipCounter
                           denominations={state.chipSet.denominations}
                           counts={player.chipCounts}
                           onChange={(counts) => updateChipCounts(player.id, counts)}
                           disabled={state.status === "closed"}
                         />
-                        {savingId === player.id && (
-                          <p className="text-xs text-muted-foreground" role="status">
-                            שומרים את הספירה...
-                          </p>
-                        )}
                       </>
                     ) : (
                       <div className="flex items-end gap-3">
                         <div className="flex-1">
-                          <Label className="mb-1 block text-xs text-muted-foreground">
+                          <Label className="t-caption ink-3 mb-1 block">
                             כמה נשאר ל{player.name}?
                           </Label>
                           <AmountInput
                             aria-label={`סכום נספר עבור ${player.name}`}
-                            disabled={state.status === "closed" || savingId === player.id}
+                            disabled={state.status === "closed" || isSaving}
                             initialAmount={player.cashOut}
                             onChange={(amount) => optimisticAmount(player.id, amount)}
                             onCommit={(amount) => void save(player.id, amount)}
@@ -427,27 +426,23 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                       </div>
                     )}
 
-                    <div className="flex min-h-6 items-center justify-between text-xs">
-                      <span className="text-muted-foreground">מאזן כרגע</span>
+                    <div className="flex min-h-6 items-center justify-between">
+                      <span className="t-caption ink-3">מאזן כרגע</span>
                       <AnimatePresence mode="wait">
                         {player.cashOut !== null && (
                           <motion.span
-                            key={Math.sign(liveNets.get(player.id) ?? 0)}
+                            key={Math.sign(net)}
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.16 }}
+                            transition={{ duration: DUR.micro, ease: EASE_OUT }}
                           >
                             <Money
-                              value={liveNets.get(player.id) ?? 0}
+                              value={net}
                               signed
                               className={cn(
-                                "text-base font-bold",
-                                (liveNets.get(player.id) ?? 0) > 0
-                                  ? "text-profit"
-                                  : (liveNets.get(player.id) ?? 0) < 0
-                                    ? "text-loss"
-                                    : "text-even",
+                                "t-title",
+                                net > 0 ? "text-profit" : net < 0 ? "text-loss" : "text-even",
                               )}
                             />
                           </motion.span>
@@ -457,9 +452,9 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
 
                     {state.status === "active" && (
                       <Button
-                        className="min-h-12 w-full"
-                        disabled={savingId === player.id || player.cashOut === null}
-                        variant="outline"
+                        className="w-full"
+                        disabled={isSaving || player.cashOut === null}
+                        variant="secondary"
                         onClick={() =>
                           state.chipSet
                             ? saveEarlyChipCounts(player)
@@ -469,30 +464,28 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                         שמרו סגירת חשבון מוקדמת
                       </Button>
                     )}
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                );
+              })}
             </section>
 
-            <Card
+            <div
               className={cn(
                 // The host is reading this number while counting cash. Snapping
                 // between "balanced" and "off" reads as a glitch at exactly the
                 // moment trust in the figure matters most. Colour only -- never
                 // move the digits themselves.
-                "shadow-none transition-[background-color,border-color] duration-200 ease-[var(--ease-out)]",
-                mismatch
-                  ? "border-destructive/60 bg-destructive/10"
-                  : "border-ruby/45 bg-ruby/5",
+                "surface-card rounded-3xl transition-colors",
               )}
+              style={{ transitionDuration: `${DUR.base * 1000}ms` }}
               role="status"
               aria-live="polite"
             >
-              <CardContent className="flex flex-col gap-1 p-5 text-center">
-                <p className="text-lg font-black">
+              <div className="flex flex-col gap-1 p-5 text-center">
+                <p className="t-heading">
                   נספר: <Money value={state.counted} /> מתוך <Money value={state.pot} />
                 </p>
-                <p className={mismatch ? "text-destructive text-base font-bold" : "text-profit text-sm"}>
+                <p className={mismatch ? "t-title text-loss" : "t-label text-profit"}>
                   {resolved
                     ? "ההפרש טופל"
                     : mismatch
@@ -501,73 +494,69 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                       : <>עודף <Money value={Math.abs(state.difference)} /></>
                     : "הכול מאוזן"}
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {state.status === "settling" && mismatch && !resolved && !missing && (
-              <Card className="border-foreground/10 shadow-none">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base">הסכומים לא נסגרים</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3 p-4 pt-1">
-                  <div className="flex flex-col gap-1">
-                    <Button className="min-h-12 w-full rounded-xl" variant="outline" onClick={() => void resolve("recount")}>
-                      ספירה מחדש
-                    </Button>
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      חוזרים לבדוק ולתקן את הסכומים לפני שממשיכים. לא משנה כלום בקופה.
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Button
-                      className="min-h-12 w-full rounded-xl"
-                      variant="outline"
-                      disabled={!hasWinner}
-                      onClick={() => void resolve("split")}
-                    >
-                      פיצול ההפרש בין המנצחים
-                    </Button>
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      {hasWinner
-                        ? "ההפרש מתחלק באופן יחסי בין כל מי שסיים ברווח."
-                        : "אי אפשר לפצל. אף שחקן לא נמצא ברווח כרגע."}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Button className="min-h-12 w-full rounded-xl" variant="outline" onClick={() => setAssigning((value) => !value)}>
-                      שיוך ההפרש לשחקן אחד
-                    </Button>
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      שחקן אחד סופג את כל ההפרש לבד. בדרך כלל מי שכנראה טעה בספירה.
-                    </p>
-                    {assigning && (
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        {state.players.map((player) => (
-                          <Button
-                            key={player.id}
-                            className="min-h-12 rounded-xl"
-                            variant="secondary"
-                            onClick={() => void resolve("assign", player.id)}
-                          >
-                            {player.name}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="surface-card flex flex-col gap-3 rounded-3xl p-4">
+                <p className="t-title">הסכומים לא נסגרים</p>
+                <div className="flex flex-col gap-1">
+                  <Button className="w-full" variant="secondary" onClick={() => void resolve("recount")}>
+                    ספירה מחדש
+                  </Button>
+                  <p className="t-caption ink-3">
+                    חוזרים לבדוק ולתקן את הסכומים לפני שממשיכים. לא משנה כלום בקופה.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    disabled={!hasWinner}
+                    onClick={() => void resolve("split")}
+                  >
+                    פיצול ההפרש בין המנצחים
+                  </Button>
+                  <p className="t-caption ink-3">
+                    {hasWinner
+                      ? "ההפרש מתחלק באופן יחסי בין כל מי שסיים ברווח."
+                      : "אי אפשר לפצל. אף שחקן לא נמצא ברווח כרגע."}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Button className="w-full" variant="secondary" onClick={() => setAssigning((value) => !value)}>
+                    שיוך ההפרש לשחקן אחד
+                  </Button>
+                  <p className="t-caption ink-3">
+                    שחקן אחד סופג את כל ההפרש לבד. בדרך כלל מי שכנראה טעה בספירה.
+                  </p>
+                  {assigning && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {state.players.map((player) => (
+                        <Button
+                          key={player.id}
+                          variant="secondary"
+                          onClick={() => void resolve("assign", player.id)}
+                        >
+                          {player.name}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {state.status === "settling" && (
               <div className="flex flex-col gap-2">
                 {blockReason && (
-                  <p className="text-destructive text-center text-sm font-semibold" role="alert">
+                  <p className="t-label text-center text-loss" role="alert">
                     {blockReason}
                   </p>
                 )}
                 <Button
-                  className="min-h-14 w-full rounded-xl text-base font-black disabled:opacity-50"
+                  size="lg"
+                  className="w-full"
                   disabled={savingId !== null || missing || (mismatch && !resolved)}
                   aria-disabled={savingId !== null || missing || (mismatch && !resolved)}
                   onClick={() => void changeStatus("closed")}

@@ -1,20 +1,22 @@
 "use client";
 
-import Image from "next/image";
 import { CrownIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { AnimatedMoney, Money } from "@/components/Money";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { StreakBadge } from "@/components/StreakBadge";
 import type { LivePlayer } from "@/db/live-queries";
+import type { PlayerStreakMap } from "@/db/streak-queries";
 import { agorot, formatILS } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 const SEAT_TIERS = [
-  { max: 3, rx: 32, ry: 32, seatWidthClass: "w-20", avatarClass: "size-12", textClass: "text-xs" },
-  { max: 4, rx: 38, ry: 39, seatWidthClass: "w-20", avatarClass: "size-12", textClass: "text-xs" },
-  { max: 6, rx: 40, ry: 41, seatWidthClass: "w-17", avatarClass: "size-10", textClass: "text-[11px]" },
-  { max: 9, rx: 41, ry: 42, seatWidthClass: "w-14", avatarClass: "size-9", textClass: "text-[10px]" },
-  { max: Infinity, rx: 42, ry: 43, seatWidthClass: "w-13", avatarClass: "size-8", textClass: "text-[9px]" },
+  { max: 3, rx: 32, ry: 32, seatWidthClass: "w-20", avatarClass: "size-12" },
+  { max: 4, rx: 38, ry: 39, seatWidthClass: "w-20", avatarClass: "size-12" },
+  { max: 6, rx: 40, ry: 41, seatWidthClass: "w-17", avatarClass: "size-10" },
+  { max: 9, rx: 41, ry: 42, seatWidthClass: "w-15", avatarClass: "size-9" },
+  { max: Infinity, rx: 42, ry: 43, seatWidthClass: "w-14", avatarClass: "size-8" },
 ] as const;
 
 function seatTierFor(count: number) {
@@ -60,12 +62,14 @@ function assignSlots(players: LivePlayer[]): { player: LivePlayer; slot: number 
 export function PokerTable({
   players,
   pot,
+  streaks,
   onSeatSelect,
   selectedPlayerId,
   compact = false,
 }: {
   players: LivePlayer[];
   pot: number;
+  streaks?: PlayerStreakMap;
   onSeatSelect?: (player: LivePlayer) => void;
   selectedPlayerId?: string | null;
   compact?: boolean;
@@ -74,7 +78,20 @@ export function PokerTable({
   const count = players.length;
   const tier = seatTierFor(count);
   const placed = assignSlots(players);
+  const occupiedSlots = new Set(placed.map(({ slot }) => slot));
   const slots = Math.max(count, 1);
+  const emptySlots = Array.from({ length: slots }, (_, slot) => slot).filter(
+    (slot) => !occupiedSlots.has(slot),
+  );
+
+  function positionFor(slot: number) {
+    const angle = 90 + (slot * 360) / slots;
+    const radians = (angle * Math.PI) / 180;
+    return {
+      left: `${50 + tier.rx * Math.cos(radians)}%`,
+      top: `${50 + tier.ry * Math.sin(radians)}%`,
+    };
+  }
 
   return (
     <motion.div
@@ -87,16 +104,17 @@ export function PokerTable({
         compact && "w-[min(350px,100%,calc((100dvh-21rem)*0.625))]",
       )}
     >
-      <div aria-hidden="true" className="absolute inset-[1.5%] overflow-hidden rounded-[50%] drop-shadow-[0_28px_30px_rgb(0_0_0/0.72)]">
-        <Image
-          src="/art/poker-table-green.webp"
-          alt=""
-          fill
-          priority
-          sizes="(max-width: 450px) 92vw, 350px"
-          className="object-contain"
-        />
-      </div>
+      <div aria-hidden="true" className="felt-panel absolute inset-[1.5%] overflow-hidden rounded-[50%] drop-shadow-[0_28px_30px_rgb(0_0_0/0.72)]" />
+
+      {emptySlots.map((slot) => (
+        <div
+          key={`empty-${slot}`}
+          className="absolute z-10"
+          style={{ ...positionFor(slot), transform: "translate(-50%, -50%)" }}
+        >
+          <div className={cn("empty-slot rounded-full", tier.avatarClass)} />
+        </div>
+      ))}
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
         <div className="relative flex flex-col items-center text-center before:absolute before:inset-[-30px] before:-z-10 before:rounded-full before:bg-[radial-gradient(circle,rgb(245_237_230/0.10),transparent_68%)]">
@@ -105,23 +123,20 @@ export function PokerTable({
             <span className="absolute inset-x-1 bottom-3 h-5 rounded-[50%] border-[5px] border-ink-0 bg-brand-500" />
             <span className="absolute inset-x-2 bottom-5 h-5 rounded-[50%] border-[5px] border-ink-0 bg-surface-4" />
           </div>
-          <span className="mt-1 block text-[10px] font-medium text-felt-foreground-muted">הקופה על השולחן</span>
-          <AnimatedMoney value={pot} className="block text-[2.5rem] leading-[2.5rem] font-semibold tracking-[-0.03em] text-felt-foreground drop-shadow-[0_2px_8px_rgb(6_37_27/0.85)]" />
+          <span className="section-label mt-1 block text-felt-foreground-muted">הקופה על השולחן</span>
+          <AnimatedMoney value={pot} className="money-display block text-felt-foreground drop-shadow-[0_2px_8px_rgb(6_37_27/0.85)]" />
         </div>
       </div>
 
       {placed.map(({ player, slot }, index) => {
-        const angle = 90 + (slot * 360) / slots;
-        const radians = (angle * Math.PI) / 180;
-        const x = 50 + tier.rx * Math.cos(radians);
-        const y = 50 + tier.ry * Math.sin(radians);
         const selected = selectedPlayerId === player.id;
+        const streak = streaks?.[player.id];
 
         return (
           <div
             key={player.id}
             className="absolute z-20"
-            style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)" }}
+            style={{ ...positionFor(slot), transform: "translate(-50%, -50%)" }}
           >
             <motion.button
               type="button"
@@ -135,7 +150,7 @@ export function PokerTable({
               className={cn(
                 "flex flex-col items-center gap-0.5 rounded-[14px] p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-brand-300",
                 tier.seatWidthClass,
-                selected && "bg-surface-2/90 shadow-[0_8px_22px_rgb(4_2_3/0.55)] ring-1 ring-brand-500/70 backdrop-blur-sm",
+                selected && "surface-raised backdrop-blur-sm",
               )}
             >
               <div className="relative">
@@ -143,19 +158,26 @@ export function PokerTable({
                   avatarKey={player.avatarKey}
                   personId={player.personId}
                   name={player.name}
-                  className={cn(tier.avatarClass, player.isYou && "ring-[3px] ring-brand-300")}
+                  className={tier.avatarClass}
                 />
                 {player.isHost && <CrownIcon aria-hidden="true" className="absolute -top-1 -end-1 size-4 text-brand-300 drop-shadow" />}
                 {player.buyInCount > 1 && (
-                  <span className="absolute -bottom-1 -start-1 rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-primary-foreground ring-1 ring-brand-300/30">
+                  <StatusBadge tone="muted" className="absolute -bottom-1 -start-1">
                     x{player.buyInCount}
-                  </span>
+                  </StatusBadge>
+                )}
+                {streak !== undefined && (
+                  <StreakBadge streak={streak} className="absolute -top-1 -start-1" />
                 )}
               </div>
-              <span className={cn("max-w-full truncate font-bold text-felt-foreground drop-shadow-[0_1px_4px_rgb(6_37_27/0.95)]", tier.textClass, player.isYou && "text-brand-200")}>{player.name}</span>
-              <span className={cn("rounded-full bg-surface-2/92 px-1.5 py-0.5 font-semibold text-brand-300 backdrop-blur-sm", tier.textClass)}>
-                {player.isSettled ? "נסגר" : <Money value={player.totalIn} />}
-              </span>
+              <span className={cn("t-caption max-w-full truncate font-bold text-felt-foreground drop-shadow-[0_1px_4px_rgb(6_37_27/0.95)]", player.isYou && "text-brand-200")}>{player.name}</span>
+              {player.isSettled ? (
+                <StatusBadge tone="muted">נסגר</StatusBadge>
+              ) : (
+                <span className="t-caption rounded-full bg-[var(--glass-2)] px-1.5 py-0.5 font-semibold text-brand-300 backdrop-blur-sm">
+                  <Money value={player.totalIn} />
+                </span>
+              )}
             </motion.button>
           </div>
         );

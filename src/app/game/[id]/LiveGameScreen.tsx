@@ -2,13 +2,15 @@
 
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, RefreshCwIcon, Settings2Icon, Share2Icon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
+import { haptic } from "@/lib/motion";
 import { useLiveGame } from "@/hooks/useLiveGame";
 import type { LivePlayer } from "@/db/live-queries";
+import type { PlayerStreakMap } from "@/db/streak-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
 import { HandRecorder } from "@/components/HandRecorder";
@@ -21,8 +23,10 @@ import { SeatPicker } from "@/components/SeatPicker";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MetaPill } from "@/components/ui/meta-pill";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function elapsed(startedAt: string): string {
@@ -44,6 +48,14 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [rulesOpen, setRulesOpen] = useState(false);
   const [earlyAmount, setEarlyAmount] = useState<number | null>(null);
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [streaks, setStreaks] = useState<PlayerStreakMap>({});
+
+  useEffect(() => {
+    apiFetch<{ badges: PlayerStreakMap }>(`/api/streaks?view=live&gameId=${gameId}`)
+      .then((data) => setStreaks(data.badges))
+      .catch(() => {});
+  }, [gameId]);
 
   // Optimistic local overrides for a chosen chair (plan item 10), cleared once the
   // server value catches up on the next refresh, or rolled back on failure.
@@ -232,39 +244,37 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             {game.isHost && (
               <Button
                 type="button"
-                variant="outline"
-                size="icon-lg"
-                className="h-11 w-11 border-brand-500/25 bg-surface-2/75"
+                variant="secondary"
+                size="icon"
                 aria-label="עריכת פרטי הערב"
                 onClick={() => setRulesOpen(true)}
               >
                 <Settings2Icon aria-hidden="true" />
               </Button>
             )}
-            <Button type="button" variant="outline" onClick={copyCode} className="flex h-11 items-center gap-1 border-brand-500/25 bg-surface-2/75 px-3 text-sm font-semibold" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money">{game.code}</span></Button>
+            <Button type="button" variant="secondary" onClick={copyCode} className="gap-1.5" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money">{game.code}</span></Button>
           </div>
         }
       />
 
-      <div className="mx-5 flex h-11 shrink-0 items-center justify-between gap-2 rounded-[14px] border border-foreground/7 border-t-foreground/14 bg-surface-2 px-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Clock3Icon aria-hidden="true" className="size-4 shrink-0 text-brand-300" />
-          <span className="text-[11px] text-muted-foreground">שעת יציאה</span>
-          <time className="tabular text-sm font-bold" dateTime={game.plannedEndAt}>
+      <div className="surface-card mx-5 flex h-12 shrink-0 items-center justify-between gap-2 rounded-full px-3">
+        <MetaPill icon={Clock3Icon}>
+          <span className="text-[var(--text-2)]">שעת יציאה</span>
+          <time className="tabular font-bold text-foreground" dateTime={game.plannedEndAt}>
             {new Date(game.plannedEndAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
           </time>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {game.isHost && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px] text-brand-300" onClick={() => void extendTime()}>+30 דק׳</Button>}
-          {you && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setSeatPickerPlayer(you)}><ArmchairIcon className="size-3.5" /> המקום שלי</Button>}
-          {you && !you.isSettled && <Button type="button" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setEarlyExitOpen(true)}>יציאה מוקדמת</Button>}
-        </div>
+        </MetaPill>
+        {(game.isHost || you) && (
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="פעולות נוספות" onClick={() => setMoreOpen(true)}>
+            <SlidersHorizontalIcon aria-hidden="true" />
+          </Button>
+        )}
       </div>
 
       {error && (
-        <div className="mx-5 flex items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="surface-card mx-5 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 t-body text-destructive">
           <span>{error}</span>
-          <Button type="button" variant="ghost" size="sm" className="h-9 shrink-0 text-destructive" onClick={() => void refresh()}>נסה שוב</Button>
+          <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => void refresh()}>נסה שוב</Button>
         </div>
       )}
       {/* The table, then your own action directly under it: poker clients keep the
@@ -273,6 +283,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <PokerTable
           players={seated}
           pot={game.pot}
+          streaks={streaks}
           selectedPlayerId={game.isHost ? focusedPlayerId : null}
           onSeatSelect={game.isHost ? (player) => setFocusedPlayerId((current) => current === player.id ? null : player.id) : undefined}
           compact
@@ -280,7 +291,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       </section>
 
       {game.players.length === 1 && (
-        <p className="text-muted-foreground mx-5 rounded-[20px] border border-dashed border-brand-500/30 bg-surface-1 px-4 py-3 text-center text-sm">
+        <p className="surface-card t-body text-muted-foreground mx-5 rounded-[20px] px-4 py-3 text-center">
           אתם לבד כרגע. שתפו את קוד החדר <span className="money font-bold text-brand-300">{game.code}</span> כדי שחברים יצטרפו.
         </p>
       )}
@@ -304,21 +315,26 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <div className="flex shrink-0 gap-2 px-5">
           <RebuyButton
             amount={game.rebuyAmount}
-            onClick={() => addRebuy(you.id, game.rebuyAmount)}
-            className="h-16 flex-1 rounded-xl"
+            onClick={() => {
+              // Committing money is one of the two moments in the app worth a
+              // buzz; navigation and ordinary controls stay silent so this one
+              // keeps meaning something.
+              haptic();
+              addRebuy(you.id, game.rebuyAmount);
+            }}
+            className="h-14 flex-1"
           />
-          <Button type="button" variant="outline" onClick={() => setCustomPlayer(you)} className="h-16 w-24 shrink-0 flex-col gap-0.5 border-brand-500/25 px-2 leading-none">
-            <span className="text-[11px] text-muted-foreground">ריביי</span>
-            <span className="text-sm font-bold">סכום אחר</span>
+          <Button type="button" variant="secondary" size="lg" onClick={() => setCustomPlayer(you)} className="shrink-0">
+            סכום אחר
           </Button>
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 border-t border-foreground/10 bg-surface-4/92 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-18px_44px_-24px_rgb(4_2_3/0.95)] backdrop-blur-xl" aria-label="פעולות מארח">
-        <Button type="button" variant="outline" className="h-12 flex-1 border-foreground/12 px-2 text-xs" onClick={() => void shareInvite()}><Share2Icon /> הזמנה</Button>
-        <Button type="button" variant="outline" className="h-12 flex-1 border-foreground/12 px-2 text-xs" onClick={() => setHistoryOpen(true)}><HistoryIcon /> היסטוריה</Button>
+      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות מארח">
+        <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={() => void shareInvite()}><Share2Icon strokeWidth={1.75} /> הזמנה</Button>
+        <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={() => setHistoryOpen(true)}><HistoryIcon strokeWidth={1.75} /> היסטוריה</Button>
         {game.isHost && <HandRecorder gameId={gameId} players={seated} />}
-        {game.isHost && <Button asChild type="button" className="h-12 flex-1 px-2 text-xs"><Link href={`/game/${gameId}/cashout`}>סגירת קופה</Link></Button>}
+        {game.isHost && <Button asChild type="button" size="sm" className="flex-1"><Link href={`/game/${gameId}/cashout`}>סגירת הערב</Link></Button>}
       </nav>
 
       <Dialog open={focusedPlayer !== null} onOpenChange={(open) => !open && setFocusedPlayerId(null)}>
@@ -326,7 +342,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
           {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />}
           {focusedPlayer && (
-            <Button type="button" variant="outline" className="h-12" onClick={() => setSeatPickerPlayer(focusedPlayer)}>
+            <Button type="button" variant="secondary" onClick={() => setSeatPickerPlayer(focusedPlayer)}>
               <ArmchairIcon /> קביעת מקום בשולחן
             </Button>
           )}
@@ -339,11 +355,68 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           <DialogFooter><Button type="button" variant="outline" className="h-12" onClick={() => setHistoryOpen(false)}>חזרה לשולחן</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>פעולות נוספות</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex flex-col gap-2 px-4">
+            {game.isHost && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMoreOpen(false);
+                  void extendTime();
+                }}
+              >
+                <Clock3Icon aria-hidden="true" strokeWidth={1.75} />
+                עוד 30 דקות
+              </Button>
+            )}
+            {you && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMoreOpen(false);
+                  setSeatPickerPlayer(you);
+                }}
+              >
+                <ArmchairIcon aria-hidden="true" strokeWidth={1.75} />
+                המקום שלי בשולחן
+              </Button>
+            )}
+            {you && !you.isSettled && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMoreOpen(false);
+                  setEarlyExitOpen(true);
+                }}
+              >
+                <LogOutIcon aria-hidden="true" strokeWidth={1.75} />
+                יציאה מוקדמת
+              </Button>
+            )}
+          </div>
+          <DrawerFooter>
+            <Button type="button" variant="ghost" onClick={() => setMoreOpen(false)}>
+              סגירה
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
       <Dialog open={earlyExitOpen} onOpenChange={setEarlyExitOpen}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>יוצאים לפני כולם?</DialogTitle>
-            <DialogDescription>ספרו את הצ׳יפים שנשארו לכם. הסכום ושעת היציאה יישמרו, והשולחן ימשיך בלעדיכם.</DialogDescription>
+            <DialogDescription>ספרו את הז׳יטונים שנשארו לכם. הסכום ושעת היציאה יישמרו, והשולחן ימשיך בלעדיכם.</DialogDescription>
           </DialogHeader>
           <Label>כמה נשאר לכם?</Label>
           <AmountInput
@@ -354,10 +427,10 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             onCommit={setEarlyAmount}
           />
           <DialogFooter>
-            <Button type="button" className="h-12" disabled={earlyAmount === null || savingEarlyExit} onClick={() => void saveEarlyExit()}>
+            <Button type="button" disabled={earlyAmount === null || savingEarlyExit} onClick={() => void saveEarlyExit()}>
               {savingEarlyExit ? "שומרים..." : "שמרו וסיימו את הערב"}
             </Button>
-            <Button type="button" variant="outline" className="h-12" onClick={() => setEarlyExitOpen(false)}>נשארים בשולחן</Button>
+            <Button type="button" variant="secondary" onClick={() => setEarlyExitOpen(false)}>נשארים בשולחן</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

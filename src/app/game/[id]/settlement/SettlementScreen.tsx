@@ -333,7 +333,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 />
               ))}
               <p className="relative z-10 text-sm font-semibold text-felt-foreground-muted">הקופה של הערב</p>
-              <AnimatedMoney value={state.pot} from={staged ? 0 : state.pot} delay={staged ? 0.7 : 0} className="relative z-10 mt-1 text-[3.25rem] font-semibold leading-none text-felt-foreground drop-shadow-lg" />
+              <AnimatedMoney value={state.pot} from={staged ? 0 : state.pot} delay={staged ? 0.7 : 0} className="money-display relative z-10 mt-1 text-felt-foreground drop-shadow-lg" />
             </motion.section>
 
             {winner && (

@@ -7,6 +7,7 @@
  * milestone) and any chip-set preview here.
  */
 
+import { MinusIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Money } from "@/components/Money";
@@ -60,7 +61,7 @@ export function ChipCounter({
         return (
           <div
             key={denomination.id}
-            className="flex items-center gap-3 rounded-[14px] border border-foreground/8 bg-surface-2 p-3"
+            className="flex items-center gap-3 rounded-[14px] bg-ink-700 p-3"
           >
             <PokerChip
               color={denomination.color}
@@ -68,8 +69,8 @@ export function ChipCounter({
               className="size-11"
             />
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-xs text-muted-foreground">ערך לז׳יטון</span>
-              <span className="money text-sm font-semibold">
+              <span className="t-caption ink-3">ערך לז׳יטון</span>
+              <span className="money t-label font-semibold">
                 {formatILS(agorot(denomination.value))}
               </span>
             </div>
@@ -83,7 +84,7 @@ export function ChipCounter({
                 aria-label="הפחת ז׳יטון"
                 onClick={() => setCount(denomination.id, count - 1)}
               >
-                −
+                <MinusIcon strokeWidth={1.75} />
               </Button>
               <Input
                 type="number"
@@ -96,7 +97,7 @@ export function ChipCounter({
                 onChange={(event) =>
                   setCount(denomination.id, Number(event.target.value))
                 }
-                className="money h-12 w-16 px-2 text-center text-base font-semibold tabular-nums"
+                className="money h-12 w-16 px-2 text-center t-body font-semibold tabular-nums"
               />
               <Button
                 type="button"
@@ -107,15 +108,15 @@ export function ChipCounter({
                 aria-label="הוסף ז׳יטון"
                 onClick={() => setCount(denomination.id, count + 1)}
               >
-                +
+                <PlusIcon strokeWidth={1.75} />
               </Button>
             </div>
           </div>
         );
       })}
-      <div className="flex items-center justify-between border-t border-foreground/10 pt-3">
-        <span className="text-sm font-medium text-muted-foreground">סך הכול</span>
-        <Money value={total} className="text-lg font-bold" />
+      <div className="flex items-center justify-between pt-1">
+        <span className="t-label ink-2">סך הכול</span>
+        <Money value={total} className="t-title font-bold" />
       </div>
     </div>
   );

@@ -1,6 +1,5 @@
 import { FlameIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 interface StreakBadgeProps {
   streak: number | null | undefined;
@@ -12,14 +11,14 @@ export function StreakBadge({ streak, className }: StreakBadgeProps) {
   if (streak === null || streak === undefined || streak < 2) return null;
 
   return (
-    <Badge
+    <StatusBadge
+      tone="amber"
       aria-label={`רצף ניצחונות של ${streak} משחקים`}
-      className={cn("gap-1 border-ruby/50 bg-ruby/15 text-ruby-bright", className)}
+      className={className}
       title={`רצף ניצחונות: ${streak}`}
-      variant="secondary"
     >
-      <FlameIcon aria-hidden="true" />
+      <FlameIcon aria-hidden="true" strokeWidth={1.75} className="size-3" />
       <span>{streak}</span>
-    </Badge>
+    </StatusBadge>
   );
 }

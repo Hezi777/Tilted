@@ -42,7 +42,7 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
         <h1 className="t-display-l">
           {isSignUp ? "פותחים חשבון" : "מתחברים"}
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        <p className="t-body ink-2 mt-2">
           {isSignUp
             ? "החשבון שומר את הערבים, הרצפים והחשבון שלכם."
             : "ברוכים השבים לשולחן."}
@@ -60,7 +60,7 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
         <input type="hidden" name="next" value={nextPath} />
         {isSignUp && (
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-bold" htmlFor="name">
+            <Label className="t-label" htmlFor="name">
               איך קוראים לכם?
             </Label>
             <Input
@@ -68,14 +68,13 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
               name="name"
               autoComplete="name"
               required
-              className="h-12 rounded-xl px-4"
               placeholder="השם שיופיע בשולחן"
             />
           </div>
         )}
 
         <div className="flex flex-col gap-2">
-          <Label className="text-sm font-bold" htmlFor="email">
+          <Label className="t-label" htmlFor="email">
             אימייל
           </Label>
           <Input
@@ -86,13 +85,13 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
             autoComplete="email"
             required
             dir="ltr"
-            className="h-12 rounded-xl px-4 text-start"
+            className="text-start"
             placeholder="you@example.com"
           />
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label className="text-sm font-bold" htmlFor="password">
+          <Label className="t-label" htmlFor="password">
             סיסמה
           </Label>
           <Input
@@ -103,27 +102,23 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
             required
             minLength={8}
             dir="ltr"
-            className="h-12 rounded-xl px-4 text-start"
+            className="text-start"
             aria-describedby={isSignUp ? "password-hint" : undefined}
           />
           {isSignUp && (
-            <p id="password-hint" className="text-xs text-muted-foreground">
+            <p id="password-hint" className="t-caption ink-3">
               לפחות 8 תווים.
             </p>
           )}
         </div>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="t-body text-destructive">
             {error}
           </p>
         )}
 
-        <Button
-          type="submit"
-          disabled={pending}
-          className="h-14 w-full text-base font-bold"
-        >
+        <Button type="submit" size="lg" disabled={pending} className="w-full">
           {pending
             ? isSignUp
               ? "פותחים חשבון..."
@@ -137,7 +132,6 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
       <Button
         type="button"
         variant="ghost"
-        className="min-h-11 text-muted-foreground hover:text-foreground"
         onClick={() => setMode(isSignUp ? "sign-in" : "sign-up")}
       >
         {isSignUp ? "כבר יש לכם חשבון? התחברו" : "אין לכם חשבון? פתחו אחד"}

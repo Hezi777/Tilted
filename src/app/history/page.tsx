@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { UsersIcon } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Money } from "@/components/Money";
-import { Card, CardContent } from "@/components/ui/card";
 import { getGamesForDevice } from "@/db/queries";
 import { getViewer } from "@/lib/auth/session";
 
@@ -39,23 +38,21 @@ export default async function HistoryPage() {
 
       <div className="flex flex-1 flex-col px-5">
         {closed.length === 0 ? (
-          <Card className="flex flex-1 border-dashed bg-surface-1">
-            <CardContent className="flex flex-1 items-center gap-4 p-5">
-              <Image
-                src="/art/empty.png"
-                alt=""
-                width={88}
-                height={88}
-                className="size-20 shrink-0 object-contain"
-              />
-              <div className="text-start">
-                <p className="t-title">עוד לא נסגר אף ערב</p>
-                <p className="t-caption ink-3 mt-1 leading-relaxed">
-                  כשתסגרו קופה, הערב יופיע כאן עם החשבון המלא.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="empty-slot flex flex-1 items-center gap-4 rounded-[20px] p-5">
+            <Image
+              src="/art/empty.png"
+              alt=""
+              width={88}
+              height={88}
+              className="size-20 shrink-0 object-contain"
+            />
+            <div className="text-start">
+              <p className="t-title">עוד לא נסגר אף ערב</p>
+              <p className="t-caption ink-3 mt-1 leading-relaxed">
+                כשתסגרו קופה, הערב יופיע כאן עם החשבון המלא.
+              </p>
+            </div>
+          </div>
         ) : (
           <ul className="row-list casino-panel overflow-hidden rounded-[20px]">
             {closed.map((game) => (

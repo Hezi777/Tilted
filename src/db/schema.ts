@@ -134,10 +134,52 @@ export const people = pgTable(
   // level so the column can be added without a rewrite; the app never creates a Person
   // without one.
   userId: text("user_id"),
+
+  // -- The chip this friend is, at every table ------------------------------
+  // The avatar is the one saturated object in the whole interface, so it is worth
+  // being theirs rather than one of twelve stock faces. These four columns are the
+  // same parameters `PokerChip` already draws from, so a person's chip renders at
+  // any size with no asset behind it: `chip_edge` null derives from the body the
+  // way `deriveEdgeColor()` does, and the denomination ink is never stored because
+  // the two colours in front of it fully determine it.
+  chipBody: text("chip_body"),
+  chipEdge: text("chip_edge"),
+  chipSpots: integer("chip_spots"),
+  // At most two characters, pressed into the inlay. This is what separates two
+  // friends who happen to pick the same colours.
+  chipInitials: text("chip_initials"),
+
+  // -- Preferences ----------------------------------------------------------
+  // Small enough to live on the row. A separate table would buy nothing here and
+  // would cost a join on the one screen that reads them.
+  defaultBuyIn: integer("default_buy_in"),
+  defaultChipSetId: uuid("default_chip_set_id"),
+  hapticsEnabled: boolean("haptics_enabled").notNull().default(true),
+  reduceMotion: boolean("reduce_motion").notNull().default(false),
 }, (table) => [
   uniqueIndex("people_user_id_unique")
     .on(table.userId)
     .where(sql`"user_id" IS NOT NULL`),
+  check(
+    "people_chip_body_hex",
+    sql`${table.chipBody} IS NULL OR ${table.chipBody} ~ '^#[0-9a-fA-F]{6}$'`,
+  ),
+  check(
+    "people_chip_edge_hex",
+    sql`${table.chipEdge} IS NULL OR ${table.chipEdge} ~ '^#[0-9a-fA-F]{6}$'`,
+  ),
+  check(
+    "people_chip_spots_range",
+    sql`${table.chipSpots} IS NULL OR (${table.chipSpots} >= 3 AND ${table.chipSpots} <= 8)`,
+  ),
+  check(
+    "people_chip_initials_len",
+    sql`${table.chipInitials} IS NULL OR char_length(${table.chipInitials}) <= 2`,
+  ),
+  check(
+    "people_default_buy_in_range",
+    sql`${table.defaultBuyIn} IS NULL OR (${table.defaultBuyIn} > 0 AND ${table.defaultBuyIn} <= ${MAX_AGOROT_SQL})`,
+  ),
 ]);
 
 export const players = pgTable(
@@ -150,6 +192,13 @@ export const players = pgTable(
     personId: uuid("person_id").references(() => people.id),
     name: text("name").notNull(),
     avatarKey: text("avatar_key"),
+    // The chip as it looked that night. Snapshotted the same way `name` is, so a
+    // closed game keeps rendering the way it was played after someone restyles
+    // their chip. Null falls back to the Person's current chip, then to avatarKey.
+    chipBody: text("chip_body"),
+    chipEdge: text("chip_edge"),
+    chipSpots: integer("chip_spots"),
+    chipInitials: text("chip_initials"),
     seatOrder: integer("seat_order").notNull(),
     deviceId: text("device_id"),
     isHost: boolean("is_host").notNull().default(false),

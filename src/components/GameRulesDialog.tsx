@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, type UpdateGameRulesBody } from "@/lib/api";
 
 export interface EditableGameRules {
@@ -110,7 +111,7 @@ export function GameRulesDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="edit-game-notes">פרטים נוספים</Label>
-            <Input id="edit-game-notes" value={notes} maxLength={2000} placeholder="מה כדאי לדעת לפני שמתחילים?" onChange={(event) => setNotes(event.target.value)} />
+            <Textarea id="edit-game-notes" value={notes} maxLength={2000} placeholder="מה כדאי לדעת לפני שמתחילים?" onChange={(event) => setNotes(event.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
@@ -129,10 +130,10 @@ export function GameRulesDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" className="h-12" disabled={saving} onClick={() => void save()}>
+          <Button type="button" disabled={saving} onClick={() => void save()}>
             {saving ? "שומרים..." : "שמרו שינויים"}
           </Button>
-          <Button type="button" variant="outline" className="h-12" disabled={saving} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" disabled={saving} onClick={() => onOpenChange(false)}>
             ביטול
           </Button>
         </DialogFooter>

@@ -82,9 +82,8 @@ export function MusicButton({ gameId, isHost }: { gameId: string; isHost: boolea
     <>
       <Button
         type="button"
-        variant="outline"
-        size="icon-lg"
-        className="h-12 w-12 border-brand-500/25 bg-surface-2/75 text-brand-300"
+        variant="secondary"
+        size="icon"
         aria-label="פתיחת מוזיקה"
         onClick={() => setOpen(true)}
       >
@@ -94,7 +93,7 @@ export function MusicButton({ gameId, isHost }: { gameId: string; isHost: boolea
         <DialogContent className="max-h-[86dvh] overflow-y-auto" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Music2Icon aria-hidden="true" className="size-5 text-brand-300" />
+              <Music2Icon aria-hidden="true" className="size-5 ink-2" />
               מוזיקה לשולחן
             </DialogTitle>
             <DialogDescription>בוחרים פלייליסט ופותחים אותו באפליקציית המוזיקה.</DialogDescription>
@@ -106,21 +105,21 @@ export function MusicButton({ gameId, isHost }: { gameId: string; isHost: boolea
               <Skeleton className="h-14 w-full" />
             </div>
           ) : records.length === 0 ? (
-            <p className="rounded-[20px] border border-dashed border-brand-500/30 bg-surface-2 px-4 py-5 text-center text-sm text-muted-foreground">
+            <p className="empty-slot rounded-[20px] px-4 py-5 text-center t-caption ink-3">
               עוד אין מוזיקה לשולחן. המארח יכול להוסיף את הפלייליסט הראשון.
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
               {records.map((record) => (
-                <li key={record.id} className="flex min-h-14 items-center gap-2 rounded-[14px] border border-foreground/10 border-t-foreground/20 bg-surface-2 px-3">
-                  <Music2Icon aria-hidden="true" className="size-4 shrink-0 text-brand-300" />
+                <li key={record.id} className="surface-card flex min-h-14 items-center gap-2 rounded-[14px] px-3">
+                  <Music2Icon aria-hidden="true" className="size-4 shrink-0 ink-2" />
                   <span className="min-w-0 flex-1 truncate font-semibold">{record.name}</span>
                   {isHost && (
-                    <Button type="button" variant="ghost" size="icon-lg" className="h-12 w-12" aria-label={`מחיקת ${record.name}`} onClick={() => void removePlaylist(record)}>
+                    <Button type="button" variant="ghost" size="icon" aria-label={`מחיקת ${record.name}`} onClick={() => void removePlaylist(record)}>
                       <Trash2Icon aria-hidden="true" className="text-destructive" />
                     </Button>
                   )}
-                  <Button asChild variant="outline" className="h-12">
+                  <Button asChild variant="secondary" size="sm">
                     <a href={record.url} target="_blank" rel="noopener noreferrer">
                       פתיחה <ExternalLinkIcon aria-hidden="true" />
                     </a>
@@ -131,16 +130,16 @@ export function MusicButton({ gameId, isHost }: { gameId: string; isHost: boolea
           )}
 
           {isHost && showAdd && (
-            <div className="flex flex-col gap-3 rounded-[20px] border border-brand-500/20 bg-surface-2 p-4">
+            <div className="surface-card flex flex-col gap-3 rounded-[20px] p-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="playlist-name">שם הפלייליסט</Label>
-                <Input id="playlist-name" className="h-12" value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder="פוקר עד מאוחר" />
+                <Input id="playlist-name" value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder="פוקר עד מאוחר" />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="playlist-url">קישור</Label>
-                <Input id="playlist-url" className="h-12" dir="ltr" type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" />
+                <Input id="playlist-url" dir="ltr" type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" />
               </div>
-              <Button type="button" className="h-12" disabled={busy || !name.trim() || !url.trim()} onClick={() => void addPlaylist()}>
+              <Button type="button" disabled={busy || !name.trim() || !url.trim()} onClick={() => void addPlaylist()}>
                 {busy ? "מוסיפים…" : "הוספת פלייליסט"}
               </Button>
             </div>
@@ -148,11 +147,11 @@ export function MusicButton({ gameId, isHost }: { gameId: string; isHost: boolea
 
           <DialogFooter>
             {isHost && !showAdd && (
-              <Button type="button" className="h-12" onClick={() => setShowAdd(true)}>
+              <Button type="button" onClick={() => setShowAdd(true)}>
                 <PlusIcon aria-hidden="true" /> הוספת פלייליסט
               </Button>
             )}
-            <Button type="button" variant="outline" className="h-12" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               חזרה לשולחן
             </Button>
           </DialogFooter>

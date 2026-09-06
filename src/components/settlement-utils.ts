@@ -16,7 +16,7 @@ export function settlementVoiceLine(
   players: readonly SettlementPlayer[],
 ): string {
   const winner = sortSettlementPlayers(players).find((player) => player.net > 0);
-  if (!winner) return "הצ׳יפים דיברו. הערב נגמר על האפס.";
+  if (!winner) return "הז׳יטונים דיברו. הערב נגמר על האפס.";
 
   const rebuyCount = Math.max(0, (winner.buyInCount ?? 1) - 1);
   if (rebuyCount >= 3) {
@@ -27,7 +27,7 @@ export function settlementVoiceLine(
     `אס זוכה, קינג בוכה. ${winner.name} בראש הערימה.`,
     `Read ’em and weep. ${winner.name} עם המילה האחרונה.`,
     `קנטה על הקופה. ${winner.name} בראש הערימה.`,
-    `הצ׳יפים דיברו. ${winner.name} בראש הערימה.`,
+    `הז׳יטונים דיברו. ${winner.name} בראש הערימה.`,
   ];
   const selector = Array.from(gameId).reduce((total, character) => total + character.charCodeAt(0), 0);
   return lines[selector % lines.length];

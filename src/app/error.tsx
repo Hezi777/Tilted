@@ -29,10 +29,10 @@ export default function ErrorScreen({
         </p>
       </div>
       <div className="flex w-full max-w-[18rem] flex-col gap-2">
-        <Button type="button" className="h-12" onClick={reset}>
+        <Button type="button" onClick={reset}>
           <RefreshCwIcon aria-hidden="true" /> נסו שוב
         </Button>
-        <Button asChild variant="outline" className="h-12">
+        <Button asChild variant="secondary">
           <Link href="/">חזרה לבית</Link>
         </Button>
       </div>

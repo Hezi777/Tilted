@@ -69,38 +69,79 @@ interface ChipSetEditorProps {
   className?: string;
 }
 
-/** A labelled colour well. Native input, but sized to the app's touch target. */
+/** The colours offered as quick swatches, deduplicated from the preset pairs. */
+const BODY_SWATCHES = Array.from(new Set(CHIP_PRESETS.map((preset) => preset.body)));
+const EDGE_SWATCHES = Array.from(new Set(CHIP_PRESETS.map((preset) => preset.edge)));
+
+function isValidHex(value: string): boolean {
+  return /^#[0-9a-f]{6}$/i.test(value.trim());
+}
+
+/** A labelled colour well: a swatch grid plus an editable hex field. */
 function ColorWell({
   id,
   label,
   value,
+  swatches,
   disabled,
   onChange,
 }: {
   id: string;
   label: string;
   value: string;
+  swatches: readonly string[];
   disabled?: boolean;
   onChange: (hex: string) => void;
 }) {
+  // The field holds a draft so someone can type a partial hex without it being
+  // rejected mid-keystroke. Re-syncing from `value` in an effect would cascade a
+  // render on every parent update; deriving it from the last value this component
+  // saw does the same job during render, which is React's own advice.
+  const [hexDraft, setHexDraft] = React.useState(value.toUpperCase());
+  const [lastValue, setLastValue] = React.useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    setHexDraft(value.toUpperCase());
+  }
+
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1">
+    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
       <Label htmlFor={id} className="t-caption ink-3">
         {label}
       </Label>
-      <div className="flex items-center gap-2 rounded-[14px] border border-foreground/12 bg-surface-1 ps-2">
-        <input
-          id={id}
-          type="color"
-          value={value.toLowerCase()}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value.toUpperCase())}
-          className="size-8 shrink-0 cursor-pointer rounded-md border-0 bg-transparent p-0 disabled:opacity-50"
-        />
-        <span className="money ink-2 min-w-0 truncate pe-2 text-xs" dir="ltr">
-          {value.toUpperCase()}
-        </span>
+      <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+        {swatches.map((swatch) => {
+          const selected = swatch.toLowerCase() === value.toLowerCase();
+          return (
+            <button
+              key={swatch}
+              type="button"
+              disabled={disabled}
+              aria-label={swatch}
+              aria-pressed={selected}
+              onClick={() => onChange(swatch)}
+              className={cn(
+                "size-8 shrink-0 rounded-full transition-transform active:scale-95 disabled:opacity-50",
+                selected && "shadow-[0_0_0_2px_var(--text-0)]",
+              )}
+              style={{ backgroundColor: swatch }}
+            />
+          );
+        })}
       </div>
+      <Input
+        id={id}
+        className="money"
+        dir="ltr"
+        maxLength={7}
+        disabled={disabled}
+        value={hexDraft}
+        onChange={(event) => {
+          const next = event.target.value.toUpperCase();
+          setHexDraft(next);
+          if (isValidHex(next)) onChange(next);
+        }}
+      />
     </div>
   );
 }
@@ -158,7 +199,7 @@ export function ChipSetEditor({
           return (
             <div
               key={denomination.id}
-              className="flex flex-col gap-3 rounded-[20px] border border-foreground/8 border-t-foreground/14 bg-surface-2 p-3"
+              className="surface-card flex flex-col gap-3 rounded-[20px] p-3"
             >
               <div className="flex items-center gap-3">
                 <PokerChip
@@ -192,9 +233,9 @@ export function ChipSetEditor({
                 </div>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="size-11 shrink-0 self-end border-destructive/35 text-destructive"
+                  className="shrink-0 self-end text-destructive"
                   disabled={disabled || value.denominations.length === 1}
                   aria-label={`הסר ז׳יטון ${index + 1}`}
                   onClick={() => removeDenomination(denomination.id)}
@@ -208,6 +249,7 @@ export function ChipSetEditor({
                   id={`chip-body-${denomination.id}`}
                   label="גוף"
                   value={denomination.color}
+                  swatches={BODY_SWATCHES}
                   disabled={disabled}
                   onChange={(color) =>
                     updateDenomination(denomination.id, { color })
@@ -217,6 +259,7 @@ export function ChipSetEditor({
                   id={`chip-edge-${denomination.id}`}
                   label="פסים"
                   value={denomination.edgeColor}
+                  swatches={EDGE_SWATCHES}
                   disabled={disabled}
                   onChange={(edgeColor) =>
                     updateDenomination(denomination.id, { edgeColor })
@@ -251,9 +294,9 @@ export function ChipSetEditor({
                         })
                       }
                       className={cn(
-                        "grid size-11 place-items-center rounded-full border border-transparent transition-transform",
+                        "grid size-11 place-items-center rounded-full transition-transform",
                         "focus-visible:ring-3 focus-visible:ring-ring active:scale-95 disabled:opacity-50",
-                        selected && "border-brand-300",
+                        selected && "shadow-[0_0_0_2px_var(--text-0)]",
                       )}
                     >
                       <PokerChip
@@ -272,8 +315,7 @@ export function ChipSetEditor({
 
       <Button
         type="button"
-        variant="outline"
-        className="h-12"
+        variant="secondary"
         disabled={disabled}
         onClick={addDenomination}
       >

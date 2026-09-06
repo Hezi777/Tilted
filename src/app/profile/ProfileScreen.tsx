@@ -1,30 +1,35 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { PencilIcon } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { CheckIcon, LogOutIcon, TrendingDownIcon, TrendingUpIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
-import { ChipAvatar } from "@/components/ChipAvatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Money } from "@/components/Money";
-import { AVATAR_KEYS } from "@/lib/avatar";
-import { signOutAction } from "@/lib/auth/actions";
+import { PokerChip } from "@/components/PokerChip";
 import {
-  saveProfileAction,
+  CHIP_PRESETS,
+  DEFAULT_CHIP_BODY,
+  DEFAULT_SPOTS,
+  MAX_SPOTS,
+  MIN_SPOTS,
+  deriveEdgeColor,
+} from "@/lib/chip-art";
+import { signOutAction } from "@/lib/auth/actions";
+import { motionSafe, rise, stagger } from "@/lib/motion";
+import {
+  changePasswordAction,
+  deleteAccountAction,
+  saveChipAction,
+  saveIdentityAction,
+  savePreferencesAction,
   type ProfileActionState,
 } from "@/app/profile/actions";
 import { cn } from "@/lib/utils";
-import type { PersonSummary } from "@/lib/api";
 
 const INITIAL: ProfileActionState = { error: null, saved: false };
 
@@ -32,248 +37,432 @@ export interface ProfileStats {
   gamesPlayed: number;
   /** Agorot, signed: lifetime profit or loss. */
   net: number;
+  wins: number;
+  winRate: number | null;
+  bestNight: number | null;
+  worstNight: number | null;
+  currentStreak: number;
+  longestStreak: number;
+}
+
+export interface ProfileRecordView {
+  id: string;
+  name: string;
+  nickname: string | null;
+  phone: string | null;
+  chipBody: string | null;
+  chipEdge: string | null;
+  chipSpots: number | null;
+  chipInitials: string | null;
+  defaultBuyIn: number | null;
+  hapticsEnabled: boolean;
+  reduceMotion: boolean;
 }
 
 /**
- * The player's own page: who they are, how to pay them, how they have done.
+ * Reports a server action's outcome once, as a toast.
  *
- * The identity block is a centred column rather than a row. A row put a two-word name
- * beside a long email, which left the avatar hanging off an L-shaped block of ragged
- * text; centring makes the width of the email irrelevant.
+ * Every form on this page used to render its own inline paragraph, and the success one
+ * never cleared -- a green "נשמר." sat there for the rest of the session. One channel,
+ * one lifetime.
  */
+function useActionToast(state: ProfileActionState, success: string): void {
+  useEffect(() => {
+    if (state.error) toast.error(state.error);
+    else if (state.saved) toast.success(success);
+  }, [state, success]);
+}
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="surface-card rounded-[20px] p-5">
+      <h2 className="t-title">{title}</h2>
+      {description && (
+        <p className="t-caption mt-1 text-[var(--text-2)]">{description}</p>
+      )}
+      <div className="mt-4 flex flex-col gap-4">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label className="t-label text-[var(--text-1)]">{label}</Label>
+      {children}
+      {hint && <p className="t-caption text-[var(--text-2)]">{hint}</p>}
+    </div>
+  );
+}
+
+/** A number that means something on its own, with its label under it. */
+function Stat({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="surface-raised flex flex-col items-center gap-0.5 rounded-[16px] px-3 py-4">
+      <span className="t-title money">{children}</span>
+      <span className="t-caption text-[var(--text-2)]">{label}</span>
+    </div>
+  );
+}
+
 export function ProfileScreen({
-  person,
+  profile,
   email,
-  phone,
   stats,
 }: {
-  person: PersonSummary;
+  profile: ProfileRecordView;
   email: string;
-  phone: string | null;
   stats: ProfileStats;
 }) {
-  const [state, save, saving] = useActionState(saveProfileAction, INITIAL);
-  const [avatarKey, setAvatarKey] = useState(person.avatarKey);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  // The draft only becomes the character on save, so backing out of the dialog and
-  // leaving the page does not quietly change the face.
-  const [draftAvatar, setDraftAvatar] = useState(person.avatarKey);
+  const reduceMotion = useReducedMotion();
 
-  // A permanent green "saved." line sat on the screen for the rest of the session. The
-  // rest of the app reports with a toast, so this does too.
-  useEffect(() => {
-    if (state.saved && !state.error) toast.success("הפרופיל נשמר");
-  }, [state]);
+  const [identityState, saveIdentity, savingIdentity] = useActionState(
+    saveIdentityAction,
+    INITIAL,
+  );
+  const [chipState, saveChip, savingChip] = useActionState(saveChipAction, INITIAL);
+  const [prefsState, savePrefs, savingPrefs] = useActionState(
+    savePreferencesAction,
+    INITIAL,
+  );
+  const [passwordState, changePassword, changingPassword] = useActionState(
+    changePasswordAction,
+    INITIAL,
+  );
+  const [deleteState, deleteAccount, deleting] = useActionState(
+    deleteAccountAction,
+    INITIAL,
+  );
+
+  useActionToast(identityState, "נשמר");
+  useActionToast(chipState, "הז׳יטון עודכן");
+  useActionToast(prefsState, "ההעדפות נשמרו");
+  useActionToast(passwordState, "הסיסמה הוחלפה");
+  useActionToast(deleteState, "החשבון נמחק");
+
+  // The chip previews live as state so the disc updates under the finger rather than
+  // after a round trip -- the whole point of choosing a colour is watching it change.
+  const [body, setBody] = useState(profile.chipBody ?? DEFAULT_CHIP_BODY);
+  const [edge, setEdge] = useState(profile.chipEdge ?? "");
+  const [spots, setSpots] = useState(profile.chipSpots ?? DEFAULT_SPOTS);
+  const [initials, setInitials] = useState(profile.chipInitials ?? "");
+
+  const [confirmDelete, setConfirmDelete] = useState("");
 
   return (
-    <main className="flex flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-      <AppHeader title="הפרופיל שלי" />
+    <main className="flex min-h-[100dvh] flex-1 flex-col">
+      <AppHeader title="פרופיל" backHref="/" />
 
-      <div className="flex flex-col gap-7 px-5">
-        <section className="flex flex-col items-center gap-3 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setDraftAvatar(avatarKey);
-              setPickerOpen(true);
-            }}
-            aria-label="שינוי הדמות שלי"
-            className="group relative rounded-full focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            <ChipAvatar
-              avatarKey={avatarKey}
-              personId={person.id}
-              name={person.name}
-              className="size-24"
-            />
-            <span className="absolute bottom-0 end-0 grid size-8 place-items-center rounded-full border border-foreground/15 bg-surface-4 text-foreground shadow-lg">
-              <PencilIcon aria-hidden="true" className="size-4" />
-            </span>
-          </button>
-          <div className="w-full min-w-0">
-            <h2 className="t-display-l truncate">{person.name}</h2>
-            {email ? (
-              <p
-                dir="ltr"
-                className="t-caption ink-3 mt-1 truncate text-center"
-                title={email}
-              >
-                {email}
-              </p>
-            ) : null}
-          </div>
-        </section>
-
-        <section aria-labelledby="stats-title">
-          <h2 id="stats-title" className="section-label mb-2.5">
-            המאזן שלכם
-          </h2>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="surface-card rounded-[20px] p-4">
-              <p className="t-caption ink-3">ערבים</p>
-              <p className="money mt-1 text-2xl font-bold">
-                {stats.gamesPlayed}
-              </p>
-            </div>
-            <div className="surface-card rounded-[20px] p-4">
-              <p className="t-caption ink-3">סך הכול</p>
-              <Money
-                value={stats.net}
-                signed
-                className={cn(
-                  "mt-1 block text-2xl font-bold",
-                  stats.net > 0 && "text-profit",
-                  stats.net < 0 && "text-loss",
-                )}
-              />
-            </div>
-          </div>
-        </section>
-
-        <form action={save} className="flex flex-col gap-4">
-          <h2 className="section-label">הפרטים שלכם</h2>
-          <input type="hidden" name="avatarKey" value={avatarKey ?? ""} />
-
-          <div className="surface-card flex flex-col gap-4 rounded-[20px] p-4">
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-bold" htmlFor="name">
-                שם
-              </Label>
-              <Input
-                id="name"
-                name="name"
-                defaultValue={person.name}
-                required
-                maxLength={100}
-                className="h-12 rounded-xl px-4"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-bold" htmlFor="nickname">
-                כינוי
-              </Label>
-              <Input
-                id="nickname"
-                name="nickname"
-                defaultValue={person.nickname ?? ""}
-                maxLength={100}
-                className="h-12 rounded-xl px-4"
-                placeholder="לא חובה"
-                aria-describedby="nickname-hint"
-              />
-              <p id="nickname-hint" className="t-caption ink-3">
-                עוזר כששני חברים חולקים את אותו שם.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-bold" htmlFor="phone">
-                טלפון
-              </Label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                defaultValue={phone ?? ""}
-                dir="ltr"
-                className="h-12 rounded-xl px-4 text-start"
-                placeholder="050-0000000"
-                aria-describedby="phone-hint"
-              />
-              <p id="phone-hint" className="t-caption ink-3">
-                משמש רק כדי שחברים ידעו לאן להעביר לכם בסוף הערב.
-              </p>
-            </div>
-          </div>
-
-          {state.error && (
-            <p role="alert" className="text-sm text-destructive">
-              {state.error}
+      <motion.div
+        variants={motionSafe(stagger, reduceMotion)}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col gap-4 px-5 pb-[calc(6rem+env(safe-area-inset-bottom))]"
+      >
+        {/* Who you are at the table. The chip is the only saturated thing on the
+            screen, which is why it leads. */}
+        <motion.div
+          variants={motionSafe(rise, reduceMotion)}
+          className="flex items-center gap-4 py-2"
+        >
+          <PokerChip
+            color={body}
+            edgeColor={edge || deriveEdgeColor(body)}
+            spots={spots}
+            label={initials}
+            className="size-20 shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="t-display-l truncate">{profile.name}</p>
+            <p className="t-caption truncate text-[var(--text-2)]" dir="ltr">
+              {email}
             </p>
-          )}
-
-          <Button
-            type="submit"
-            disabled={saving}
-            className="h-12 w-full font-bold"
-          >
-            {saving ? "שומרים..." : "שמירה"}
-          </Button>
-        </form>
-
-        <form action={signOutAction} className="border-t border-foreground/10 pt-5">
-          <Button
-            type="submit"
-            variant="ghost"
-            className="min-h-12 w-full text-muted-foreground hover:text-foreground"
-          >
-            התנתקות
-          </Button>
-        </form>
-      </div>
-
-      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DialogContent showCloseButton={false} className="max-h-[85dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>הדמות שלי</DialogTitle>
-            <DialogDescription>
-              הדמות מופיעה ליד השם שלכם בכל שולחן.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div role="radiogroup" aria-label="בחירת דמות" className="grid grid-cols-4 gap-2">
-            {AVATAR_KEYS.map((key, index) => {
-              const selected = draftAvatar === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={`דמות ${index + 1}`}
-                  onClick={() => setDraftAvatar(key)}
-                  className="rounded-full focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <ChipAvatar
-                    avatarKey={key}
-                    name={`דמות ${index + 1}`}
-                    className={cn(
-                      "size-full transition-opacity",
-                      selected
-                        ? "ring-2 ring-ruby-bright"
-                        : "opacity-60 ring-1 ring-foreground/10",
-                    )}
-                  />
-                </button>
-              );
-            })}
           </div>
+        </motion.div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              className="h-12"
-              onClick={() => {
-                setAvatarKey(draftAvatar);
-                setPickerOpen(false);
-              }}
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <Section title="הערבים שלך" description="רק שלך. אין טבלת מובילים.">
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="ערבים">{stats.gamesPlayed}</Stat>
+              <Stat label="סך הכול">
+                <Money value={stats.net} signed />
+              </Stat>
+              <Stat label="אחוז זכייה">
+                {stats.winRate === null ? "—" : `${Math.round(stats.winRate * 100)}%`}
+              </Stat>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="הערב הכי טוב">
+                {stats.bestNight === null ? (
+                  "—"
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-profit">
+                    <TrendingUpIcon aria-hidden className="size-4" strokeWidth={1.75} />
+                    <Money value={stats.bestNight} signed />
+                  </span>
+                )}
+              </Stat>
+              <Stat label="הערב הכי גרוע">
+                {stats.worstNight === null ? (
+                  "—"
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-loss">
+                    <TrendingDownIcon aria-hidden className="size-4" strokeWidth={1.75} />
+                    <Money value={stats.worstNight} signed />
+                  </span>
+                )}
+              </Stat>
+              <Stat label="הרצף הארוך">{stats.longestStreak}</Stat>
+            </div>
+          </Section>
+        </motion.div>
+
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <form action={saveIdentity}>
+            <Section title="הפרטים שלך">
+              <Field label="שם">
+                <Input name="name" defaultValue={profile.name} required maxLength={100} />
+              </Field>
+              <Field
+                label="כינוי"
+                hint="עוזר כששני חברים חולקים את אותו שם."
+              >
+                <Input
+                  name="nickname"
+                  defaultValue={profile.nickname ?? ""}
+                  maxLength={100}
+                />
+              </Field>
+              <Field label="טלפון" hint="רק כדי שחברים ידעו לאן להעביר.">
+                <Input
+                  name="phone"
+                  type="tel"
+                  dir="ltr"
+                  defaultValue={profile.phone ?? ""}
+                  maxLength={20}
+                />
+              </Field>
+              <Button type="submit" disabled={savingIdentity} className="w-full">
+                שמירה
+              </Button>
+            </Section>
+          </form>
+        </motion.div>
+
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <form action={saveChip}>
+            <Section
+              title="הז׳יטון שלך"
+              description="זה מה שרואים לידך בשולחן ובהיסטוריה."
             >
-              בחרו דמות
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              onClick={() => setPickerOpen(false)}
+              <input type="hidden" name="chipBody" value={body} />
+              <input type="hidden" name="chipEdge" value={edge} />
+              <input type="hidden" name="chipSpots" value={spots} />
+
+              <Field label="צבע">
+                <div
+                  role="radiogroup"
+                  aria-label="צבע הז׳יטון"
+                  className="grid grid-cols-6 gap-2"
+                >
+                  {CHIP_PRESETS.map((preset) => {
+                    const selected = body.toLowerCase() === preset.body.toLowerCase();
+                    return (
+                      <button
+                        key={preset.body}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={preset.name}
+                        onClick={() => {
+                          setBody(preset.body);
+                          setEdge(preset.edge);
+                        }}
+                        className={cn(
+                          "grid size-11 place-items-center rounded-full transition-transform",
+                          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                          selected ? "scale-100" : "scale-90 opacity-70",
+                        )}
+                      >
+                        <PokerChip
+                          color={preset.body}
+                          edgeColor={preset.edge}
+                          spots={spots}
+                          className="size-11"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              <Field label="נקודות בשוליים">
+                <div className="flex items-center gap-2">
+                  {Array.from(
+                    { length: MAX_SPOTS - MIN_SPOTS + 1 },
+                    (_, index) => MIN_SPOTS + index,
+                  ).map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      aria-pressed={spots === count}
+                      onClick={() => setSpots(count)}
+                      className={cn(
+                        "money h-11 flex-1 rounded-full text-sm transition-colors",
+                        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                        spots === count
+                          ? "bg-light text-light-ink"
+                          : "bg-ink-700 text-[var(--text-1)]",
+                      )}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field
+                label="ראשי תיבות"
+                hint="עד שני תווים, מוטבעים במרכז. זה מה שמפריד ביניכם אם בחרתם אותו צבע."
+              >
+                <Input
+                  name="chipInitials"
+                  value={initials}
+                  onChange={(event) => setInitials(event.target.value.slice(0, 2))}
+                  maxLength={2}
+                  className="w-24 text-center"
+                />
+              </Field>
+
+              <Button type="submit" disabled={savingChip} className="w-full">
+                שמירת הז׳יטון
+              </Button>
+            </Section>
+          </form>
+        </motion.div>
+
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <form action={savePrefs}>
+            <Section title="העדפות">
+              <Field label="כניסה כברירת מחדל" hint="בשקלים. ריק = בלי ברירת מחדל.">
+                <Input
+                  name="defaultBuyIn"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  dir="ltr"
+                  defaultValue={
+                    profile.defaultBuyIn === null ? "" : profile.defaultBuyIn / 100
+                  }
+                  className="w-32"
+                />
+              </Field>
+              <label className="flex min-h-12 items-center justify-between gap-4">
+                <span className="t-body">רטט</span>
+                <Switch name="hapticsEnabled" defaultChecked={profile.hapticsEnabled} />
+              </label>
+              <label className="flex min-h-12 items-center justify-between gap-4">
+                <span className="t-body">
+                  צמצום אנימציות
+                  <span className="t-caption block text-[var(--text-2)]">
+                    גובר על הגדרת המערכת
+                  </span>
+                </span>
+                <Switch name="reduceMotion" defaultChecked={profile.reduceMotion} />
+              </label>
+              <Button type="submit" disabled={savingPrefs} className="w-full">
+                שמירת העדפות
+              </Button>
+            </Section>
+          </form>
+        </motion.div>
+
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <form action={changePassword}>
+            <Section
+              title="סיסמה"
+              description="החלפת סיסמה מנתקת את כל המכשירים האחרים."
             >
-              ביטול
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Field label="הסיסמה הנוכחית">
+                <Input
+                  name="currentPassword"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+              </Field>
+              <Field label="סיסמה חדשה" hint="לפחות 8 תווים.">
+                <Input
+                  name="newPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </Field>
+              <Button type="submit" disabled={changingPassword} className="w-full">
+                <CheckIcon aria-hidden strokeWidth={1.75} />
+                החלפת סיסמה
+              </Button>
+            </Section>
+          </form>
+        </motion.div>
+
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <Section title="החשבון">
+            <form action={signOutAction}>
+              <Button type="submit" variant="secondary" className="w-full">
+                <LogOutIcon aria-hidden strokeWidth={1.75} />
+                התנתקות
+              </Button>
+            </form>
+
+            <form action={deleteAccount} className="flex flex-col gap-3">
+              <Field
+                label="מחיקת חשבון"
+                hint="הערבים ששיחקתם נשארים כפי שהיו — אחרים סגרו עליהם חשבון. רק החשבון שלכם נמחק, ואי אפשר לבטל."
+              >
+                <Input
+                  name="confirm"
+                  value={confirmDelete}
+                  onChange={(event) => setConfirmDelete(event.target.value)}
+                  placeholder="כתבו מחיקה כדי לאשר"
+                />
+              </Field>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={deleting || confirmDelete.trim() !== "מחיקה"}
+                className="w-full"
+              >
+                מחיקת החשבון
+              </Button>
+            </form>
+          </Section>
+        </motion.div>
+      </motion.div>
     </main>
   );
 }

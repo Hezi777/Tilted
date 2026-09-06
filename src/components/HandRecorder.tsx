@@ -27,8 +27,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 function Street({ label, cards }: { label: string; cards: string }) {
   return (
-    <div className="flex min-h-12 flex-1 flex-col items-center justify-center rounded-xl border border-felt-foreground/10 bg-felt-deep/45 px-2 py-1.5">
-      <span className="text-[10px] text-felt-foreground-muted">{label}</span>
+    <div className="flex min-h-12 flex-1 flex-col items-center justify-center rounded-xl bg-felt-deep/45 px-2 py-1.5">
+      <span className="t-caption text-felt-foreground-muted">{label}</span>
       <span dir="ltr" className="min-h-5 text-center font-semibold text-felt-foreground">{cards || "—"}</span>
     </div>
   );
@@ -44,7 +44,7 @@ export function MemorableHandCard({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex-row items-start gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-full border border-brand-500/25 bg-brand-950 text-brand-300">
+        <div className="grid size-10 shrink-0 place-items-center rounded-full bg-ink-700 text-foreground">
           <SpadeIcon aria-hidden="true" className="size-5 fill-current" />
         </div>
         <div className="min-w-0 flex-1">
@@ -54,7 +54,7 @@ export function MemorableHandCard({
           </p>
         </div>
         {onDelete && (
-          <Button type="button" variant="ghost" size="icon-lg" className="h-12 w-12" aria-label={`מחיקת ${record.title}`} onClick={onDelete}>
+          <Button type="button" variant="ghost" size="icon" aria-label={`מחיקת ${record.title}`} onClick={onDelete}>
             <Trash2Icon aria-hidden="true" className="text-destructive" />
           </Button>
         )}
@@ -65,14 +65,14 @@ export function MemorableHandCard({
           <Street label="טרן" cards={record.board.turn} />
           <Street label="ריבר" cards={record.board.river} />
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-brand-500/15 bg-brand-950/30 px-3 py-2">
-          <CrownIcon aria-hidden="true" className="size-4 fill-brand-500 text-brand-300" />
+        <div className="surface-raised flex items-center gap-2 rounded-xl px-3 py-2">
+          <CrownIcon aria-hidden="true" className="size-4 fill-[var(--amber-400)] text-[var(--amber-400)]" />
           <span className="text-sm text-muted-foreground">היד הלכה ל־</span>
           <span className="font-bold">{record.winnerName}</span>
         </div>
-        <ul className="flex flex-col">
+        <ul className="row-list">
           {record.players.map((player) => (
-            <li key={player.playerId} className="flex min-h-12 items-center gap-2 border-b border-foreground/8 py-1.5 last:border-b-0">
+            <li key={player.playerId} className="flex min-h-12 items-center gap-2 py-1.5">
               <ChipAvatar avatarKey={player.avatarKey} personId={player.playerId} name={player.name} className="size-8" />
               <span className="font-medium">{player.name}</span>
               {player.holeCards && <span dir="ltr" className="text-xs text-muted-foreground">{player.holeCards}</span>}
@@ -211,7 +211,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
 
   return (
     <>
-      <Button type="button" variant="outline" className="h-12 flex-1 px-2 text-xs" onClick={() => setOpen(true)}>
+      <Button type="button" variant="secondary" className="flex-1 px-2 text-xs" onClick={() => setOpen(true)}>
         <BookMarkedIcon aria-hidden="true" /> יד לזכור
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -242,7 +242,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
                   {players.map((player) => {
                     const playerDraft = draft[player.id] ?? { included: false, holeCards: "", delta: "" };
                     return (
-                      <div key={player.id} className="rounded-[14px] border border-foreground/10 bg-surface-2 p-3">
+                      <div key={player.id} className="surface-card rounded-[14px] p-3">
                         <Label className="min-h-12 cursor-pointer gap-3">
                           <Checkbox checked={playerDraft.included} onCheckedChange={(checked) => updatePlayer(player.id, { included: checked === true })} />
                           <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-8" />
@@ -262,7 +262,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
               {includedPlayers.length > 0 && (
                 <div className="flex flex-col gap-2">
                   <Label>מי לקח את היד?</Label>
-                  <ToggleGroup type="single" variant="outline" value={winnerPlayerId} onValueChange={setWinnerPlayerId} className="w-full flex-wrap justify-start">
+                  <ToggleGroup type="single" value={winnerPlayerId} onValueChange={setWinnerPlayerId} className="w-full flex-wrap justify-start">
                     {includedPlayers.map((player) => (
                       <ToggleGroupItem key={player.id} value={player.id} aria-label={`בחירת ${player.name} כזוכה`} className="min-h-12">
                         <CrownIcon aria-hidden="true" /> {player.name}
@@ -276,8 +276,8 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
                 <Input id="hand-note" className="h-12" maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="הסיפור שנרצה לזכור" />
               </div>
               <div className="flex gap-2">
-                <Button type="button" className="h-12 flex-1" disabled={busy} onClick={() => void saveHand()}>{busy ? "שומרים…" : "שמירת היד"}</Button>
-                <Button type="button" variant="outline" className="h-12" disabled={busy} onClick={resetForm}>ביטול</Button>
+                <Button type="button" className="flex-1" disabled={busy} onClick={() => void saveHand()}>{busy ? "שומרים…" : "שמירת היד"}</Button>
+                <Button type="button" variant="secondary" disabled={busy} onClick={resetForm}>ביטול</Button>
               </div>
             </div>
           ) : records === null ? (
@@ -285,20 +285,20 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
           ) : (
             <div className="flex flex-col gap-3">
               {records.length === 0 ? (
-                <p className="rounded-[20px] border border-dashed border-brand-500/30 bg-surface-2 px-4 py-5 text-center text-sm text-muted-foreground">
+                <p className="empty-slot rounded-[20px] px-4 py-5 text-center t-caption ink-3">
                   עוד לא נשמרה יד מהערב. כשהריבר עושה בלגן, זה המקום לתעד.
                 </p>
               ) : records.map((record) => (
                 <MemorableHandCard key={record.id} record={record} onDelete={() => void removeHand(record)} />
               ))}
-              <Button type="button" className="h-12" disabled={players.length < 2} onClick={() => setShowForm(true)}>
+              <Button type="button" disabled={players.length < 2} onClick={() => setShowForm(true)}>
                 <PlusIcon aria-hidden="true" /> שמירת יד חדשה
               </Button>
             </div>
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" className="h-12" onClick={() => setOpen(false)}>חזרה לשולחן</Button>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>חזרה לשולחן</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

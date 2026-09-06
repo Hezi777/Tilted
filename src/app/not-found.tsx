@@ -15,7 +15,7 @@ export default function NotFound() {
           אולי הקישור ישן, או שהשולחן כבר נסגר.
         </p>
       </div>
-      <Button asChild className="h-12 px-6">
+      <Button asChild>
         <Link href="/">חזרה לבית</Link>
       </Button>
     </main>

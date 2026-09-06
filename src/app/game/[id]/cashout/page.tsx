@@ -1,4 +1,4 @@
-import CashoutScreen from "@/components/cashout-screen";
+import CashoutScreen from "./CashoutScreen";
 
 export default async function CashoutPage({
   params,
