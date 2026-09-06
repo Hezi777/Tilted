@@ -68,6 +68,10 @@
   --color-loss: var(--red-400);
   --color-even: var(--text-1);
   --color-amber: var(--amber-400);
+  --color-violet-300: var(--violet-300);
+  --color-violet-500: var(--violet-500);
+  --color-violet-700: var(--violet-700);
+  --color-violet-900: var(--violet-900);
   --color-felt: var(--green-500);
   --color-felt-deep: var(--green-900);
   --color-felt-highlight: var(--green-500);
@@ -162,6 +166,16 @@
   --green-900: #062a1d;
 
   --amber-400: #f5d06a; /* 13.1:1 -- winner, countdown. Nothing else. */
+
+  /* -- Violet. The light the table sits under. ---------------------------
+   * Read off the reference: the glow above its horizon and the tint on its
+   * "Called" badge. It is the app's one atmospheric colour -- it lights things
+   * rather than filling them, so it never competes with money, and --violet-300
+   * is the only step that may carry text. */
+  --violet-300: #b9a5ff; /*  9.1:1 -- text, active state */
+  --violet-500: #7b5cff; /* the glow itself */
+  --violet-700: #4a2fb8;
+  --violet-900: #1a1030; /* a surface lit by it */
 
   --profit: var(--green-400);
   --loss: var(--red-400);
@@ -341,16 +355,55 @@
     background: transparent;
   }
 
-  /* -- The felt. The one coloured surface, and it glows from above. ------ */
+  /* -- The table --------------------------------------------------------
+   * Not green baize. The reference's table is a dark surface receding under a
+   * violet light, and that is what makes it read as a room rather than as a
+   * shape: the far rail catches the light, the surface falls away into shadow,
+   * and nothing on it competes with the money.
+   *
+   * Green is therefore free to mean one thing in this app -- money up -- which
+   * is the whole point of rationing colour. */
   .felt-panel {
+    position: absolute;
     background:
-      radial-gradient(ellipse 90% 70% at 50% 0%, rgb(31 185 122 / 22%), transparent 70%),
-      radial-gradient(ellipse 80% 105% at 50% 45%, var(--green-500), var(--green-900) 62%);
+      /* the light hanging over the far rail */
+      radial-gradient(ellipse 72% 34% at 50% 1%, rgb(123 92 255 / 30%), transparent 64%),
+      /* the surface, receding */
+      radial-gradient(ellipse 95% 80% at 50% 14%, #23212e, #16151e 54%, #0d0c13);
+    box-shadow:
+      inset 0 1px 0 rgb(185 165 255 / 20%),
+      inset 0 -30px 60px -30px rgb(0 0 0 / 80%);
+  }
+
+  /* The rail: an inset ring that catches the same light a beat later, which is
+     what gives the table an edge instead of a border. */
+  .felt-panel::after {
+    position: absolute;
+    inset: 4.5%;
+    z-index: 0;
+    content: "";
+    pointer-events: none;
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse 82% 70% at 50% 6%,
+      rgb(123 92 255 / 12%),
+      transparent 58%
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(185 165 255 / 12%),
+      0 1px 0 rgb(0 0 0 / 40%);
   }
 
   /* A wide, soft light behind whatever the screen is actually about. */
+  /* The light a screen is lit by. Wide, soft, and above whatever the screen is
+     actually about -- never a shape in its own right. */
   .focal-glow {
-    background: radial-gradient(ellipse 70% 60% at 50% 0%, var(--glass-2), transparent 72%);
+    background: radial-gradient(
+      ellipse 70% 60% at 50% 0%,
+      rgb(123 92 255 / 26%),
+      rgb(123 92 255 / 6%) 45%,
+      transparent 72%
+    );
   }
 
   .accent-rim {

@@ -291,9 +291,18 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
               ) : records.map((record) => (
                 <MemorableHandCard key={record.id} record={record} onDelete={() => void removeHand(record)} />
               ))}
-              <Button type="button" disabled={players.length < 2} onClick={() => setShowForm(true)}>
-                <PlusIcon aria-hidden="true" /> שמירת יד חדשה
-              </Button>
+              {/* A hand needs someone to have won it off someone else. The guard was
+                  right, but it shipped as a dead button with no reason, which reads
+                  as broken rather than as not-yet. */}
+              {players.length < 2 ? (
+                <p className="t-caption text-center text-[var(--text-2)]">
+                  יד נשמרת כששניים לפחות בשולחן.
+                </p>
+              ) : (
+                <Button type="button" onClick={() => setShowForm(true)}>
+                  <PlusIcon aria-hidden="true" strokeWidth={1.75} /> שמירת יד חדשה
+                </Button>
+              )}
             </div>
           )}
 

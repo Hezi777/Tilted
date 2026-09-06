@@ -10,15 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Money } from "@/components/Money";
-import { PokerChip } from "@/components/PokerChip";
-import {
-  CHIP_PRESETS,
-  DEFAULT_CHIP_BODY,
-  DEFAULT_SPOTS,
-  MAX_SPOTS,
-  MIN_SPOTS,
-  deriveEdgeColor,
-} from "@/lib/chip-art";
+import { ChipAvatar } from "@/components/ChipAvatar";
+import { AVATAR_KEYS, type AvatarKey } from "@/lib/avatar";
 import { signOutAction } from "@/lib/auth/actions";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import {
@@ -50,6 +43,7 @@ export interface ProfileRecordView {
   name: string;
   nickname: string | null;
   phone: string | null;
+  avatarKey: string | null;
   chipBody: string | null;
   chipEdge: string | null;
   chipSpots: number | null;
@@ -157,17 +151,16 @@ export function ProfileScreen({
   );
 
   useActionToast(identityState, "נשמר");
-  useActionToast(chipState, "הז׳יטון עודכן");
+  useActionToast(chipState, "הדמות עודכנה");
   useActionToast(prefsState, "ההעדפות נשמרו");
   useActionToast(passwordState, "הסיסמה הוחלפה");
   useActionToast(deleteState, "החשבון נמחק");
 
-  // The chip previews live as state so the disc updates under the finger rather than
-  // after a round trip -- the whole point of choosing a colour is watching it change.
-  const [body, setBody] = useState(profile.chipBody ?? DEFAULT_CHIP_BODY);
-  const [edge, setEdge] = useState(profile.chipEdge ?? "");
-  const [spots, setSpots] = useState(profile.chipSpots ?? DEFAULT_SPOTS);
-  const [initials, setInitials] = useState(profile.chipInitials ?? "");
+  // Held in state so the picked face updates under the finger rather than after a
+  // round trip -- choosing it and seeing it should be one gesture.
+  const [avatarKey, setAvatarKey] = useState<AvatarKey>(
+    (profile.avatarKey as AvatarKey | null) ?? AVATAR_KEYS[0],
+  );
 
   const [confirmDelete, setConfirmDelete] = useState("");
 
@@ -187,11 +180,10 @@ export function ProfileScreen({
           variants={motionSafe(rise, reduceMotion)}
           className="flex items-center gap-4 py-2"
         >
-          <PokerChip
-            color={body}
-            edgeColor={edge || deriveEdgeColor(body)}
-            spots={spots}
-            label={initials}
+          <ChipAvatar
+            avatarKey={avatarKey}
+            personId={profile.id}
+            name={profile.name}
             className="size-20 shrink-0"
           />
           <div className="min-w-0">
@@ -274,90 +266,43 @@ export function ProfileScreen({
         <motion.div variants={motionSafe(rise, reduceMotion)}>
           <form action={saveChip}>
             <Section
-              title="הז׳יטון שלך"
+              title="הדמות שלך"
               description="זה מה שרואים לידך בשולחן ובהיסטוריה."
             >
-              <input type="hidden" name="chipBody" value={body} />
-              <input type="hidden" name="chipEdge" value={edge} />
-              <input type="hidden" name="chipSpots" value={spots} />
-
-              <Field label="צבע">
-                <div
-                  role="radiogroup"
-                  aria-label="צבע הז׳יטון"
-                  className="grid grid-cols-6 gap-2"
-                >
-                  {CHIP_PRESETS.map((preset) => {
-                    const selected = body.toLowerCase() === preset.body.toLowerCase();
-                    return (
-                      <button
-                        key={preset.body}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        aria-label={preset.name}
-                        onClick={() => {
-                          setBody(preset.body);
-                          setEdge(preset.edge);
-                        }}
-                        className={cn(
-                          "grid size-11 place-items-center rounded-full transition-transform",
-                          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                          selected ? "scale-100" : "scale-90 opacity-70",
-                        )}
-                      >
-                        <PokerChip
-                          color={preset.body}
-                          edgeColor={preset.edge}
-                          spots={spots}
-                          className="size-11"
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-
-              <Field label="נקודות בשוליים">
-                <div className="flex items-center gap-2">
-                  {Array.from(
-                    { length: MAX_SPOTS - MIN_SPOTS + 1 },
-                    (_, index) => MIN_SPOTS + index,
-                  ).map((count) => (
+              <input type="hidden" name="avatarKey" value={avatarKey} />
+              <div
+                role="radiogroup"
+                aria-label="בחירת דמות"
+                className="grid grid-cols-6 gap-2"
+              >
+                {AVATAR_KEYS.map((key) => {
+                  const selected = key === avatarKey;
+                  return (
                     <button
-                      key={count}
+                      key={key}
                       type="button"
-                      aria-pressed={spots === count}
-                      onClick={() => setSpots(count)}
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={key}
+                      onClick={() => setAvatarKey(key)}
                       className={cn(
-                        "money h-11 flex-1 rounded-full text-sm transition-colors",
+                        "rounded-full transition-[transform,opacity]",
                         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                        spots === count
-                          ? "bg-light text-light-ink"
-                          : "bg-ink-700 text-[var(--text-1)]",
+                        selected ? "scale-100" : "scale-90 opacity-55",
                       )}
                     >
-                      {count}
+                      <ChipAvatar
+                        avatarKey={key}
+                        personId={profile.id}
+                        name={profile.name}
+                        className="size-11"
+                      />
                     </button>
-                  ))}
-                </div>
-              </Field>
-
-              <Field
-                label="ראשי תיבות"
-                hint="עד שני תווים, מוטבעים במרכז. זה מה שמפריד ביניכם אם בחרתם אותו צבע."
-              >
-                <Input
-                  name="chipInitials"
-                  value={initials}
-                  onChange={(event) => setInitials(event.target.value.slice(0, 2))}
-                  maxLength={2}
-                  className="w-24 text-center"
-                />
-              </Field>
-
+                  );
+                })}
+              </div>
               <Button type="submit" disabled={savingChip} className="w-full">
-                שמירת הז׳יטון
+                שמירת הדמות
               </Button>
             </Section>
           </form>

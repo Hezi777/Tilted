@@ -8,7 +8,6 @@ import {
   updateProfile,
 } from "@/db/identity-queries";
 import { AVATAR_KEYS } from "@/lib/avatar";
-import { MAX_SPOTS, MIN_SPOTS } from "@/lib/chip-art";
 import { auth } from "@/lib/auth/server";
 import { getViewer } from "@/lib/auth/session";
 
@@ -16,8 +15,6 @@ export interface ProfileActionState {
   error: string | null;
   saved: boolean;
 }
-
-const HEX = /^#[0-9a-fA-F]{6}$/;
 
 const identityInput = z.object({
   name: z.string().trim().min(1, "צריך שם").max(100),
@@ -32,19 +29,14 @@ const identityInput = z.object({
 });
 
 /**
- * The chip a person is at every table.
+ * The character a person is at every table.
  *
- * The database carries the same CHECKs, which is deliberate: this validation exists to
- * give a Hebrew error, and the constraints exist so no path that skips this function can
- * write a colour the renderer cannot parse.
+ * One of the twelve committed avatars and nothing else -- anything unrecognised is
+ * discarded rather than stored, so the avatar path can never be asked for a file that
+ * is not there.
  */
-const chipInput = z.object({
-  chipBody: z.string().trim().regex(HEX, "צבע לא תקין"),
-  chipEdge: z.string().trim().regex(HEX, "צבע לא תקין").optional(),
-  chipSpots: z.coerce.number().int().min(MIN_SPOTS).max(MAX_SPOTS),
-  // Two characters at most, because that is what fits the pressed inlay legibly.
-  chipInitials: z.string().trim().max(2).optional(),
-  avatarKey: z.enum(AVATAR_KEYS).optional(),
+const avatarInput = z.object({
+  avatarKey: z.enum(AVATAR_KEYS),
 });
 
 const preferencesInput = z.object({
@@ -95,24 +87,10 @@ export async function saveChipAction(
   const viewer = await getViewer();
   if (!viewer) return { error: "צריך להתחבר כדי להמשיך", saved: false };
 
-  const parsed = chipInput.safeParse({
-    chipBody: formData.get("chipBody"),
-    chipEdge: formData.get("chipEdge") ?? undefined,
-    chipSpots: formData.get("chipSpots"),
-    chipInitials: formData.get("chipInitials") ?? undefined,
-    avatarKey: formData.get("avatarKey") ?? undefined,
-  });
-  if (!parsed.success) return { error: firstError(parsed.error), saved: false };
+  const parsed = avatarInput.safeParse({ avatarKey: formData.get("avatarKey") });
+  if (!parsed.success) return { error: "דמות לא מוכרת", saved: false };
 
-  await updateProfile(viewer.userId, {
-    chipBody: parsed.data.chipBody,
-    // Null means "derive from the body", which is what deriveEdgeColor() does — so an
-    // empty field is a real choice here, not a missing value.
-    chipEdge: parsed.data.chipEdge || null,
-    chipSpots: parsed.data.chipSpots,
-    chipInitials: parsed.data.chipInitials || null,
-    avatarKey: parsed.data.avatarKey ?? null,
-  });
+  await updateProfile(viewer.userId, { avatarKey: parsed.data.avatarKey });
   revalidatePath("/profile");
   return { error: null, saved: true };
 }
