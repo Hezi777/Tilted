@@ -189,3 +189,84 @@ at any size from the maths in `src/lib/chip-art.ts`, including a denomination in
 clear 4.5:1 — a raster can only ever be the colours somebody pre-generated, and this app lets a
 host describe their own physical tray. Cards are not rendered anywhere; this is a ledger, not a
 game client.
+
+---
+
+# 3. App icon and wordmark
+
+## The idea
+
+A clock tower, leaning. It carries both meanings of the app's name at once — the landmark the
+name nods to, and what "on tilt" means at a poker table — and the lean is what makes it a mark
+rather than a picture of a building.
+
+**The clock face is a poker chip.** Same edge spots as `PokerChip` draws, with the hands
+reading across it. That is the single detail tying the tower to the product; without it this is
+a clock tower for any app.
+
+Two clock hands, positioned to read as roughly **two o'clock** — the hour the settlement
+actually happens, and an angle that leans the same way the tower does instead of fighting it.
+
+*Note: this is an original mark. It is not a reproduction of any existing game's building —
+only the general idea of a leaning clock tower, which no one owns.*
+
+## Prompt — app icon
+
+```
+Flat 2D vector app icon. A simple clock tower seen straight on, leaning about eight
+degrees to the right, built from three stacked rectangular blocks that narrow towards the
+top, capped by a plain pitched roof — no ornament, no windows, no brickwork, no texture.
+
+Set into the widest block is a large circular clock face rendered as a poker chip: a solid
+disc with six evenly spaced rectangular notches cut into its rim, a plain inner ring, and
+two straight hands with no numerals, pointing to roughly two o'clock.
+
+Pure flat colour, hard edges, no gradients, no shading, no highlights, no outlines, no
+perspective, no depth. Bold enough to read as a solid silhouette at sixteen pixels.
+Centred, with generous even margin on all four sides.
+
+Colours: a single warm off-white #F5F6F7 shape on a solid deep charcoal #0B0B0F square.
+The clock face's disc is charcoal, its rim notches and hands off-white.
+```
+
+## Negative prompt
+
+```
+3D, isometric, perspective, depth, shading, gradient, glossy, bevel, drop shadow, inner
+shadow, outline, stroke, texture, brickwork, stonework, roof tiles, windows, arches,
+numerals, roman numerals, text, letters, words, watermark, signature, realistic,
+photograph, render, sky, clouds, ground, landscape, city, buildings, people, playing
+cards, multiple towers, ornate, detailed, filigree, gold, neon, glow
+```
+
+## Output spec
+
+- **1024 × 1024 PNG.**
+- Two crops from the same artwork:
+  - `icon.png` — the tower at about 76% of the frame.
+  - `icon-maskable.png` — the tower at about **56%** of the frame, so nothing is lost when
+    a launcher clips it to a circle or a squircle. Android will cut roughly 20% off every
+    edge, and the current icon does not survive that.
+- Also export `logo.svg` if the generator can, or I trace the PNG once — the mark is simple
+  enough that a vector is worth having for the masthead, where it scales with type.
+- Replaces `icon-premium.png`, which is 1.4 MB for an icon.
+
+## The wordmark
+
+The masthead is currently type only. With this mark it becomes a lockup: the tower to the
+start of the word, at cap height, leaning into it.
+
+```
+TILTED
+POKER
+```
+
+Set in Rubik, the app's only family — 800 for `TILTED`, and `POKER` in the same size and
+weight at `--text-2`, so the second line recedes the way it already does on the home screen.
+Tracking at `-0.03em`. No separate display face: a wordmark that needs a font the rest of the
+app never loads is a wordmark that never matches the app.
+
+## Where it lands
+
+`src/app/manifest.ts` (both icon entries), the README logo, and the home masthead in
+`src/app/page.tsx`.
