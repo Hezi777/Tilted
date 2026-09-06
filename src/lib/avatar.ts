@@ -99,11 +99,15 @@ export function isReservedAvatarKey(value: string): value is ReservedAvatarKey {
  *
  * Hebrew is what they will actually type; the transliterations are here so that someone
  * signing up on an English keyboard still gets their own face.
+ *
+ * The six Hebrew spellings are the ones these six people actually write, confirmed by
+ * name. Do not add a near-miss spelling "just in case": a claim is first come, first
+ * served, so an extra spelling is a way for a stranger who happens to be called that to
+ * walk off with someone's face. ענר was carrying אנר -- ayin misspelled as alef -- which
+ * is both a real word and the reason he signed up under his own name and got nothing.
  */
 const CLAIMS: ReadonlyArray<readonly [ReservedAvatarKey, readonly string[]]> = [
-  // ענר is spelled with an ayin. It was written here with an alef, so the one person
-  // this character belongs to signed up under his own name and did not get it.
-  ["aner", ["ענר", "אנר", "aner"]],
+  ["aner", ["ענר", "aner"]],
   ["nir", ["ניר", "nir"]],
   ["ido", ["עידו", "ido"]],
   ["hen", ["חן", "hen"]],

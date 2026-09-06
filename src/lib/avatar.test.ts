@@ -16,8 +16,9 @@ describe("reservedAvatarForName", () => {
   it("claims a character from the Hebrew spelling the regulars will actually type", () => {
     expect(reservedAvatarForName("חן")).toBe("hen");
     expect(reservedAvatarForName("עידו")).toBe("ido");
-    // Ayin, not alef -- the spelling he actually types.
     expect(reservedAvatarForName("ענר")).toBe("aner");
+    expect(reservedAvatarForName("ניר")).toBe("nir");
+    expect(reservedAvatarForName("מתן")).toBe("matan");
     expect(reservedAvatarForName("איתי")).toBe("itay");
   });
 
@@ -29,7 +30,7 @@ describe("reservedAvatarForName", () => {
 
   it("ignores a surname, because signing up with one must not cost you your face", () => {
     expect(reservedAvatarForName("חן זריהן")).toBe("hen");
-    expect(reservedAvatarForName("  אנר   כהן ")).toBe("aner");
+    expect(reservedAvatarForName("  ענר   כהן ")).toBe("aner");
   });
 
   it("ignores niqqud and a geresh", () => {
