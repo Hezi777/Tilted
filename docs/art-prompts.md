@@ -18,40 +18,44 @@ six leave — because six friends who all have dark hair and a beard are not tel
 
 ## What a chip-creature is
 
-The chip **is** the head. Not a face on a disc, and not a head behind a disc — the face,
-hair and beard are all **moulded into the chip's own surface**, the way a portrait is struck
-into a coin. The chip's pressed inner circle is the face; the hair is a raised shape sitting
-inside the disc's outline, cut off by the rim exactly as a coin's relief is.
+**A chip with a face, not a face wearing a chip.** The disc is the head. Its pressed inner
+circle is where the features live: skin, hair and beard as full-colour clay shapes sitting
+inside that circle, flush with the chip's surface.
 
-**The single hardest constraint: nothing may cross the rim.** The app renders every avatar
-inside a circular mask, so hair rising above the disc, ears poking past its edge, or arms at
-its sides are not stylistic choices — they are pixels that get sliced off. If the artwork
-does not fit inside its own circle, it is wrong.
+Two things have to be true at once, and the first generation got one of them:
 
-**This must not read as a denomination chip.** The app draws real chips everywhere — the
-buy-in row, the counter, the chip-set cards — and those are flat, face-on, numbered and have
-no face. A creature has a face and hair and never carries a number. Keep those apart or the
-seat ring and the buy-in row start looking like the same object.
+- **Colour is what makes it readable.** Skin tone, hair and beard are distinct colours
+  against the chip body — not same-material embossing. A monochrome relief goes to mush at
+  44px, which is the size this mostly ships at.
+- **Nothing crosses the rim.** The app renders every avatar inside a circular mask, so hair
+  rising above the disc, ears past its edge, or arms at its sides are not stylistic choices —
+  they are pixels that get sliced off. The chip's outline is the frame. Hair fills the top of
+  the inner circle and stops there.
+
+**It must not read as a denomination chip.** The app draws real chips everywhere — the buy-in
+row, the counter, the chip-set cards — and those are flat, face-on, numbered and faceless. A
+creature has a face and hair and never carries a number.
 
 ## Shared style block
 
 Prepend to every character prompt, unchanged.
 
 ```
-A single stylised 3D poker chip seen face on, with a character's face moulded into it
-like a portrait struck into a coin.
+A single stylised 3D poker chip seen face on, with a cartoon character's face set into
+its pressed inner circle.
 
 The chip is a thick rounded disc of soft matte clay with six evenly spaced rectangular
-edge spots around its rim in a contrasting cream, and a pressed circular inner face. The
-character's features rise gently out of that inner face in shallow relief: two simple
-rounded eyes, a small nose, a calm closed mouth. Hair is a raised clay shape filling the
-upper part of the inner face, and facial hair is one solid raised shape, never individual
-strands.
+edge spots around its rim in a contrasting cream. Inside its pressed inner circle sits a
+rounded face in full colour: skin in its own warm tone, two simple black eyes, a small
+nose, a calm closed mouth. The hair is a separate solid shape in its own colour, filling
+the top of the inner circle, and facial hair is one solid shape in the same hair colour,
+never individual strands. Everything is soft rounded clay with gentle depth, clearly
+coloured rather than embossed in one material.
 
 CRITICAL: the entire image is contained within the circular outline of the chip. The hair
-is cropped by the chip's rim and does not rise above it. No ears, no arms, no shoulders,
-no neck, no accessories extend past the disc's edge. The chip's circle is the outer
-boundary of everything.
+fills the top of the inner circle and stops at the rim — it never rises above the disc. No
+ears, no arms, no shoulders, no neck, no accessories extend past the disc's edge. The
+chip's circle is the outer boundary of everything in the image.
 
 Material: soft matte clay-plastic, gentle subsurface warmth, no gloss, no sculpted detail
 finer than a fingertip. Lighting: broad soft key from the upper left, deep ambient fill,
@@ -65,7 +69,8 @@ transparent background — no backdrop, no ground, no cast shadow.
 ## Negative prompt
 
 ```
-hair above the chip, hair outside the circle, head on top of chip, head behind chip,
+hair above the chip, hair outside the circle, monochrome relief, embossed face, single
+colour face, coin relief, flat engraving, head on top of chip, head behind chip,
 separate head, floating head, ears outside the rim, protruding ears, arms, hands,
 shoulders, neck, body, torso, anything crossing the rim, elements outside the circle,
 numbers, denominations, text, letters, digits, logos, watermark, signature, playing
@@ -103,11 +108,11 @@ Full prompt for one, as the pattern:
 ```
 <shared style block>
 
-The chip body is coral #F2795B with cream edge spots. Moulded into its pressed inner
-face is a young man with warm olive skin, a thin black moustache and a small pointed chin
-beard. His tightly curled black hair is a raised clay shape filling the top of the inner
-face, wide and textured, and it is cut off cleanly by the chip's rim rather than rising
-above it. A single small silver stud sits flat against the face beside one temple. Calm,
+The chip body is coral #F2795B with cream edge spots. Set into its pressed inner circle is a
+young man's face in warm olive skin, with a thin black moustache and a small pointed chin
+beard. His tightly curled black hair is a solid black clay shape filling the top of the
+inner circle, wide and textured, stopping cleanly at the rim rather than rising above the
+disc. A single small silver stud sits flat against the face beside one temple. Calm,
 level expression. Everything stays inside the chip's circle.
 ```
 
