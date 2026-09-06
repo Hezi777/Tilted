@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import {
-  AVATAR_KEYS,
+  DEFAULT_AVATAR_KEY,
   avatarKeyForPerson,
   avatarSrc,
   isAvatarKey,
@@ -14,7 +14,7 @@ export function deterministicChipKey(
   personId: string | null | undefined,
 ): string {
   if (isAvatarKey(value)) return value;
-  return personId ? avatarKeyForPerson(personId) : AVATAR_KEYS[0];
+  return personId ? avatarKeyForPerson(personId) : DEFAULT_AVATAR_KEY;
 }
 
 export function ChipAvatar({

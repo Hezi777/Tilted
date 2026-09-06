@@ -58,6 +58,15 @@ export const LEGACY_AVATAR_KEYS = [
   "legacy-12",
 ] as const;
 
+/**
+ * The face to show when nothing else is known.
+ *
+ * Explicitly an open character. `AVATAR_KEYS[0]` reads like a harmless default and is
+ * "aner" -- a reserved character -- so anything falling back to it handed one person's
+ * face to everybody.
+ */
+export const DEFAULT_AVATAR_KEY = "legacy-01" as const;
+
 /** Everything a stranger may choose from. */
 export const SELECTABLE_AVATAR_KEYS = [
   ...OPEN_AVATAR_KEYS,

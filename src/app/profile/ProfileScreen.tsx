@@ -2,17 +2,32 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CheckIcon, LogOutIcon, TrendingDownIcon, TrendingUpIcon } from "lucide-react";
+import {
+  CheckIcon,
+  LogOutIcon,
+  PencilIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Money } from "@/components/Money";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import {
-  AVATAR_KEYS,
+  avatarKeyForPerson,
+  isAvatarKey,
   selectableAvatarKeys,
   type AvatarKey,
 } from "@/lib/avatar";
@@ -162,9 +177,27 @@ export function ProfileScreen({
 
   // Held in state so the picked face updates under the finger rather than after a
   // round trip -- choosing it and seeing it should be one gesture.
-  const [avatarKey, setAvatarKey] = useState<AvatarKey>(
-    (profile.avatarKey as AvatarKey | null) ?? AVATAR_KEYS[0],
-  );
+  // The same derivation every other screen uses. Defaulting to AVATAR_KEYS[0] here made
+  // the profile disagree with the header and with home for anyone who had never picked.
+  const [avatarOpen, setAvatarOpen] = useState(false);
+
+  // Derived, not stored. Saving revalidates the layout, so the new character arrives as a
+  // prop -- mirroring it into state would just be a second copy to keep in sync.
+  const savedKey: AvatarKey = isAvatarKey(profile.avatarKey)
+    ? profile.avatarKey
+    : avatarKeyForPerson(profile.id);
+
+  // The draft is real state: it is what the sheet shows while you are still deciding, and
+  // cancelling has to leave the header on the saved character.
+  const [draftKey, setDraftKey] = useState<AvatarKey>(savedKey);
+
+  // Close the sheet once the server confirms, comparing against the last result during
+  // render rather than syncing in an effect, which cascades a second render.
+  const [lastChipResult, setLastChipResult] = useState(chipState);
+  if (chipState !== lastChipResult) {
+    setLastChipResult(chipState);
+    if (chipState.saved) setAvatarOpen(false);
+  }
 
   const [confirmDelete, setConfirmDelete] = useState("");
 
@@ -178,18 +211,32 @@ export function ProfileScreen({
         animate="show"
         className="flex flex-col gap-4 px-5 pb-[calc(6rem+env(safe-area-inset-bottom))]"
       >
-        {/* Who you are at the table. The chip is the only saturated thing on the
-            screen, which is why it leads. */}
+        {/* Who you are at the table. The character is the only saturated thing on the
+            screen, which is why it leads -- and the pencil sits on it, because that is
+            where anyone looks to change a picture. */}
         <motion.div
           variants={motionSafe(rise, reduceMotion)}
           className="flex items-center gap-4 py-2"
         >
-          <ChipAvatar
-            avatarKey={avatarKey}
-            personId={profile.id}
-            name={profile.name}
-            className="size-20 shrink-0"
-          />
+          <button
+            type="button"
+            onClick={() => setAvatarOpen(true)}
+            aria-label="החלפת הדמות"
+            className="group relative shrink-0 rounded-full transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
+          >
+            <ChipAvatar
+              avatarKey={savedKey}
+              personId={profile.id}
+              name={profile.name}
+              className="size-20"
+            />
+            <span
+              aria-hidden
+              className="absolute -bottom-1 -end-1 grid size-8 place-items-center rounded-full bg-light text-light-ink shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)]"
+            >
+              <PencilIcon className="size-4" strokeWidth={2} />
+            </span>
+          </button>
           <div className="min-w-0">
             <p className="t-display-l truncate">{profile.name}</p>
             <p className="t-caption truncate text-[var(--text-2)]" dir="ltr">
@@ -267,20 +314,23 @@ export function ProfileScreen({
           </form>
         </motion.div>
 
-        <motion.div variants={motionSafe(rise, reduceMotion)}>
-          <form action={saveChip}>
-            <Section
-              title="הדמות שלך"
-              description="זה מה שרואים לידך בשולחן ובהיסטוריה."
-            >
-              <input type="hidden" name="avatarKey" value={avatarKey} />
+        <Dialog open={avatarOpen} onOpenChange={setAvatarOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>הדמות שלך</DialogTitle>
+              <DialogDescription>
+                זה מה שרואים לידך בשולחן ובהיסטוריה.
+              </DialogDescription>
+            </DialogHeader>
+            <form action={saveChip} className="flex flex-col gap-4">
+              <input type="hidden" name="avatarKey" value={draftKey} />
               <div
                 role="radiogroup"
                 aria-label="בחירת דמות"
-                className="grid grid-cols-6 gap-2"
+                className="grid max-h-[46vh] grid-cols-5 gap-2 overflow-y-auto"
               >
                 {selectableAvatarKeys(profile.avatarKey).map((key) => {
-                  const selected = key === avatarKey;
+                  const selected = key === draftKey;
                   return (
                     <button
                       key={key}
@@ -288,29 +338,43 @@ export function ProfileScreen({
                       role="radio"
                       aria-checked={selected}
                       aria-label={key}
-                      onClick={() => setAvatarKey(key)}
+                      onClick={() => setDraftKey(key)}
                       className={cn(
-                        "rounded-full transition-[transform,opacity]",
+                        "rounded-full p-1 transition-[transform,opacity]",
                         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                        selected ? "scale-100" : "scale-90 opacity-55",
+                        selected
+                          ? "scale-100 bg-ink-700 opacity-100"
+                          : "scale-95 opacity-55",
                       )}
                     >
                       <ChipAvatar
                         avatarKey={key}
                         personId={profile.id}
-                        name={profile.name}
-                        className="size-11"
+                        name={key}
+                        className="size-12"
                       />
                     </button>
                   );
                 })}
               </div>
-              <Button type="submit" disabled={savingChip} className="w-full">
-                שמירת הדמות
-              </Button>
-            </Section>
-          </form>
-        </motion.div>
+              <DialogFooter>
+                <Button type="submit" disabled={savingChip}>
+                  {savingChip ? "שומרים…" : "זאת הדמות"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setDraftKey(savedKey);
+                    setAvatarOpen(false);
+                  }}
+                >
+                  ביטול
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <motion.div variants={motionSafe(rise, reduceMotion)}>
           <form action={savePrefs}>

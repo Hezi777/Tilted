@@ -87,7 +87,23 @@ export async function ensurePersonForUser(
   name: string,
 ): Promise<PersonSummary> {
   const existing = await getPersonForUser(userId);
-  if (existing) return existing;
+  if (existing) {
+    // Rows created before characters were reserved have no avatar at all, and their owner
+    // would otherwise have to go and find themselves in a picker. Claim it on the next
+    // sign-in instead -- only when the slot is still empty and still free, so this can
+    // never take a character away from whoever already has one.
+    if (!existing.avatarKey) {
+      const claimed = await claimAvatarFor(existing.name);
+      if (claimed) {
+        await db
+          .update(people)
+          .set({ avatarKey: claimed })
+          .where(eq(people.id, existing.id));
+        return { ...existing, avatarKey: claimed };
+      }
+    }
+    return existing;
+  }
 
   const [created] = await db
     .insert(people)

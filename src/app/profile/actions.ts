@@ -77,7 +77,7 @@ export async function saveIdentityAction(
     nickname: parsed.data.nickname?.trim() || null,
     phone: parsed.data.phone?.trim() || null,
   });
-  revalidatePath("/profile");
+  revalidatePath("/", "layout");
   return { error: null, saved: true };
 }
 
@@ -99,7 +99,7 @@ export async function saveChipAction(
   }
 
   await updateProfile(viewer.userId, { avatarKey: next });
-  revalidatePath("/profile");
+  revalidatePath("/", "layout");
   return { error: null, saved: true };
 }
 
@@ -127,7 +127,7 @@ export async function savePreferencesAction(
     hapticsEnabled: parsed.data.hapticsEnabled,
     reduceMotion: parsed.data.reduceMotion,
   });
-  revalidatePath("/profile");
+  revalidatePath("/", "layout");
   return { error: null, saved: true };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AVATAR_KEYS,
+  DEFAULT_AVATAR_KEY,
   RESERVED_AVATAR_KEYS,
   SELECTABLE_AVATAR_KEYS,
   avatarSrc,
@@ -108,5 +109,21 @@ describe("the set itself", () => {
       const path = `public${avatarSrc(key)}`;
       await expect(access(path)).resolves.toBeUndefined();
     }
+  });
+});
+
+describe("the default character", () => {
+  it("is never a reserved one", () => {
+    // AVATAR_KEYS[0] is "aner". Anything falling back to it hands one person's face to
+    // everybody, which is exactly the bug this guards.
+    expect(isReservedAvatarKey(DEFAULT_AVATAR_KEY)).toBe(false);
+  });
+
+  it("is a real key with a real file", async () => {
+    const { access } = await import("node:fs/promises");
+    expect(AVATAR_KEYS).toContain(DEFAULT_AVATAR_KEY);
+    await expect(
+      access(`public${avatarSrc(DEFAULT_AVATAR_KEY)}`),
+    ).resolves.toBeUndefined();
   });
 });
