@@ -16,6 +16,8 @@ describe("reservedAvatarForName", () => {
   it("claims a character from the Hebrew spelling the regulars will actually type", () => {
     expect(reservedAvatarForName("חן")).toBe("hen");
     expect(reservedAvatarForName("עידו")).toBe("ido");
+    // Ayin, not alef -- the spelling he actually types.
+    expect(reservedAvatarForName("ענר")).toBe("aner");
     expect(reservedAvatarForName("איתי")).toBe("itay");
   });
 

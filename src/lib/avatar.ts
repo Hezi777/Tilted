@@ -101,7 +101,9 @@ export function isReservedAvatarKey(value: string): value is ReservedAvatarKey {
  * signing up on an English keyboard still gets their own face.
  */
 const CLAIMS: ReadonlyArray<readonly [ReservedAvatarKey, readonly string[]]> = [
-  ["aner", ["אנר", "aner"]],
+  // ענר is spelled with an ayin. It was written here with an alef, so the one person
+  // this character belongs to signed up under his own name and did not get it.
+  ["aner", ["ענר", "אנר", "aner"]],
   ["nir", ["ניר", "nir"]],
   ["ido", ["עידו", "ido"]],
   ["hen", ["חן", "hen"]],
