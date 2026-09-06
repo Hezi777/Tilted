@@ -232,7 +232,7 @@ Optional later: if regenerating by hand becomes annoying, add a `scripts/generat
 
 ### 8.3 Writing the prompts
 
-Do not reuse generic prompt phrasing from memory. Look up current prompting guidance for the image model being used (GPT Image 2) first - subject, style, composition, background and negative constraints are handled differently across model generations, and the phrasing that worked a year ago produces mush now. Then write one prompt per asset and keep them in `public/art/manifest.json` alongside the filename they produced, so a single asset can be regenerated later without guesswork.
+Do not reuse generic prompt phrasing from memory. Look up current prompting guidance for the image model being used (GPT Image 2) first - subject, style, composition, background and negative constraints are handled differently across model generations, and the phrasing that worked a year ago produces mush now. Then write one prompt per asset and keep them in `docs/art-prompts.md` alongside the filename they produce, so a single asset can be regenerated later without guesswork.
 
 Constraints the prompts must enforce, whatever their final wording:
 
@@ -245,7 +245,7 @@ Constraints the prompts must enforce, whatever their final wording:
 - Deterministic filenames: `public/art/chip-01.png` ... `chip-12.png`, plus `winner.png`, `broke.png`, `empty.png`, `rebuy-burst.png`, `pot-stack.png`, `counting.png`, and `icon.png`.
 - Request transparent background where the API supports it; otherwise post-process.
 - Downscale to 512x512 and run through an optimizer - these ship to phones.
-- Store the exact prompt used for each file in `public/art/manifest.json` so regenerating a single asset later is trivial.
+- Store the exact prompt used for each file in `docs/art-prompts.md` so regenerating a single asset later is trivial.
 - Do not generate anything resembling real casino brands, real people, or trademarked card designs.
 
 ---
