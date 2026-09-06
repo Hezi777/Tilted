@@ -13,11 +13,11 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { ensurePersonForUser } from "@/db/identity-queries";
-import type { ApiErrorBody, PersonSummary } from "@/lib/api";
+import type { ApiErrorBody, ViewerPerson } from "@/lib/api";
 
 export interface Viewer {
   userId: string;
-  person: PersonSummary;
+  person: ViewerPerson;
 }
 
 /**

@@ -100,7 +100,7 @@ export default function Home() {
             <Link
               href="/profile"
               aria-label={`הפרופיל של ${viewer.name}`}
-              className="shrink-0 rounded-full transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
+              className="shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
             >
               <ChipAvatar
                 avatarKey={viewer.avatarKey}
@@ -191,7 +191,7 @@ export default function Home() {
             <ul className="row-list">
               {closedGames.slice(0, 3).map((game) => (
                 <li key={game.id}>
-                  <Link href={`/history/${game.id}`} className="surface-card flex min-h-18 items-center justify-between gap-3 rounded-[18px] px-4 py-3 transition-colors hover:bg-ink-700">
+                  <Link href={`/history/${game.id}`} className="surface-card flex min-h-18 items-center justify-between gap-3 rounded-[18px] px-4 py-3 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-ink-700">
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{game.name ?? "משחק"}</span>
                       <span className="t-caption ink-3 mt-1 flex items-center gap-3">

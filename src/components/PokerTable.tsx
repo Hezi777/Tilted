@@ -1,7 +1,7 @@
 "use client";
 
 import { CrownIcon } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { AnimatedMoney, Money } from "@/components/Money";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,7 +9,34 @@ import { StreakBadge } from "@/components/StreakBadge";
 import type { LivePlayer } from "@/db/live-queries";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { agorot, formatILS } from "@/lib/money";
+import { DUR, EASE_OUT, SPRING, STAGGER } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+
+/**
+ * The table and its seats share one variant tree so the arrival stagger lives on the
+ * parent. It used to be a `delay: index * 0.035` on each seat's own `transition`,
+ * which framer also applied to every *later* animation on that element -- the press
+ * scale and the selection scale -- so the ninth chair took 280ms to acknowledge a tap.
+ */
+const tableVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.975 },
+  show: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: DUR.enter, ease: EASE_OUT, staggerChildren: STAGGER, delayChildren: 0.02 },
+  },
+};
+
+/** `custom` carries the live state, so a seat settling or being selected re-runs
+ *  `show` on the spring alone -- never on the arrival stagger. */
+const seatVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.88 },
+  show: ({ settled, selected }: { settled: boolean; selected: boolean }) => ({
+    opacity: settled ? 0.55 : 1,
+    scale: selected ? 1.05 : 1,
+    transition: SPRING,
+  }),
+};
 
 const SEAT_TIERS = [
   { max: 3, rx: 32, ry: 32, seatWidthClass: "w-20", avatarClass: "size-12" },
@@ -95,9 +122,9 @@ export function PokerTable({
 
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, scale: 0.975 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+      variants={tableVariants}
+      initial={reduceMotion ? false : "hidden"}
+      animate="show"
       className={cn(
         "relative mx-auto aspect-[5/8] w-full max-w-[350px]",
         count <= 3 && "max-w-[320px]",
@@ -119,16 +146,16 @@ export function PokerTable({
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
         <div className="relative flex flex-col items-center text-center before:absolute before:inset-[-30px] before:-z-10 before:rounded-full before:bg-[radial-gradient(circle,rgb(123_92_255/0.22),transparent_68%)]">
           <div aria-hidden="true" className="relative h-12 w-16 drop-shadow-[0_9px_10px_rgb(0_0_0/0.7)]">
-            <span className="absolute inset-x-2 bottom-1 h-5 rounded-[50%] border-[5px] border-ink-0 bg-felt-highlight" />
-            <span className="absolute inset-x-1 bottom-3 h-5 rounded-[50%] border-[5px] border-ink-0 bg-brand-500" />
-            <span className="absolute inset-x-2 bottom-5 h-5 rounded-[50%] border-[5px] border-ink-0 bg-surface-4" />
+            <span className="absolute inset-x-2 bottom-1 h-5 rounded-[50%] border-[5px] border-light bg-felt-highlight" />
+            <span className="absolute inset-x-1 bottom-3 h-5 rounded-[50%] border-[5px] border-light bg-brand-500" />
+            <span className="absolute inset-x-2 bottom-5 h-5 rounded-[50%] border-[5px] border-light bg-surface-4" />
           </div>
           <span className="section-label mt-1 block text-felt-foreground-muted">הקופה על השולחן</span>
           <AnimatedMoney value={pot} className="money-display block text-felt-foreground drop-shadow-[0_2px_8px_rgb(6_37_27/0.85)]" />
         </div>
       </div>
 
-      {placed.map(({ player, slot }, index) => {
+      {placed.map(({ player, slot }) => {
         const selected = selectedPlayerId === player.id;
         const streak = streaks?.[player.id];
 
@@ -143,10 +170,13 @@ export function PokerTable({
               onClick={onSeatSelect ? () => onSeatSelect(player) : undefined}
               aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}${player.isYou ? ", המקום שלך" : ""}`}
               aria-pressed={onSeatSelect ? selected : undefined}
-              initial={reduceMotion ? false : { opacity: 0, scale: 0.88 }}
-              animate={{ opacity: player.isSettled ? 0.55 : 1, scale: selected ? 1.05 : 1 }}
-              whileTap={onSeatSelect && !reduceMotion ? { scale: 0.94 } : undefined}
-              transition={{ type: "spring", duration: 0.42, bounce: 0.16, delay: reduceMotion ? 0 : index * 0.035 }}
+              variants={seatVariants}
+              custom={{ settled: player.isSettled, selected }}
+              whileTap={
+                onSeatSelect && !reduceMotion
+                  ? { scale: 0.94, transition: { duration: DUR.micro, ease: EASE_OUT } }
+                  : undefined
+              }
               className={cn(
                 "flex flex-col items-center gap-0.5 rounded-[14px] p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-brand-300",
                 tier.seatWidthClass,

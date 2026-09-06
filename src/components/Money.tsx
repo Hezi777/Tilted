@@ -3,6 +3,7 @@
 import { animate, useMotionValue, useMotionValueEvent, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { agorot, formatILS, formatSignedILS } from "@/lib/money";
+import { DUR, EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 function moneyText(value: number, signed: boolean): string {
@@ -53,9 +54,9 @@ export function AnimatedMoney({
       return;
     }
     const controls = animate(motionValue, value, {
-      duration: 0.6,
+      duration: DUR.count,
       delay,
-      ease: [0.2, 0.8, 0.2, 1],
+      ease: EASE_OUT,
     });
     return () => controls.stop();
   }, [delay, from, motionValue, reduceMotion, value]);

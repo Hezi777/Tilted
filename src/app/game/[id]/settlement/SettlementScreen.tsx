@@ -27,11 +27,12 @@ import type { SettlementPlayer, SettlementState } from "@/db/settlement-queries"
 import type { TransferRecord } from "@/db/transfer-queries";
 import { apiFetch, ApiError } from "@/lib/api";
 import { normalizeIsraeliPhone } from "@/lib/bit";
+import { haptic } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type SequenceStage = "pending" | "playing" | "complete";
 
-const CHIP_COLORS = ["bg-brand-500", "bg-felt-highlight", "bg-ink-0", "bg-clay-600"];
+const CHIP_COLORS = ["bg-brand-500", "bg-felt-highlight", "bg-light", "bg-ink-700"];
 const CHIP_PATHS = [
   { x: -136, y: -70, rotate: -140 },
   { x: 138, y: -80, rotate: 170 },
@@ -213,7 +214,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   useEffect(() => {
     if (stage !== "playing" || reduceMotion) return;
     const celebration = window.setTimeout(() => {
-      navigator.vibrate?.(10);
+      haptic(10);
       const chip = confetti.shapeFromPath("M50 0A50 50 0 1 0 50 100A50 50 0 1 0 50 0Z");
       const base: confetti.Options = {
         particleCount: 35,
@@ -223,12 +224,13 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
         ticks: 220,
         startVelocity: 42,
         decay: 0.91,
-        // Real chips off the tray: cream, casino green, cardinal, clay.
+        // Real chips off the tray, in the palette the app actually ships: cream,
+        // felt green, money rose, and the violet the table sits under.
         colors: [
-          readToken("--ink-0", "#f7f3ea"),
-          readToken("--green-500", "#14713d"),
-          readToken("--red-500", "#c1121f"),
-          readToken("--clay-600", "#2e2521"),
+          readToken("--text-0", "#f5f6f7"),
+          readToken("--green-500", "#1fb97a"),
+          readToken("--red-400", "#ff4d6a"),
+          readToken("--violet-500", "#7b5cff"),
         ],
         shapes: [chip],
         disableForReducedMotion: true,
@@ -342,7 +344,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: staged ? 1.2 : 0, duration: staged ? 0.36 : 0.1, type: staged ? "spring" : "tween", bounce: 0.22 }}
               >
-                <Card className="accent-rim bg-[linear-gradient(145deg,var(--clay-600),var(--clay-800))]">
+                <Card className="accent-rim bg-[linear-gradient(145deg,var(--ink-700),var(--ink-900))]">
                   <CardContent className="flex items-center gap-4">
                     <div className="relative">
                       <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-20 ring-2 ring-brand-500/70" />

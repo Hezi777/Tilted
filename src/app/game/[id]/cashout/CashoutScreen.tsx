@@ -384,7 +384,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                   <div
                     key={player.id}
                     className={cn(
-                      "surface-card flex flex-col gap-3 rounded-3xl p-4 transition-opacity",
+                      "surface-card flex flex-col gap-3 rounded-3xl p-4 transition-opacity ease-[var(--ease-out)]",
                       isPending || isSaving ? "opacity-70" : "opacity-100",
                     )}
                     style={{ transitionDuration: `${DUR.base * 1000}ms` }}
@@ -433,7 +433,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
 
                     <div className="flex min-h-6 items-center justify-between">
                       <span className="t-caption ink-3">מאזן כרגע</span>
-                      <AnimatePresence mode="wait">
+                      <AnimatePresence>
                         {player.cashOut !== null && (
                           <motion.span
                             key={Math.sign(net)}
@@ -480,7 +480,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 // between "balanced" and "off" reads as a glitch at exactly the
                 // moment trust in the figure matters most. Colour only -- never
                 // move the digits themselves.
-                "surface-card rounded-3xl transition-colors",
+                "surface-card rounded-3xl transition-colors ease-[var(--ease-out)]",
               )}
               style={{ transitionDuration: `${DUR.base * 1000}ms` }}
               role="status"

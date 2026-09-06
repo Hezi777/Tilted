@@ -121,7 +121,7 @@ function ColorWell({
               aria-pressed={selected}
               onClick={() => onChange(swatch)}
               className={cn(
-                "size-8 shrink-0 rounded-full transition-transform active:scale-95 disabled:opacity-50",
+                "size-8 shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] active:scale-95 disabled:opacity-50",
                 selected && "shadow-[0_0_0_2px_var(--text-0)]",
               )}
               style={{ backgroundColor: swatch }}
@@ -294,7 +294,7 @@ export function ChipSetEditor({
                         })
                       }
                       className={cn(
-                        "grid size-11 place-items-center rounded-full transition-transform",
+                        "grid size-11 place-items-center rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)]",
                         "focus-visible:ring-3 focus-visible:ring-ring active:scale-95 disabled:opacity-50",
                         selected && "shadow-[0_0_0_2px_var(--text-0)]",
                       )}

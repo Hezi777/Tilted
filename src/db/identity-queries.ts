@@ -15,18 +15,20 @@ import { eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { people, players } from "@/db/schema";
 import { reservedAvatarForName } from "@/lib/avatar";
-import type { PersonSummary } from "@/lib/api";
+import type { PersonSummary, ViewerPerson } from "@/lib/api";
 
 /** The Person this user signs in as, or null before their first one is created. */
 export async function getPersonForUser(
   userId: string,
-): Promise<PersonSummary | null> {
+): Promise<ViewerPerson | null> {
   const [row] = await db
     .select({
       id: people.id,
       name: people.name,
       nickname: people.nickname,
       avatarKey: people.avatarKey,
+      hapticsEnabled: people.hapticsEnabled,
+      reduceMotion: people.reduceMotion,
     })
     .from(people)
     .where(eq(people.userId, userId))
@@ -85,7 +87,7 @@ async function claimAvatarFor(name: string): Promise<string | null> {
 export async function ensurePersonForUser(
   userId: string,
   name: string,
-): Promise<PersonSummary> {
+): Promise<ViewerPerson> {
   const existing = await getPersonForUser(userId);
   if (existing) {
     // Rows created before characters were reserved have no avatar at all, and their owner
@@ -114,6 +116,8 @@ export async function ensurePersonForUser(
       name: people.name,
       nickname: people.nickname,
       avatarKey: people.avatarKey,
+      hapticsEnabled: people.hapticsEnabled,
+      reduceMotion: people.reduceMotion,
     });
   if (created) return created;
 

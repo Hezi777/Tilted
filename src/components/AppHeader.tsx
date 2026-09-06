@@ -23,7 +23,7 @@ export function AppHeader({
         <Link
           href={backHref}
           aria-label={backLabel}
-          className="ink-2 hover:text-foreground -ms-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-[14px] px-2 text-sm font-medium transition-colors"
+          className="ink-2 hover:text-foreground -ms-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-[14px] px-2 text-sm font-medium transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]"
         >
           <ChevronLeftIcon aria-hidden="true" className="size-4 rtl:rotate-180" />
           {backLabel}

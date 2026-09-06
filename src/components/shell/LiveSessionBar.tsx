@@ -54,7 +54,7 @@ export function LiveSessionBar({ game }: { game: GameSummary | null }) {
   return (
     <Link
       href={`/game/${game.id}`}
-      className="group flex min-h-14 items-center gap-3 border-b border-brand-500/25 bg-brand-900/45 px-5 py-2 transition-colors duration-[var(--dur-base)] hover:bg-brand-900/60 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+      className="group flex min-h-14 items-center gap-3 border-b border-brand-500/25 bg-brand-900/45 px-5 py-2 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-brand-900/60 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
     >
       <span
         aria-hidden="true"

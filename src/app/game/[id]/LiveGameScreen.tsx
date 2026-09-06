@@ -7,7 +7,6 @@ import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon,
 import { toast } from "sonner";
 import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
-import { haptic } from "@/lib/motion";
 import { useLiveGame } from "@/hooks/useLiveGame";
 import type { LivePlayer } from "@/db/live-queries";
 import type { PlayerStreakMap } from "@/db/streak-queries";
@@ -80,7 +79,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     if (!customPlayer) return;
     try {
       const amount = shekelsToAgorot(Number(customAmount));
-      navigator.vibrate?.(8);
       addRebuy(customPlayer.id, amount);
       setCustomPlayer(null);
       setCustomAmount("");
@@ -315,13 +313,10 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <div className="flex shrink-0 gap-2 px-5">
           <RebuyButton
             amount={game.rebuyAmount}
-            onClick={() => {
-              // Committing money is one of the two moments in the app worth a
-              // buzz; navigation and ordinary controls stay silent so this one
-              // keeps meaning something.
-              haptic();
-              addRebuy(you.id, game.rebuyAmount);
-            }}
+            // `addRebuy` carries the haptic: committing money is one of the two
+            // moments in the app worth a buzz, and it belongs to the operation
+            // rather than to whichever control started it.
+            onClick={() => addRebuy(you.id, game.rebuyAmount)}
             className="h-14 flex-1"
           />
           <Button type="button" variant="secondary" size="lg" onClick={() => setCustomPlayer(you)} className="shrink-0">

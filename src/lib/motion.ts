@@ -43,12 +43,9 @@ export const SPRING: Transition = {
 
 export const EASE: Transition = { duration: DUR.enter, ease: EASE_OUT };
 
-/**
- * Press feedback. Lives on the Button primitive so no screen re-implements it,
- * and applies to the whole element rather than a wrapper, so a full-width button
- * does not visibly detach from its container as it scales.
- */
-export const press = { scale: 0.97 } as const;
+/* Press feedback is not defined here: it lives on the Button primitive as
+   `active:scale-[0.97]` in CSS, so no screen re-implements it and it applies to the
+   whole element rather than a wrapper. A Framer twin only invited them to drift. */
 
 /** A card, row, or section arriving. Paired with `stagger` on the parent. */
 export const rise: Variants = {
@@ -69,7 +66,11 @@ export const sheet: Variants = {
   exit: { opacity: 0, y: 8, scale: 0.99, transition: { duration: DUR.base, ease: EASE_OUT } },
 };
 
-/** A value that changed in place -- a pot after a rebuy, a net after a cash-out. */
+/**
+ * A value that changed in place -- a pot after a rebuy, a net after a cash-out.
+ * Currently unused: the counters that would carry it (a seat's own total, a chip
+ * count's running sum) still snap. It stays because it is the answer when they stop.
+ */
 export const bump: Variants = {
   idle: { scale: 1 },
   hit: { scale: [1, 1.06, 1], transition: { duration: DUR.base * 2, ease: EASE_OUT } },
@@ -97,13 +98,28 @@ export function motionSafe<T extends Variants>(variants: T, reduce: boolean | nu
 }
 
 /**
- * A short haptic, where the platform has one.
+ * Whether the signed-in Person wants haptics at all. Module state rather than a hook
+ * because `haptic()` is called from event handlers and effects, not from render, and
+ * the alternative was threading a preference through every button that commits money.
+ * `MotionPreferences` sets it once the viewer is known; the default is the same `true`
+ * the column defaults to, so a tap before hydration behaves as the account says.
+ */
+let hapticsEnabled = true;
+
+export function setHapticsEnabled(enabled: boolean): void {
+  hapticsEnabled = enabled;
+}
+
+/**
+ * A short haptic, where the platform has one and the Person has asked for one.
  *
  * Reserved for the two moments that commit money -- a rebuy and the settlement
  * crown. Navigation and ordinary controls stay silent, because a phone that
- * buzzes on every tap stops meaning anything.
+ * buzzes on every tap stops meaning anything. Call this rather than
+ * `navigator.vibrate` directly: the preference is only enforced here.
  */
 export function haptic(pattern: number | number[] = 12): void {
+  if (!hapticsEnabled) return;
   if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
   try {
     navigator.vibrate(pattern);

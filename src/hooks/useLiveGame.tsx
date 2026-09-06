@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api";
 import { agorot, sumAgorot } from "@/lib/money";
+import { haptic } from "@/lib/motion";
 import type { LiveFeedItem, LiveGame } from "@/db/live-queries";
 
 export interface PendingRebuy {
@@ -205,7 +206,10 @@ export function useLiveGame(gameId: string) {
         feed: [{ id: `pending:${opId}`, opId, playerId, playerName: player?.name ?? item.playerName, amount, kind: "rebuy" as const, createdAt: item.createdAt }, ...current.feed].slice(0, 12),
       };
     });
-    navigator.vibrate?.(20);
+    // The single buzz for a rebuy. Every path into one -- the button, the custom
+    // amount dialog, the host acting from a player card -- funnels through here, so
+    // this is the only place it belongs.
+    haptic();
     toast.success(`${player.name} הוסיף ריביי`, {
       duration: 5_000,
       // Section 8.2: the rebuy burst is the one place this asset appears.

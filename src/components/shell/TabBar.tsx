@@ -53,7 +53,7 @@ export function TabBar() {
             aria-current={active ? "page" : undefined}
             className={cn(
               // 48px is the stricter of the two platform floors, so it is the one to keep.
-              "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] py-1 transition-colors duration-[var(--dur-base)]",
+              "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] py-1 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]",
               "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               active ? "text-foreground" : "text-[var(--text-2)] hover:text-[var(--text-1)]",
             )}

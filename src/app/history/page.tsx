@@ -59,7 +59,7 @@ export default async function HistoryPage() {
               <li key={game.id}>
                 <Link
                   href={`/history/${game.id}`}
-                  className="flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-white/3"
+                  className="flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-white/3"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">

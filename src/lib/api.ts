@@ -56,6 +56,16 @@ export interface PersonSummary {
   avatarKey: string | null;
 }
 
+/**
+ * The signed-in Person, plus the two motion preferences the app has to honour before
+ * it moves or buzzes. They live here rather than on `PersonSummary` because a roster
+ * listing has no business knowing how someone likes their phone to behave.
+ */
+export interface ViewerPerson extends PersonSummary {
+  hapticsEnabled: boolean;
+  reduceMotion: boolean;
+}
+
 /** Public roster payload used by the code-based join screen. */
 export interface JoinRosterPlayer {
   id: string;

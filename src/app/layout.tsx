@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Rubik } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
+import { MotionPreferences } from "@/components/MotionPreferences";
 import { ViewerProvider } from "@/components/ViewerProvider";
 import { LiveSessionBar } from "@/components/shell/LiveSessionBar";
 import { TabBar } from "@/components/shell/TabBar";
@@ -71,18 +72,26 @@ export default async function RootLayout({
     : null;
 
   return (
+    // `data-reduce-motion` mirrors the account setting for the CSS animations Framer
+    // never sees -- the Radix enter/exit keyframes and the pulsing live dot.
     <html
       lang="he"
       dir="rtl"
       className={`${rubik.variable} dark h-full antialiased`}
+      {...(viewer?.person.reduceMotion ? { "data-reduce-motion": "true" } : {})}
     >
       <body className="text-foreground flex min-h-full flex-col items-center">
         <div className="app-shell flex w-full max-w-[450px] flex-1 flex-col">
           <DirectionProvider dir="rtl">
             <ViewerProvider viewer={viewer?.person ?? null}>
-              <LiveSessionBar game={activeGame} />
-              {children}
-              <TabBar />
+              <MotionPreferences
+                hapticsEnabled={viewer?.person.hapticsEnabled ?? true}
+                reduceMotion={viewer?.person.reduceMotion ?? false}
+              >
+                <LiveSessionBar game={activeGame} />
+                {children}
+                <TabBar />
+              </MotionPreferences>
             </ViewerProvider>
           </DirectionProvider>
         </div>

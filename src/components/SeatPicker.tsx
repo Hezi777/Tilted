@@ -74,7 +74,7 @@ export function SeatPicker({
                       : `מקום ${seat + 1}, פנוי`
                 }
                 className={cn(
-                  "absolute flex size-12 flex-col items-center justify-center gap-0.5 rounded-full border text-[10px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-brand-300",
+                  "absolute flex size-12 flex-col items-center justify-center gap-0.5 rounded-full border text-[10px] font-bold outline-none transition-[background-color,border-color,box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-out)] enabled:active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-brand-300",
                   isMine
                     ? "border-brand-300 bg-brand-500/25 text-brand-200 ring-2 ring-brand-300"
                     : occupant

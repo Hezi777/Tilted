@@ -143,7 +143,7 @@ function StepProgress({
           >
             <span
               className={cn(
-                "h-1 w-full rounded-full transition-colors duration-[var(--dur-base)]",
+                "h-1 w-full rounded-full transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]",
                 visited ? "bg-foreground" : "bg-ink-700",
               )}
             />
@@ -471,7 +471,7 @@ export default function NewGamePage() {
                     key={chip.amount}
                     value={chip.amount}
                     aria-label={`₪${chip.amount}`}
-                    className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
+                    className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] duration-[var(--dur-base)] ease-[var(--ease-out)] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
                   >
                     <PokerChip
                       color={chip.body}
@@ -488,7 +488,7 @@ export default function NewGamePage() {
                   value="custom"
                   aria-label="סכום אחר"
                   onClick={() => setCustomOpen(true)}
-                  className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
+                  className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] duration-[var(--dur-base)] ease-[var(--ease-out)] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
                 >
                   {customBuyIn ? (
                     <PokerChip
@@ -754,7 +754,7 @@ export default function NewGamePage() {
                     transition={{ duration: 0.12 }}
                     onClick={() => toggleSelected(person.id, !seated.has(person.id))}
                     className={cn(
-                      "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] bg-ink-800 px-4 text-start transition-colors duration-[var(--dur-base)] focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                      "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] bg-ink-800 px-4 text-start transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
                       seated.has(person.id) && "bg-ink-700",
                     )}
                   >
@@ -762,7 +762,7 @@ export default function NewGamePage() {
                       avatarKey={person.avatarKey}
                       personId={person.id}
                       name={person.name}
-                      className={cn("size-12 transition-opacity duration-[var(--dur-base)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
+                      className={cn("size-12 transition-opacity duration-[var(--dur-base)] ease-[var(--ease-out)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
                     />
                     <span className="min-w-0 font-semibold">
                       {person.name}

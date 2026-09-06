@@ -222,7 +222,7 @@ export function ProfileScreen({
             type="button"
             onClick={() => setAvatarOpen(true)}
             aria-label="החלפת הדמות"
-            className="group relative shrink-0 rounded-full transition-transform focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
+            className="group relative shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
           >
             <ChipAvatar
               avatarKey={savedKey}
@@ -344,7 +344,7 @@ export function ProfileScreen({
                       // sits its visual mass high and looks mis-centred no matter how
                       // the image is aligned.
                       className={cn(
-                        "grid aspect-square place-items-center rounded-2xl p-1.5 transition-[background-color,opacity]",
+                        "grid aspect-square place-items-center rounded-2xl p-1.5 transition-[background-color,opacity] duration-[var(--dur-base)] ease-[var(--ease-out)]",
                         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                         selected
                           ? "bg-ink-700 opacity-100"
