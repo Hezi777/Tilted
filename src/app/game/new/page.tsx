@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { CheckIcon, PencilIcon, PlusIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
@@ -30,13 +30,36 @@ import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
 import { AVATAR_KEYS } from "@/lib/avatar";
+import { motionSafe, rise, stagger } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
 import { denominationInputText } from "@/lib/chips";
 import { useIdentity } from "@/lib/identity";
 
-const BUY_IN_CHIPS = ["20", "30", "50", "100"] as const;
-type BuyInChoice = (typeof BUY_IN_CHIPS)[number] | "custom";
+/**
+ * The buy-in shortcuts, drawn as chips off the same tray the chip-set editor uses.
+ *
+ * The colours are the North American cash-game convention (white, red, green, black),
+ * which is what a home set actually ships as -- but note the trap `chip-art.ts` records:
+ * real chip colours do not rise in luminance with value, so a colour can never signal
+ * magnitude on its own. The amount is printed on the inlay and repeated as text, and the
+ * colour is only there to make the four options tellable apart at a glance.
+ */
+const BUY_IN_CHIPS = [
+  { amount: "20", body: "#F4F1E8", edge: "#C1121F" },
+  { amount: "30", body: "#C1121F", edge: "#F4F1E8" },
+  { amount: "50", body: "#14713D", edge: "#F4F1E8" },
+  { amount: "100", body: "#14110F", edge: "#F4F1E8" },
+] as const;
+type BuyInChoice = (typeof BUY_IN_CHIPS)[number]["amount"] | "custom";
+
+/** The three-step disclosure of the setup form. */
+const STEPS = ["הערב", "הכסף", "מי משחק"] as const;
+
+/** The system's field height, on a surface a step above the page. */
+const FIELD_CLASS = "h-12 rounded-xl bg-ink-800 px-4";
+
+const NO_CHIP_SET = "none";
 
 interface GameChipSet {
   id: string;
@@ -69,12 +92,77 @@ function exitTimeToIso(value: string): string {
   return date.toISOString();
 }
 
+/** A labelled field, matching the profile screen's pattern. */
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={htmlFor} className="t-label text-[var(--text-1)]">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+/** The step dots above the form. Visited steps can be tapped to go back. */
+function StepProgress({
+  step,
+  onSelect,
+}: {
+  step: number;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-5 pb-5" role="tablist" aria-label="שלבי ההקמה">
+      {STEPS.map((label, index) => {
+        const visited = index <= step;
+        return (
+          <button
+            key={label}
+            type="button"
+            role="tab"
+            aria-selected={index === step}
+            disabled={index > step}
+            onClick={() => onSelect(index)}
+            className="flex flex-1 flex-col items-center gap-1.5 disabled:pointer-events-none"
+          >
+            <span
+              className={cn(
+                "h-1 w-full rounded-full transition-colors duration-[var(--dur-base)]",
+                visited ? "bg-foreground" : "bg-ink-700",
+              )}
+            />
+            <span
+              className={cn(
+                "t-caption",
+                index === step ? "text-foreground" : "text-[var(--text-2)]",
+              )}
+            >
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** New game setup. Spec 5.2. */
 export default function NewGamePage() {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const identity = useIdentity();
   const hostPersonId = identity === undefined ? undefined : (identity?.id ?? null);
+
+  const [step, setStep] = useState(0);
 
   const [name, setName] = useState(defaultGameName);
   const [location, setLocation] = useState("");
@@ -94,7 +182,6 @@ export default function NewGamePage() {
 
   const [chipSets, setChipSets] = useState<GameChipSet[] | null>(null);
   const [selectedChipSetId, setSelectedChipSetId] = useState<string | null>(null);
-  const [chipSetError, setChipSetError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingChipSetId, setEditingChipSetId] = useState<string | null>(null);
   const [editorValue, setEditorValue] = useState<ChipSetEditorValue>({
@@ -102,10 +189,8 @@ export default function NewGamePage() {
     denominations: [createEmptyDenomination()],
   });
   const [savingChipSet, setSavingChipSet] = useState(false);
-  const [editorError, setEditorError] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     // No declared identity means no host, and the whole screen is meaningless.
@@ -129,6 +214,10 @@ export default function NewGamePage() {
   }, [peopleRetryCount]);
 
   useEffect(() => {
+    if (loadError) toast.error(loadError);
+  }, [loadError]);
+
+  useEffect(() => {
     let cancelled = false;
     apiFetch<{ chipSets: GameChipSet[] }>("/api/chip-sets")
       .then(({ chipSets: loaded }) => {
@@ -138,9 +227,7 @@ export default function NewGamePage() {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setChipSetError(
-          error instanceof ApiError ? error.message : "טעינת חבילות הז׳יטונים נכשלה",
-        );
+        toast.error(error instanceof ApiError ? error.message : "טעינת חבילות הז׳יטונים נכשלה");
       });
     return () => {
       cancelled = true;
@@ -153,6 +240,10 @@ export default function NewGamePage() {
   }, [buyInChoice, customBuyIn]);
 
   const rebuyShekels = rebuyDifferent ? Number(customRebuy) : buyInShekels;
+
+  const moneyValid =
+    Number.isFinite(buyInShekels) && buyInShekels > 0 &&
+    Number.isFinite(rebuyShekels) && rebuyShekels > 0;
 
   // The host holds seat 0 and cannot sit this one out — they are the device writing —
   // so they are added on top of the checklist's own state rather than stored in it.
@@ -185,7 +276,6 @@ export default function NewGamePage() {
   function openNewChipSet() {
     setEditingChipSetId(null);
     setEditorValue({ name: "", denominations: [createEmptyDenomination()] });
-    setEditorError(null);
     setEditorOpen(true);
   }
 
@@ -201,7 +291,6 @@ export default function NewGamePage() {
         valueText: denominationInputText(agorot(denomination.value)),
       })),
     });
-    setEditorError(null);
     setEditorOpen(true);
   }
 
@@ -211,11 +300,10 @@ export default function NewGamePage() {
       (denomination) => denomination.value > 0,
     );
     if (!name || editorValue.denominations.length === 0 || !validDenominations) {
-      setEditorError("צריך שם ולפחות ז׳יטון אחד עם ערך תקין");
+      toast.error("צריך שם ולפחות ז׳יטון אחד עם ערך תקין");
       return;
     }
     setSavingChipSet(true);
-    setEditorError(null);
     const payload = {
       name,
       // The draft id is the server row id when editing, and the server keeps rows it
@@ -245,9 +333,7 @@ export default function NewGamePage() {
       setSelectedChipSetId(saved.id);
       setEditorOpen(false);
     } catch (error) {
-      setEditorError(
-        error instanceof ApiError ? error.message : "שמירת חבילת הז׳יטונים נכשלה",
-      );
+      toast.error(error instanceof ApiError ? error.message : "שמירת חבילת הז׳יטונים נכשלה");
     } finally {
       setSavingChipSet(false);
     }
@@ -280,7 +366,6 @@ export default function NewGamePage() {
   async function handleSubmit() {
     if (!canSubmit || hostPersonId == null) return;
     setSubmitting(true);
-    setSubmitError(null);
     try {
       const buyIn = shekelsToAgorot(buyInShekels);
       const rebuyAmount = shekelsToAgorot(rebuyShekels);
@@ -299,7 +384,7 @@ export default function NewGamePage() {
       });
       router.push(`/game/${id}`);
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : "יצירת המשחק נכשלה");
+      toast.error(err instanceof ApiError ? err.message : "יצירת המשחק נכשלה");
       setSubmitting(false);
     }
   }
@@ -311,335 +396,370 @@ export default function NewGamePage() {
         subtitle="בוחרים סכומים ומי משחק הערב"
         backHref="/"
       />
-      <div className="mx-auto flex w-full max-w-[450px] flex-1 flex-col gap-5 p-5 pb-8">
+      <StepProgress step={step} onSelect={setStep} />
 
-      <div className="flex flex-col gap-2.5">
-        <Label className="text-sm font-bold" htmlFor="game-name">שם הערב</Label>
-        <Input
-          id="game-name"
-          className="h-12 rounded-xl border-foreground/15 bg-card px-4"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={defaultGameName()}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2.5">
-        <Label className="text-sm font-bold" htmlFor="game-location">מיקום</Label>
-        <Input
-          id="game-location"
-          className="h-12 rounded-xl border-foreground/15 bg-card px-4"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="הבית של עידו, אצל רועי..."
-        />
-      </div>
-
-      <div className="flex flex-col gap-2.5">
-        <Label className="text-sm font-bold" htmlFor="exit-time">שעת יציאה</Label>
-        <Input
-          id="exit-time"
-          className="h-12 rounded-xl border-foreground/15 bg-card px-4 tabular-nums"
-          type="time"
-          value={exitTime}
-          onChange={(event) => setExitTime(event.target.value)}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2.5">
-        <Label className="text-sm font-bold">כניסה לשחקן</Label>
-        <ToggleGroup
-          type="single"
-          value={buyInChoice}
-          onValueChange={(value) => {
-            if (value) setBuyInChoice(value as BuyInChoice);
-          }}
-          variant="outline"
-          className="w-full gap-2 rounded-[20px] bg-surface-1 p-2"
-        >
-          {BUY_IN_CHIPS.map((chip) => (
-            <ToggleGroupItem
-              key={chip}
-              value={chip}
-              aria-label={`₪${chip}`}
-              className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(148_19_30/0.6)]"
-            >
-              <Image src={`/art/buyin-${chip}.webp`} alt="" fill sizes="84px" className="object-contain" />
-              <span className="sr-only">₪{chip}</span>
-            </ToggleGroupItem>
-          ))}
-          <ToggleGroupItem value="custom" aria-label="סכום אחר" className="relative aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 transition-[transform,filter] data-[state=on]:-translate-y-1 data-[state=on]:drop-shadow-[0_8px_13px_rgb(148_19_30/0.6)]">
-            <Image src="/art/buyin-custom.webp" alt="" fill sizes="84px" className="object-contain" />
-            <span className="sr-only">סכום אחר</span>
-          </ToggleGroupItem>
-        </ToggleGroup>
-        {buyInChoice === "custom" && (
-            <Input
-              className="h-12 rounded-xl border-foreground/15 bg-card px-4"
-            type="number"
-            inputMode="decimal"
-            min={1}
-            placeholder="סכום בשקלים"
-            value={customBuyIn}
-            onChange={(e) => setCustomBuyIn(e.target.value)}
-          />
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2.5 rounded-2xl border border-foreground/10 bg-card/60 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <Label className="text-sm font-bold" htmlFor="rebuy-toggle">ריביי בסכום אחר</Label>
-          <Switch
-            id="rebuy-toggle"
-            checked={rebuyDifferent}
-            onCheckedChange={setRebuyDifferent}
-          />
-        </div>
-        {rebuyDifferent && (
-          <Input
-            className="h-12 rounded-xl border-foreground/15 bg-card px-4"
-            type="number"
-            inputMode="decimal"
-            min={1}
-            placeholder="סכום ריביי בשקלים"
-            value={customRebuy}
-            onChange={(e) => setCustomRebuy(e.target.value)}
-          />
-        )}
-      </div>
-
-      <section
-        className="flex flex-col gap-3 rounded-2xl border border-foreground/10 bg-card/60 p-4"
-        aria-labelledby="result-entry-heading"
+      <motion.div
+        key={step}
+        variants={motionSafe(stagger, reduceMotion)}
+        initial="hidden"
+        animate="show"
+        className="mx-auto flex w-full max-w-[450px] flex-1 flex-col gap-5 px-5 pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
       >
-        <div>
-          <Label id="result-entry-heading" className="text-sm font-bold">
-            מי מזין את התוצאות?
-          </Label>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            בסוף הערב צריך להזין כמה כל אחד סיים איתו. כמארח תמיד תוכלו להזין ולתקן
-            לכולם.
-          </p>
-        </div>
-        <ToggleGroup
-          type="single"
-          value={resultEntry}
-          onValueChange={(value) => {
-            if (value) setResultEntry(value as "host_only" | "players");
-          }}
-          variant="outline"
-          aria-label="מי מזין את התוצאות"
-          className="w-full gap-2"
-        >
-          <ToggleGroupItem
-            value="host_only"
-            className="h-auto flex-1 flex-col items-start gap-1 rounded-xl px-3 py-3 text-start data-[state=on]:border-brand-500/45 data-[state=on]:bg-surface-3"
-          >
-            <span className="text-sm font-bold">רק אני</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              סופרים יחד, אני מקליד
-            </span>
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="players"
-            className="h-auto flex-1 flex-col items-start gap-1 rounded-xl px-3 py-3 text-start data-[state=on]:border-brand-500/45 data-[state=on]:bg-surface-3"
-          >
-            <span className="text-sm font-bold">כל אחד לעצמו</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              כל שחקן מזין את הסכום שלו
-            </span>
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </section>
+        {step === 0 && (
+          <>
+            <motion.div variants={motionSafe(rise, reduceMotion)}>
+              <Field label="שם הערב" htmlFor="game-name">
+                <Input
+                  id="game-name"
+                  className={FIELD_CLASS}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={defaultGameName()}
+                />
+              </Field>
+            </motion.div>
 
-      <section className="flex flex-col gap-3" aria-labelledby="chip-set-heading">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <Label id="chip-set-heading" className="text-sm font-bold">
-              חבילת ז׳יטונים
-            </Label>
-            <p className="mt-1 text-xs text-muted-foreground">
-              החבילה תשמש לספירה אוטומטית בסוף הערב
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 shrink-0 rounded-xl"
-            onClick={openNewChipSet}
-          >
-            <PlusIcon aria-hidden="true" />
-            חבילה חדשה
-          </Button>
-        </div>
+            <motion.div variants={motionSafe(rise, reduceMotion)}>
+              <Field label="מיקום" htmlFor="game-location">
+                <Input
+                  id="game-location"
+                  className={FIELD_CLASS}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="הבית של עידו, אצל רועי..."
+                />
+              </Field>
+            </motion.div>
 
-        {chipSetError && (
-          <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {chipSetError}
-          </p>
+            <motion.div variants={motionSafe(rise, reduceMotion)}>
+              <Field label="שעת יציאה" htmlFor="exit-time">
+                <Input
+                  id="exit-time"
+                  className={cn(FIELD_CLASS, "tabular-nums")}
+                  type="time"
+                  value={exitTime}
+                  onChange={(event) => setExitTime(event.target.value)}
+                />
+              </Field>
+            </motion.div>
+          </>
         )}
-        {chipSets === null && !chipSetError && <Skeleton className="h-24 w-full" />}
 
-        <div className="flex snap-x gap-3 overflow-x-auto pb-1">
-          <button
-            type="button"
-            aria-pressed={selectedChipSetId === null}
-            onClick={() => setSelectedChipSetId(null)}
-            className={cn(
-              "min-h-24 w-36 shrink-0 snap-start rounded-[20px] border bg-surface-2 p-3 text-start transition-[background-color,border-color] focus-visible:ring-3 focus-visible:ring-ring/40",
-              selectedChipSetId === null
-                ? "border-brand-500/55 bg-surface-3"
-                : "border-foreground/10",
-            )}
-          >
-            <span className="font-bold">ללא חבילה</span>
-            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-              מזינים סכום ידנית
-            </span>
-          </button>
-
-          {chipSets?.map((chipSet) => (
-            <div
-              key={chipSet.id}
-              className={cn(
-                "relative min-h-24 w-52 shrink-0 snap-start rounded-[20px] border bg-surface-2 transition-[background-color,border-color]",
-                selectedChipSetId === chipSet.id
-                  ? "border-brand-500/55 bg-surface-3"
-                  : "border-foreground/10",
-              )}
-            >
-              <button
-                type="button"
-                aria-pressed={selectedChipSetId === chipSet.id}
-                onClick={() => setSelectedChipSetId(chipSet.id)}
-                className="flex min-h-24 w-full flex-col p-3 pe-12 text-start focus-visible:ring-3 focus-visible:ring-ring/40"
+        {step === 1 && (
+          <>
+            <motion.div variants={motionSafe(rise, reduceMotion)} className="flex flex-col gap-2.5">
+              <Label className="t-label text-[var(--text-1)]">כניסה לשחקן</Label>
+              <ToggleGroup
+                type="single"
+                value={buyInChoice}
+                onValueChange={(value) => {
+                  if (value) setBuyInChoice(value as BuyInChoice);
+                }}
+                variant="outline"
+                className="w-full gap-2 rounded-[20px] bg-ink-800 p-2"
               >
-                <span className="font-bold">{chipSet.name}</span>
-                <span className="mt-2 flex flex-wrap gap-1.5">
-                  {chipSet.denominations.map((denomination) => (
-                    <span
-                      key={denomination.id}
-                      className="money inline-flex items-center gap-1 rounded-full border border-foreground/10 bg-surface-1 px-2 py-1 text-[11px]"
+                {BUY_IN_CHIPS.map((chip) => (
+                  <ToggleGroupItem
+                    key={chip.amount}
+                    value={chip.amount}
+                    aria-label={`₪${chip.amount}`}
+                    className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
+                  >
+                    <PokerChip
+                      color={chip.body}
+                      edgeColor={chip.edge}
+                      label={chip.amount}
+                      className="size-full"
+                    />
+                    <span className="sr-only">₪{chip.amount}</span>
+                  </ToggleGroupItem>
+                ))}
+                {/* Not a fifth denomination: an empty slot, so it reads as "none of
+                    these" rather than as another amount with another colour. */}
+                <ToggleGroupItem
+                  value="custom"
+                  aria-label="סכום אחר"
+                  className="empty-slot grid aspect-square h-auto flex-1 place-items-center rounded-full bg-transparent p-0 text-[var(--text-2)] opacity-60 transition-[transform,opacity] data-[state=on]:-translate-y-1 data-[state=on]:text-foreground data-[state=on]:opacity-100"
+                >
+                  <PlusIcon aria-hidden="true" strokeWidth={1.75} className="size-5" />
+                  <span className="sr-only">סכום אחר</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+              {buyInChoice === "custom" && (
+                <Input
+                  className={FIELD_CLASS}
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  placeholder="סכום בשקלים"
+                  value={customBuyIn}
+                  onChange={(e) => setCustomBuyIn(e.target.value)}
+                />
+              )}
+            </motion.div>
+
+            <motion.div variants={motionSafe(rise, reduceMotion)} className="surface-card flex flex-col gap-2.5 rounded-[20px] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="t-label text-[var(--text-1)]" htmlFor="rebuy-toggle">ריביי בסכום אחר</Label>
+                <Switch
+                  id="rebuy-toggle"
+                  checked={rebuyDifferent}
+                  onCheckedChange={setRebuyDifferent}
+                />
+              </div>
+              {rebuyDifferent && (
+                <Input
+                  className={FIELD_CLASS}
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  placeholder="סכום ריביי בשקלים"
+                  value={customRebuy}
+                  onChange={(e) => setCustomRebuy(e.target.value)}
+                />
+              )}
+            </motion.div>
+
+            <motion.section
+              variants={motionSafe(rise, reduceMotion)}
+              className="surface-card flex flex-col gap-3 rounded-[20px] p-4"
+              aria-labelledby="result-entry-heading"
+            >
+              <div>
+                <Label id="result-entry-heading" className="t-label text-[var(--text-1)]">
+                  מי מזין את התוצאות?
+                </Label>
+                <p className="t-caption mt-1 text-[var(--text-2)]">
+                  בסוף הערב צריך להזין כמה כל אחד סיים איתו. כמארח תמיד תוכלו להזין ולתקן
+                  לכולם.
+                </p>
+              </div>
+              <ToggleGroup
+                type="single"
+                value={resultEntry}
+                onValueChange={(value) => {
+                  if (value) setResultEntry(value as "host_only" | "players");
+                }}
+                variant="outline"
+                aria-label="מי מזין את התוצאות"
+                className="w-full gap-2"
+              >
+                <ToggleGroupItem
+                  value="host_only"
+                  className="h-auto flex-1 flex-col items-start gap-1 rounded-xl px-3 py-3 text-start data-[state=on]:bg-ink-700"
+                >
+                  <span className="t-label">רק אני</span>
+                  <span className="t-caption text-[var(--text-2)]">
+                    סופרים יחד, אני מקליד
+                  </span>
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="players"
+                  className="h-auto flex-1 flex-col items-start gap-1 rounded-xl px-3 py-3 text-start data-[state=on]:bg-ink-700"
+                >
+                  <span className="t-label">כל אחד לעצמו</span>
+                  <span className="t-caption text-[var(--text-2)]">
+                    כל שחקן מזין את הסכום שלו
+                  </span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </motion.section>
+
+            <motion.section variants={motionSafe(rise, reduceMotion)} className="flex flex-col gap-3" aria-labelledby="chip-set-heading">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label id="chip-set-heading" className="t-label text-[var(--text-1)]">
+                    חבילת ז׳יטונים
+                  </Label>
+                  <p className="t-caption mt-1 text-[var(--text-2)]">
+                    החבילה תשמש לספירה אוטומטית בסוף הערב
+                  </p>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={openNewChipSet}>
+                  <PlusIcon aria-hidden="true" />
+                  חבילה חדשה
+                </Button>
+              </div>
+
+              {chipSets === null && <Skeleton className="h-24 w-full" />}
+
+              <ToggleGroup
+                type="single"
+                value={selectedChipSetId ?? NO_CHIP_SET}
+                onValueChange={(value) => {
+                  if (!value) return;
+                  setSelectedChipSetId(value === NO_CHIP_SET ? null : value);
+                }}
+                variant="outline"
+                aria-label="חבילת ז׳יטונים"
+                className="flex snap-x flex-nowrap justify-start gap-3 overflow-x-auto pb-1"
+              >
+                <ToggleGroupItem
+                  value={NO_CHIP_SET}
+                  className="min-h-24 w-36 shrink-0 snap-start flex-col items-start justify-start gap-0 rounded-[20px] bg-ink-800 p-3 text-start data-[state=on]:bg-ink-700"
+                >
+                  <span className="t-label">ללא חבילה</span>
+                  <span className="t-caption mt-1 text-[var(--text-2)]">
+                    מזינים סכום ידנית
+                  </span>
+                </ToggleGroupItem>
+
+                {chipSets?.map((chipSet) => (
+                  <div key={chipSet.id} className="relative shrink-0 snap-start">
+                    <ToggleGroupItem
+                      value={chipSet.id}
+                      className="flex min-h-24 w-52 flex-col items-start justify-start gap-0 rounded-[20px] bg-ink-800 p-3 pe-12 text-start data-[state=on]:bg-ink-700"
                     >
-                      <PokerChip
-                        color={denomination.color}
-                        edgeColor={denomination.edgeColor}
-                        className="size-4"
-                      />
-                      {formatILS(agorot(denomination.value))}
-                    </span>
-                  ))}
-                </span>
-              </button>
-              {!chipSet.isPreset && (
+                      <span className="t-label">{chipSet.name}</span>
+                      <span className="mt-2 flex flex-wrap gap-1.5">
+                        {chipSet.denominations.map((denomination) => (
+                          <span
+                            key={denomination.id}
+                            className="money t-caption inline-flex items-center gap-1 rounded-full bg-ink-900 px-2 py-1"
+                          >
+                            <PokerChip
+                              color={denomination.color}
+                              edgeColor={denomination.edgeColor}
+                              className="size-4"
+                            />
+                            {formatILS(agorot(denomination.value))}
+                          </span>
+                        ))}
+                      </span>
+                    </ToggleGroupItem>
+                    {!chipSet.isPreset && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="absolute top-2 end-2"
+                        aria-label={`עריכת ${chipSet.name}`}
+                        onClick={() => openChipSetEditor(chipSet)}
+                      >
+                        <PencilIcon aria-hidden="true" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </ToggleGroup>
+            </motion.section>
+          </>
+        )}
+
+        {step === 2 && (
+          <motion.div variants={motionSafe(rise, reduceMotion)} className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <Label className="t-label text-[var(--text-1)]">מי סביב השולחן?</Label>
+              <span className="t-caption text-[var(--text-2)]">רק שחקנים עם חשבון</span>
+            </div>
+
+            {people === null && !loadError && (
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-18 w-full" />
+                <Skeleton className="h-18 w-full" />
+                <Skeleton className="h-18 w-full" />
+              </div>
+            )}
+
+            {loadError && (
+              <div className="flex flex-col items-start gap-3 rounded-[20px] bg-ink-800 px-4 py-4">
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="absolute top-2 end-2"
-                  aria-label={`עריכת ${chipSet.name}`}
-                  onClick={() => openChipSetEditor(chipSet)}
+                  variant="secondary"
+                  onClick={() => {
+                    setLoadError(null);
+                    setPeopleRetryCount((count) => count + 1);
+                  }}
                 >
-                  <PencilIcon aria-hidden="true" />
+                  נסה שוב
                 </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
+              </div>
+            )}
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-bold">מי סביב השולחן?</Label>
-          <span className="text-xs text-muted-foreground">רק שחקנים עם חשבון</span>
-        </div>
+            {people !== null && people.length === 0 && !loadError && (
+              <div className="empty-slot flex items-center gap-3 rounded-[20px] p-4">
+                <p className="t-body text-[var(--text-2)]">
+                  אין עדיין שחקנים נוספים עם חשבון.
+                </p>
+              </div>
+            )}
 
-        {people === null && !loadError && (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
+            <ul className="flex flex-col gap-3">
+              {orderedPeople?.map((person) => (
+                <li key={person.id}>
+                  <motion.button
+                    type="button"
+                    aria-pressed={seated.has(person.id)}
+                    disabled={person.id === hostPersonId}
+                    whileTap={reduceMotion ? undefined : { scale: 0.985 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={() => toggleSelected(person.id, !seated.has(person.id))}
+                    className={cn(
+                      "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] bg-ink-800 px-4 text-start transition-colors duration-[var(--dur-base)] focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                      seated.has(person.id) && "bg-ink-700",
+                    )}
+                  >
+                    <ChipAvatar
+                      avatarKey={person.avatarKey}
+                      personId={person.id}
+                      name={person.name}
+                      className={cn("size-12 transition-opacity duration-[var(--dur-base)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
+                    />
+                    <span className="min-w-0 font-semibold">
+                      {person.name}
+                      {person.nickname && <span className="text-muted-foreground font-normal"> ({person.nickname})</span>}
+                      {person.id === hostPersonId && (
+                        <span className="text-[var(--text-1)] font-normal"> · אתה</span>
+                      )}
+                    </span>
+                    {seated.has(person.id) && (
+                      <span className="ms-auto grid size-6 shrink-0 place-items-center rounded-full bg-light text-light-ink">
+                        <CheckIcon aria-hidden="true" className="size-3.5" />
+                      </span>
+                    )}
+                  </motion.button>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
         )}
+      </motion.div>
 
-        {loadError && (
-          <div className="flex flex-col items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3">
-            <p className="text-destructive text-sm">{loadError}</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11"
-              onClick={() => {
-                setLoadError(null);
-                setPeopleRetryCount((count) => count + 1);
-              }}
-            >
-              נסה שוב
+      {/* The sticky primary action. Only the final step submits. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] flex-col gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
+        {step === 2 && !canSubmit && disabledReason && !submitting && (
+          <p className="t-caption text-center text-[var(--text-2)]">{disabledReason}</p>
+        )}
+        {step === 1 && !moneyValid && (
+          <p className="t-caption text-center text-[var(--text-2)]">הזינו סכומי כניסה וריביי תקינים</p>
+        )}
+        <div className="flex items-center gap-2">
+          {step > 0 && (
+            <Button type="button" size="lg" variant="secondary" onClick={() => setStep((current) => current - 1)}>
+              חזרה
             </Button>
-          </div>
-        )}
-
-        {people !== null && people.length === 0 && !loadError && (
-          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-foreground/15 bg-card/50 p-4">
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              אין עדיין שחקנים נוספים עם חשבון.
-            </p>
-          </div>
-        )}
-
-        <ul className="flex flex-col gap-3">
-          {orderedPeople?.map((person) => (
-            <li key={person.id}>
-              <motion.button
-                type="button"
-                aria-pressed={seated.has(person.id)}
-                disabled={person.id === hostPersonId}
-                whileTap={reduceMotion ? undefined : { scale: 0.985 }}
-                transition={{ duration: 0.12 }}
-                onClick={() => toggleSelected(person.id, !seated.has(person.id))}
-                className={cn(
-                  "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] border border-foreground/7 border-t-foreground/14 bg-surface-2 px-4 text-start transition-[background-color,border-color] duration-[var(--dur-base)] focus-visible:ring-3 focus-visible:ring-ring/40",
-                  seated.has(person.id) && "border-brand-500/45 border-t-brand-300/35 bg-surface-3",
-                )}
-              >
-                <ChipAvatar
-                  avatarKey={person.avatarKey}
-                  personId={person.id}
-                  name={person.name}
-                  className={cn("size-12 transition-opacity duration-[var(--dur-base)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
-                />
-                <span className="min-w-0 font-semibold">
-                  {person.name}
-                  {person.nickname && <span className="text-muted-foreground font-normal"> ({person.nickname})</span>}
-                  {person.id === hostPersonId && (
-                    <span className="text-brand-300 font-normal"> · אתה</span>
-                  )}
-                </span>
-                {seated.has(person.id) && (
-                  <span className="ms-auto grid size-6 shrink-0 place-items-center rounded-full bg-brand-500 text-primary-foreground">
-                    <CheckIcon aria-hidden="true" className="size-3.5" />
-                  </span>
-                )}
-              </motion.button>
-            </li>
-          ))}
-        </ul>
+          )}
+          {step < STEPS.length - 1 ? (
+            <Button
+              size="lg"
+              className="flex-1"
+              disabled={step === 1 && !moneyValid}
+              onClick={() => setStep((current) => current + 1)}
+            >
+              המשך
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              className="flex-1"
+              disabled={!canSubmit || submitting}
+              onClick={() => void handleSubmit()}
+            >
+              {submitting ? "פותחים את השולחן..." : "פתחו את השולחן"}
+            </Button>
+          )}
+        </div>
       </div>
-
-      {submitError && <p className="text-destructive text-sm">{submitError}</p>}
-
-      <Button
-        size="lg"
-        className="h-14 rounded-xl text-lg font-black"
-        disabled={!canSubmit || submitting}
-        onClick={handleSubmit}
-      >
-        {submitting ? "פותחים את השולחן..." : "פתחו את השולחן"}
-      </Button>
-      {!canSubmit && disabledReason && !submitting && (
-        <p className="text-muted-foreground -mt-2 text-center text-sm">{disabledReason}</p>
-      )}
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
@@ -656,7 +776,6 @@ export default function NewGamePage() {
             onChange={setEditorValue}
             disabled={savingChipSet}
           />
-          {editorError && <p className="text-sm text-destructive">{editorError}</p>}
           <DialogFooter>
             <Button
               disabled={savingChipSet}
@@ -667,7 +786,6 @@ export default function NewGamePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
     </main>
   );
 }
