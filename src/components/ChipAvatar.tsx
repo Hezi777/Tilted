@@ -41,13 +41,16 @@ export function ChipAvatar({
 }) {
   const chipKey = deterministicChipKey(avatarKey, personId);
   return (
-    <div className={cn("relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-700 shadow-[0_8px_18px_-9px_rgb(0_0_0/0.95)]", className)}>
+    // Not cropped to a circle. The character is a whole little figure with stub arms
+    // and legs, and a circular mask amputates them -- the chip body is already round
+    // enough to read as an avatar without one.
+    <div className={cn("relative flex size-16 shrink-0 items-center justify-center", className)}>
       <Image
         src={avatarSrc(chipKey)}
         alt=""
         fill
         sizes="64px"
-        className="object-cover"
+        className="object-contain drop-shadow-[0_6px_10px_rgb(0_0_0/0.55)]"
       />
       <span className="sr-only">{name}</span>
     </div>

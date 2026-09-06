@@ -18,67 +18,64 @@ six leave — because six friends who all have dark hair and a beard are not tel
 
 ## What a chip-creature is
 
-**A chip with a face, not a face wearing a chip.** The disc is the head. Its pressed inner
-circle is where the features live: skin, hair and beard as full-colour clay shapes sitting
-inside that circle, flush with the chip's surface.
+**The chip's pale inlay is the face itself.** Not a face drawn on a disc, and not a head
+placed inside a ring — the inlay's own colour *is* the skin, and the features sit directly on
+it. There is no separate head shape and no second skin tone anywhere in the image.
 
-Two things have to be true at once, and the first generation got one of them:
+That single sentence is the whole design. The first generation missed it and produced a
+skin-toned human head inside a coral donut: two circles, one wearing the other. The existing
+`chip-10.png` gets it right and is the anchor to match.
 
-- **Colour is what makes it readable.** Skin tone, hair and beard are distinct colours
-  against the chip body — not same-material embossing. A monochrome relief goes to mush at
-  44px, which is the size this mostly ships at.
-- **Nothing crosses the rim.** The app renders every avatar inside a circular mask, so hair
-  rising above the disc, ears past its edge, or arms at its sides are not stylistic choices —
-  they are pixels that get sliced off. The chip's outline is the frame. Hair fills the top of
-  the inner circle and stops there.
+The character is a whole little figure — chip body, stub arms, stub legs — the way the old set
+was drawn. Hair sits on top of the chip like a wig, overlapping its upper rim.
 
-**It must not read as a denomination chip.** The app draws real chips everywhere — the buy-in
-row, the counter, the chip-set cards — and those are flat, face-on, numbered and faceless. A
-creature has a face and hair and never carries a number.
+**It must not read as a denomination chip.** The app draws real chips in the buy-in row, the
+counter and the chip-set cards, and those are flat, face-on, numbered and faceless.
 
 ## Shared style block
 
-Prepend to every character prompt, unchanged.
+Written for GPT Image 2, which reads short labelled segments better than one long paragraph,
+and wants scene → subject → detail → constraints in that order.
 
 ```
-A single stylised 3D poker chip seen face on, with a cartoon character's face set into
-its pressed inner circle.
+STYLE: Stylised 3D character render, soft matte clay and painted resin with gentle
+subsurface warmth. Rounded forms, no gloss, no sharp edges. Broad soft key light from the
+upper left, deep ambient fill, and a subtle cool violet rim light down the upper right
+edge. Shallow depth, no reflections.
 
-The chip is a thick rounded disc of soft matte clay with six evenly spaced rectangular
-edge spots around its rim in a contrasting cream. Inside its pressed inner circle sits a
-rounded face in full colour: skin in its own warm tone, two simple black eyes, a small
-nose, a calm closed mouth. The hair is a separate solid shape in its own colour, filling
-the top of the inner circle, and facial hair is one solid shape in the same hair colour,
-never individual strands. Everything is soft rounded clay with gentle depth, clearly
-coloured rather than embossed in one material.
+SUBJECT: A single poker-chip character standing upright and facing the viewer. Its body is
+a thick round casino chip seen face on, with a raised outer rim carrying eight evenly
+spaced rectangular edge blocks in a contrasting cream, and a large pale inlay disc filling
+the centre.
 
-CRITICAL: the entire image is contained within the circular outline of the chip. The hair
-fills the top of the inner circle and stops at the rim — it never rises above the disc. No
-ears, no arms, no shoulders, no neck, no accessories extend past the disc's edge. The
-chip's circle is the outer boundary of everything in the image.
+FACE: The pale inlay disc IS the character's face. Its features are applied directly onto
+that disc in dark clay: two simple oval eyes with a small highlight, two thick curved
+eyebrows, a soft closed mouth. The inlay's own pale colour serves as the skin — there is
+no separate head shape, no head outline, and no second skin tone in the image.
 
-Material: soft matte clay-plastic, gentle subsurface warmth, no gloss, no sculpted detail
-finer than a fingertip. Lighting: broad soft key from the upper left, deep ambient fill,
-and a subtle cool violet rim light along the upper right edge of the disc. No harsh
-speculars, no neon, no glow.
+LIMBS: Two short rounded stub arms at the sides and two short rounded stub legs below, all
+in the chip's body colour, like a small toy figure.
 
-Composition: the chip centred and filling the frame with a small even margin. Fully
-transparent background — no backdrop, no ground, no cast shadow.
+COMPOSITION: Centred, filling the frame with a small even margin, shot straight on at eye
+level. Transparent background.
+
+CONSTRAINTS: No numbers, no denominations, no text, no letters, no logos, no watermark.
+No separate human head, no realistic skin, no neck, no shoulders, no torso. No playing
+cards, no dice, no table, no other chips. No background, no ground, no cast shadow.
 ```
 
-## Negative prompt
+## Anchor first
 
-```
-hair above the chip, hair outside the circle, monochrome relief, embossed face, single
-colour face, coin relief, flat engraving, head on top of chip, head behind chip,
-separate head, floating head, ears outside the rim, protruding ears, arms, hands,
-shoulders, neck, body, torso, anything crossing the rim, elements outside the circle,
-numbers, denominations, text, letters, digits, logos, watermark, signature, playing
-cards, dice, money, stacks of chips, multiple chips, casino table, green felt, legs,
-feet, background, backdrop, circle behind, gradient, vignette, cast shadow, ground plane,
-photorealism, realistic skin, glossy, wet, neon, glow, lens flare, sparkles, extra limbs,
-deformed, two heads
-```
+GPT Image 2 keeps a series consistent by locking a **character anchor** before the rest. So:
+
+1. Generate **Aner** alone until he is right.
+2. For each of the other eleven, attach Aner as a reference image and lead with
+   *"Same character style, same chip construction, same lighting as the reference. Change
+   only the hair, the facial hair, the body colour and the accessory. Keep everything else
+   identical."*
+3. Re-state the FACE segment every time — it is the part that drifts back into a human head.
+
+Small single changes per image, never a rewritten prompt between them.
 
 ## Output spec
 
@@ -103,17 +100,23 @@ never by the face, which disappears below about 60px.
 | 5 | `itay` | `#7B5CFF` violet | Sandy-blond curls | Light stubble | The only blond in all twelve |
 | 6 | `matan` | `#FF4D6A` rose | Short dark hair | Moustache, small soul patch | The only one grinning |
 
-Full prompt for one, as the pattern:
+Full prompt for Aner, the anchor:
 
 ```
 <shared style block>
 
-The chip body is coral #F2795B with cream edge spots. Set into its pressed inner circle is a
-young man's face in warm olive skin, with a thin black moustache and a small pointed chin
-beard. His tightly curled black hair is a solid black clay shape filling the top of the
-inner circle, wide and textured, stopping cleanly at the rim rather than rising above the
-disc. A single small silver stud sits flat against the face beside one temple. Calm,
-level expression. Everything stays inside the chip's circle.
+BODY COLOUR: Coral red #F2795B chip body and stub limbs, with cream #F4F1E8 edge blocks
+and a cream #F4F1E8 inlay disc.
+
+HAIR: A tall mass of tightly curled black clay hair sitting on top of the chip like a wig,
+wide and textured, overlapping the upper rim and tapering close at the sides.
+
+FACIAL HAIR: A thin black moustache above the mouth and a small pointed black chin beard
+below it, both applied flat onto the inlay.
+
+ACCESSORY: One small silver stud at the edge of the inlay beside the left eye.
+
+EXPRESSION: Calm and level.
 ```
 
 **Two things settled, so they do not get re-opened:**
