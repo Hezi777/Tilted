@@ -66,11 +66,15 @@ function railGeometry(count: number) {
     // it is the wrong one: the pot lives at the top of this screen, and a rail that
     // rises far enough to matter rises straight into it.
     apex: 30 - 4 * t,
-    // The arc length comes from curvature instead. A narrower, deeper ellipse is
-    // the same table seen more from above, and it pushes the outer seats down the
-    // sides -- which is both correct in projection and where the free space is.
-    insetX: 35 - 30 * t,
-    height: 128 + 45 * t,
+    // Curvature comes from DEPTH, never from width. Narrowing the ellipse buys the
+    // same curve and costs the thing that matters: measured on screen, a table
+    // narrowed this way was still only 359px wide at the bottom of a 390px phone,
+    // so it stopped being full-bleed and grew black wedges down both sides at
+    // exactly the player counts that need the room most. Holding the width and
+    // deepening instead keeps the felt edge-to-edge below the rim -- the rim still
+    // curves away at the sides, which is what the reference does too.
+    insetX: 35,
+    height: 128 + 290 * t,
     // Capped so the outermost seat's amount pill -- which is wider than the avatar
     // it sits under -- still clears the edge of the box.
     reach: 26 + 10 * t,
