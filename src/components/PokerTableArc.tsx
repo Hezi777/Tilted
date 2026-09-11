@@ -28,9 +28,6 @@ import { agorot, formatILS } from "@/lib/money";
 import { bump, DUR, EASE_OUT, motionSafe, SPRING, STAGGER } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-/** Where the table's lip crosses the box. Everything else is placed against it. */
-const RAIL = 30;
-
 const tableVariants: Variants = {
   hidden: { opacity: 0, scale: 0.985 },
   show: {
@@ -50,40 +47,90 @@ const seatVariants: Variants = {
 };
 
 /**
- * Where an opponent sits on the far rail.
+ * The rail, as a function of how many people are around it.
  *
- * A parabola, not an ellipse. An ellipse drops away fast at its edges, which is
- * how the old ring put its outermost seats past the container wall; a parabola
- * spreads horizontally and only sags, so the horizontal reach is a number you set
- * directly and can keep inside the box.
+ * A second row was the wrong answer. A real table does not grow a second rank of
+ * chairs when a seventh person sits down -- you end up further from it, seeing
+ * more of its surface, and everyone spreads further around the same rim. So the
+ * table recedes progressively: the apex climbs, the ellipse narrows and deepens
+ * (which is what "seeing more of its depth" means in projection), and the seats
+ * reach further along a rail that now has the arc length to hold them.
  *
- * Past five opponents one rail cannot hold them at a legible avatar size, so they
- * split across two -- the far one fuller, the near one tucked onto the felt.
+ * All values are percentages of the component's box.
  */
-function railPosition(index: number, count: number) {
-  const twoRows = count > 5;
-  const farCount = twoRows ? Math.ceil(count / 2) : count;
-  const onFar = index < farCount;
-  const rowCount = onFar ? farCount : count - farCount;
-  const rowIndex = onFar ? index : index - farCount;
-
-  // -1 .. 1 across the row, 0 when it holds a single seat.
-  const t = rowCount === 1 ? 0 : (rowIndex / (rowCount - 1)) * 2 - 1;
-
-  const spread = rowCount === 1 ? 0 : Math.min(32, 11 + rowCount * 6);
-  // Row separation clears a whole seat block at the outer positions, where the sag
-  // is deepest -- that is where two rails collide if you only check the centre.
-  const top = onFar ? RAIL + t * t * 4 : RAIL + 26 + t * t * 3;
-
-  return { left: `${50 + t * spread}%`, top: `${top}%` };
+function railGeometry(count: number) {
+  // 0 at three or fewer, 1 at eight, so the change is gradual rather than a jump.
+  const t = Math.min(1, Math.max(0, (count - 3) / 5));
+  return {
+    // The apex barely moves. Letting it climb was the obvious way to buy room and
+    // it is the wrong one: the pot lives at the top of this screen, and a rail that
+    // rises far enough to matter rises straight into it.
+    apex: 30 - 4 * t,
+    // The arc length comes from curvature instead. A narrower, deeper ellipse is
+    // the same table seen more from above, and it pushes the outer seats down the
+    // sides -- which is both correct in projection and where the free space is.
+    insetX: 35 - 30 * t,
+    height: 128 + 45 * t,
+    // Capped so the outermost seat's amount pill -- which is wider than the avatar
+    // it sits under -- still clears the edge of the box.
+    reach: 26 + 10 * t,
+    t,
+  };
 }
 
-/** Avatars get smaller only when the rail genuinely runs out of room. */
+type Rail = ReturnType<typeof railGeometry>;
+
+/** The box's aspect, so a vertical percentage can be compared with a horizontal one. */
+const BOX_ASPECT = 1.18;
+
+/**
+ * Every seat's place on the rail, spaced evenly *along the curve*.
+ *
+ * Spacing them evenly in x is the obvious thing and it looks wrong: near the apex
+ * the rail is flat, so neighbours get no vertical offset and end up visually
+ * closer than the ones out on the shoulders, which have both. Walking the curve
+ * and placing seats at equal arc length gives every neighbour the same gap.
+ *
+ * Derived from the ellipse the table is actually drawn with, so a seat cannot
+ * drift off the rim when the geometry changes -- it is the same curve by
+ * construction.
+ */
+function railPoints(rail: Rail, count: number) {
+  const rx = 50 + rail.insetX;
+  const ry = rail.height / 2;
+  const sagAt = (dx: number) => ry * (1 - Math.sqrt(Math.max(0, 1 - (dx / rx) ** 2)));
+
+  const STEPS = 240;
+  const xs: number[] = [];
+  const lengths: number[] = [];
+  let total = 0;
+  for (let step = 0; step <= STEPS; step += 1) {
+    const dx = -rail.reach + (2 * rail.reach * step) / STEPS;
+    if (step > 0) {
+      const previous = xs[step - 1];
+      total += Math.hypot(dx - previous, (sagAt(dx) - sagAt(previous)) * BOX_ASPECT);
+    }
+    xs.push(dx);
+    lengths.push(total);
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    if (count === 1) return { left: "50%", top: `${rail.apex}%` };
+    const target = (total * index) / (count - 1);
+    let step = lengths.findIndex((length) => length >= target);
+    if (step < 0) step = STEPS;
+    const dx = xs[step];
+    return { left: `${50 + dx}%`, top: `${rail.apex + sagAt(dx)}%` };
+  });
+}
+
+/** Seats give up size only as fast as the rail actually runs out of room. */
 function railTier(count: number) {
   if (count <= 2) return { avatar: "size-16", width: "w-24" };
   if (count <= 4) return { avatar: "size-14", width: "w-20" };
-  if (count <= 6) return { avatar: "size-12", width: "w-18" };
-  return { avatar: "size-11", width: "w-16" };
+  if (count <= 6) return { avatar: "size-12", width: "w-17" };
+  if (count <= 7) return { avatar: "size-11", width: "w-15" };
+  return { avatar: "size-10", width: "w-14" };
 }
 
 /**
@@ -146,6 +193,8 @@ export function PokerTableArc({
     .map(({ player }) => player)
     .filter((player) => player !== you);
   const tier = railTier(opponents.length);
+  const rail = railGeometry(opponents.length);
+  const seats = railPoints(rail, opponents.length);
 
   return (
     <motion.div
@@ -159,8 +208,12 @@ export function PokerTableArc({
           a lit ground instead of as a glowing plastic shape. */}
       <div
         aria-hidden="true"
-        className="table-arc-glow absolute -inset-x-[35%] z-0 h-[128%] rounded-[50%]"
-        style={{ top: `calc(${RAIL}% - 30px)` }}
+        className="table-arc-glow absolute z-0 rounded-[50%]"
+        style={{
+          insetInline: `-${rail.insetX}%`,
+          height: `${rail.height}%`,
+          top: `calc(${rail.apex}% - 30px)`,
+        }}
       />
 
       {/* The pot, up in the light and above the table -- where a poker client puts
@@ -178,18 +231,22 @@ export function PokerTableArc({
           no start/end for RTL to flip. */}
       <div
         aria-hidden="true"
-        className="table-arc absolute -inset-x-[35%] z-10 h-[128%] rounded-[50%]"
-        style={{ top: `${RAIL}%` }}
+        className="table-arc absolute z-10 rounded-[50%]"
+        style={{
+          insetInline: `-${rail.insetX}%`,
+          height: `${rail.height}%`,
+          top: `${rail.apex}%`,
+        }}
       />
 
       {/* The chips on the felt, where a poker client puts the community cards.
           Dropped once the players need a second rail -- at that point the felt is
           full, and the stack would sit under someone's feet. */}
-      {opponents.length <= 5 && (
+      {opponents.length <= 6 && (
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 z-10 flex justify-center"
-        style={{ top: `${RAIL + 34}%` }}
+        style={{ top: `${rail.apex + 38}%` }}
       >
         <div className="relative h-12 w-16 drop-shadow-[0_9px_10px_rgb(0_0_0/0.7)]">
           <span className="absolute inset-x-2 bottom-1 h-5 rounded-[50%] border-[5px] border-light bg-felt-highlight" />
@@ -208,7 +265,7 @@ export function PokerTableArc({
             key={player.id}
             className="absolute z-20"
             initial={false}
-            animate={{ ...railPosition(index, opponents.length), x: "-50%", y: "-50%" }}
+            animate={{ ...seats[index], x: "-50%", y: "-50%" }}
             transition={reduceMotion ? { duration: 0 } : SPRING}
           >
             <motion.button
