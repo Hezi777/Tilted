@@ -59,12 +59,10 @@ export const stagger: Variants = {
   show: { transition: { staggerChildren: STAGGER, delayChildren: 0.02 } },
 };
 
-/** A dialog or sheet: from just below, on a spring, because it has mass. */
-export const sheet: Variants = {
-  hidden: { opacity: 0, y: 12, scale: 0.98 },
-  show: { opacity: 1, y: 0, scale: 1, transition: SPRING },
-  exit: { opacity: 0, y: 8, scale: 0.99, transition: { duration: DUR.base, ease: EASE_OUT } },
-};
+/* There is deliberately no `sheet` variant here. Dialogs and drawers are Radix and
+   vaul primitives that already animate off their own `data-state`, and the project
+   invariant is to leave that alone rather than run a second, Framer-driven opening
+   on top of it. A spring variant sat unused in this file for exactly that reason. */
 
 /**
  * A value that changed in place -- a pot after a rebuy, a net after a cash-out.

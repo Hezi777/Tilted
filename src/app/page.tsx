@@ -141,9 +141,11 @@ export default function Home() {
                     <span className="inline-flex items-center gap-1"><UsersIcon className="size-3.5" />{activeGame.playerCount}</span>
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-col gap-1">
-                  <Button asChild size="sm"><Link href={`/game/${activeGame.id}`}>חזרה לשולחן</Link></Button>
-                  <Button type="button" size="sm" variant="ghost" className="text-[var(--text-2)]" onClick={() => setCancelTarget(activeGame)}>ביטול משחק</Button>
+                {/* Both were 40px, 4px apart, with the irreversible one directly under
+                    the happy path. They are on the 48px floor now and separated. */}
+                <div className="flex shrink-0 flex-col gap-2">
+                  <Button asChild><Link href={`/game/${activeGame.id}`}>חזרה לשולחן</Link></Button>
+                  <Button type="button" variant="ghost" className="text-[var(--text-2)]" onClick={() => setCancelTarget(activeGame)}>ביטול משחק</Button>
                 </div>
               </CardContent>
             </Card>
@@ -180,17 +182,27 @@ export default function Home() {
           {games !== null && !error && closedGames.length === 0 && (
             // An empty seat, drawn the way the reference draws a card that has not
             // come out yet -- rather than a 240 KB illustration of a sad chip.
-            <div className="empty-slot flex flex-1 flex-col items-center justify-center gap-3 rounded-[20px] px-6 py-10 text-center">
+            <motion.div
+              variants={motionSafe(rise, reduceMotion)}
+              initial="hidden"
+              animate="show"
+              className="empty-slot flex flex-1 flex-col items-center justify-center gap-3 rounded-[20px] px-6 py-10 text-center"
+            >
               <Image src="/art/states/empty.webp" alt="" width={96} height={96} className="size-24 object-contain" />
               <p className="t-title">השולחן הראשון מחכה לכם</p>
               <p className="t-caption max-w-[30ch] leading-relaxed text-[var(--text-2)]">פותחים משחק, בוחרים מי הגיע, ומכאן הקופה מסתדרת לבד.</p>
-            </div>
+            </motion.div>
           )}
 
           {closedGames.length > 0 && (
-            <ul className="row-list">
+            <motion.ul
+              variants={motionSafe(stagger, reduceMotion)}
+              initial="hidden"
+              animate="show"
+              className="row-list"
+            >
               {closedGames.slice(0, 3).map((game) => (
-                <li key={game.id}>
+                <motion.li key={game.id} variants={motionSafe(rise, reduceMotion)}>
                   <Link href={`/history/${game.id}`} className="surface-card flex min-h-18 items-center justify-between gap-3 rounded-[18px] px-4 py-3 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-ink-700">
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{game.name ?? "משחק"}</span>
@@ -201,9 +213,9 @@ export default function Home() {
                     </span>
                     <Money value={game.pot} className="font-semibold" />
                   </Link>
-                </li>
+                </motion.li>
               ))}
-            </ul>
+            </motion.ul>
           )}
         </motion.section>
       </motion.div>

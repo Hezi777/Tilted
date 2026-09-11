@@ -1,5 +1,8 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { DUR, EASE_OUT } from "@/lib/motion";
+
 import { useEffect, useMemo, useState } from "react";
 import { BookMarkedIcon, CrownIcon, PlusIcon, SpadeIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
@@ -103,6 +106,7 @@ function initialDraft(players: LivePlayer[]): Record<string, PlayerDraft> {
 }
 
 export function HandRecorder({ gameId, players }: { gameId: string; players: LivePlayer[] }) {
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [records, setRecords] = useState<MemorableHandRecord[] | null>(null);
@@ -211,7 +215,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
 
   return (
     <>
-      <Button type="button" variant="secondary" className="flex-1 px-2 text-xs" onClick={() => setOpen(true)}>
+      <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => setOpen(true)}>
         <BookMarkedIcon aria-hidden="true" /> יד לזכור
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -248,12 +252,27 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
                           <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-8" />
                           <span>{player.name}</span>
                         </Label>
-                        {playerDraft.included && (
-                          <div className="mt-3 grid grid-cols-2 gap-2">
-                            <Input aria-label={`הקלפים של ${player.name}`} className="h-12" dir="ltr" maxLength={30} value={playerDraft.holeCards} onChange={(event) => updatePlayer(player.id, { holeCards: event.target.value })} placeholder="קלפים, לא חובה" />
-                            <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="number" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
-                          </div>
-                        )}
+                        {/* The two fields belong to the checkbox above them, so they
+                            open from it rather than making the list jump. `height: auto`
+                            is a layout animation and cannot be flattened by `motionSafe`,
+                            so reduced motion skips the travel outright. */}
+                        <AnimatePresence initial={false}>
+                          {playerDraft.included && (
+                            <motion.div
+                              key="hand-player-detail"
+                              initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                              transition={{ duration: reduceMotion ? 0 : DUR.base, ease: EASE_OUT }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                <Input aria-label={`הקלפים של ${player.name}`} className="h-12" dir="ltr" maxLength={30} value={playerDraft.holeCards} onChange={(event) => updatePlayer(player.id, { holeCards: event.target.value })} placeholder="קלפים, לא חובה" />
+                                <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="number" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}

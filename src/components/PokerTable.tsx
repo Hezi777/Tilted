@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { CrownIcon } from "lucide-react";
-import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { motion, useAnimationControls, useReducedMotion, type Variants } from "framer-motion";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { AnimatedMoney, Money } from "@/components/Money";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,7 +10,7 @@ import { StreakBadge } from "@/components/StreakBadge";
 import type { LivePlayer } from "@/db/live-queries";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { agorot, formatILS } from "@/lib/money";
-import { DUR, EASE_OUT, SPRING, STAGGER } from "@/lib/motion";
+import { bump, DUR, EASE_OUT, motionSafe, SPRING, STAGGER } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,6 +39,36 @@ const seatVariants: Variants = {
   }),
 };
 
+/**
+ * A seat's own running total, bumping when it changes.
+ *
+ * The pot in the middle already counts up on a rebuy, but the seat that the money
+ * came from used to snap -- so the tap landed invisibly on the one person it was
+ * about. Driven by controls rather than by a `key`, because remounting on every
+ * change would also fire this on arrival and fight the table's entrance stagger.
+ */
+function SeatTotal({ value, reduceMotion }: { value: number; reduceMotion: boolean | null }) {
+  const controls = useAnimationControls();
+  const previous = useRef(value);
+
+  useEffect(() => {
+    if (previous.current === value) return;
+    previous.current = value;
+    void controls.start("hit");
+  }, [controls, value]);
+
+  return (
+    <motion.span
+      variants={motionSafe(bump, reduceMotion)}
+      initial="idle"
+      animate={controls}
+      className="t-caption rounded-full bg-[var(--glass-2)] px-1.5 py-0.5 font-semibold text-violet-300 backdrop-blur-sm"
+    >
+      <Money value={value} />
+    </motion.span>
+  );
+}
+
 const SEAT_TIERS = [
   { max: 3, rx: 32, ry: 32, seatWidthClass: "w-20", avatarClass: "size-12" },
   { max: 4, rx: 38, ry: 39, seatWidthClass: "w-20", avatarClass: "size-12" },
@@ -55,7 +86,7 @@ function seatTierFor(count: number) {
  * next free slot handed out in `seatOrder` — never reshuffling `seatOrder` itself,
  * which the pot and settlement depend on (plan item 10).
  */
-function assignSlots(players: LivePlayer[]): { player: LivePlayer; slot: number }[] {
+export function assignSlots(players: LivePlayer[]): { player: LivePlayer; slot: number }[] {
   const maxChosen = players.reduce(
     (max, player) => (player.tableSeat !== null ? Math.max(max, player.tableSeat) : max),
     -1,
@@ -133,14 +164,22 @@ export function PokerTable({
     >
       <div aria-hidden="true" className="felt-panel felt-rail absolute inset-[1.5%] overflow-hidden rounded-[50%] drop-shadow-[0_28px_30px_rgb(0_0_0/0.72)]" />
 
+      {/* Seat angles derive from the player count, so someone joining moves every
+          chair at once. Animating `left`/`top` rather than reaching for the `layout`
+          prop is deliberate: the centring is a `translate(-50%,-50%)`, and `layout`
+          measures and rewrites transforms, so the two fight. Framer owns the
+          centring here as `x`/`y` percentages, which it will not animate because
+          they never change. */}
       {emptySlots.map((slot) => (
-        <div
+        <motion.div
           key={`empty-${slot}`}
           className="absolute z-10"
-          style={{ ...positionFor(slot), transform: "translate(-50%, -50%)" }}
+          initial={false}
+          animate={{ ...positionFor(slot), x: "-50%", y: "-50%" }}
+          transition={reduceMotion ? { duration: 0 } : SPRING}
         >
           <div className={cn("empty-slot rounded-full", tier.avatarClass)} />
-        </div>
+        </motion.div>
       ))}
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center">
@@ -160,10 +199,12 @@ export function PokerTable({
         const streak = streaks?.[player.id];
 
         return (
-          <div
+          <motion.div
             key={player.id}
             className="absolute z-20"
-            style={{ ...positionFor(slot), transform: "translate(-50%, -50%)" }}
+            initial={false}
+            animate={{ ...positionFor(slot), x: "-50%", y: "-50%" }}
+            transition={reduceMotion ? { duration: 0 } : SPRING}
           >
             <motion.button
               type="button"
@@ -204,12 +245,10 @@ export function PokerTable({
               {player.isSettled ? (
                 <StatusBadge tone="muted">נסגר</StatusBadge>
               ) : (
-                <span className="t-caption rounded-full bg-[var(--glass-2)] px-1.5 py-0.5 font-semibold text-violet-300 backdrop-blur-sm">
-                  <Money value={player.totalIn} />
-                </span>
+                <SeatTotal value={player.totalIn} reduceMotion={reduceMotion} />
               )}
             </motion.button>
-          </div>
+          </motion.div>
         );
       })}
     </motion.div>

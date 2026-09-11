@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Rubik } from "next/font/google";
+import { Assistant, Rubik } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { MotionPreferences } from "@/components/MotionPreferences";
 import { ViewerProvider } from "@/components/ViewerProvider";
@@ -14,10 +14,30 @@ import "./globals.css";
 // with subtly rounded corners and ships real tabular figures, which is the only
 // reason a separate numeral face was ever loaded beside the UI font -- so this is
 // three families down to one, and two fewer requests on an apartment connection.
-const rubik = Rubik({
+/**
+ * Two families, and the split is not stylistic -- each one is doing something the
+ * other measurably cannot.
+ *
+ * Assistant carries the Hebrew and the Latin UI: it is the smoothest and most open
+ * of the Hebrew faces, which is what the interface wants.
+ *
+ * Rubik carries money, and only money. Assistant's figures are not tabular -- its
+ * `1` is 10px narrower than its `0` at 40px -- and `AnimatedMoney` counts over
+ * 600ms, so an amount set in it would shuffle sideways on almost every frame.
+ * Rubik's advance width is identical across every digit string, and it has a real
+ * shekel sign, which no Latin geometric face does. See docs/design-system.md.
+ */
+const assistant = Assistant({
   variable: "--font-app",
   subsets: ["hebrew", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const rubik = Rubik({
+  variable: "--font-numeral",
+  subsets: ["hebrew", "latin"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
@@ -49,7 +69,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No `maximumScale`. Capping it disables pinch-zoom, which is an accessibility
+  // control, not a layout leak -- and this app is read in a dim room by people who
+  // may want a closer look at who owes what. The layout is already fluid at 390px,
+  // so there is nothing for a zoom to break.
   viewportFit: "cover",
   themeColor: "#0B0B0F",
 };
@@ -77,7 +100,7 @@ export default async function RootLayout({
     <html
       lang="he"
       dir="rtl"
-      className={`${rubik.variable} dark h-full antialiased`}
+      className={`${assistant.variable} ${rubik.variable} dark h-full antialiased`}
       {...(viewer?.person.reduceMotion ? { "data-reduce-motion": "true" } : {})}
     >
       <body className="text-foreground flex min-h-full flex-col items-center">

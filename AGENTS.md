@@ -14,16 +14,25 @@ A phone-first web app for tracking a home poker game between friends: who bought
 rebought, who cashed out with what, and who owes whom at the end. A shared expense ledger,
 not a gambling product — no odds, no betting engine, no money moves inside the app.
 
-**`docs/poker-night-spec.md` is the source of truth.** Read the section you are working on
-before writing code. It contradicts itself in a few places; every conflict and its agreed
-resolution is recorded in the approved build plan at
-`~/.claude/plans/read-docs-spec-md-it-is-tingly-kazoo.md`. Where the two disagree, the plan
-wins — it is the spec with its conflicts already settled. Do not silently resolve a new one.
+## Which document wins
 
-**`docs/design-system.md` is the source of truth for presentation and motion.** It overrides
-older visual, typography, art-direction, and animation notes in the product spec and build
-plan. The product spec still owns behavior and data unless the design system explicitly says
-otherwise.
+Four documents describe this project and they do not agree. Read the section you need before
+writing code, in this order — **later entries override earlier ones**:
+
+1. `docs/poker-night-spec.md` — the original product spec. Behaviour and data. It is the
+   oldest file here and parts of it are superseded; section 2 still says "no accounts or
+   login", which stopped being true in v2.
+2. `~/.claude/plans/read-docs-spec-md-it-is-tingly-kazoo.md` — the approved build plan, which
+   settles the spec's internal contradictions. **It lives outside the repo**, so CI, a
+   teammate, and any agent on another machine cannot read it. Treat anything load-bearing in
+   it as needing to move into `docs/`.
+3. `docs/v2-plan.md` — the settled reading of the twelve-point v2 requirements. It retires
+   invariants listed below where it says so explicitly (it is what replaced "no
+   authentication, ever" with the auth invariant).
+4. `docs/design-system.md` — presentation and motion, and the last word on both. The spec
+   and the plans still own behaviour and data unless it says otherwise.
+
+Do not silently resolve a new conflict between them. Say which two disagree, and ask.
 
 ## Stack
 
@@ -36,13 +45,13 @@ The whole thing must cost nothing to run. No paid API is allowed in the runtime 
 ## Layout
 
 ```
-src/app/            routes; game/[code] is the live screen, /api/* the route handlers
+src/app/            routes; game/[id] is the live screen, /api/* the route handlers
 src/lib/money.ts    integer-agorot helpers and display formatting   -- hand-written
 src/lib/settlement.ts  nets, greedy transfers, mismatch resolution  -- hand-written
 src/lib/export.ts   the WhatsApp summary string (spec section 7)
 src/db/             Drizzle schema, client, seed
 src/components/ui/  vendored shadcn primitives; style them, do not police them
-public/art/         hand-generated PNGs + manifest.json of the prompts that made them
+public/art/         committed .webp art; the prompts that made it are docs/art-prompts.md
 ```
 
 ## Commands
@@ -77,13 +86,13 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
 - **shadcn for every control and overlay.** Use Motion for purposeful interaction and staged
   sequences; keep Radix `data-state` animation for the primitives that already expose it.
   Every motion path must respect `prefers-reduced-motion`.
-- **Felt is a surface, not an ink.** The app is dark: felt ground, cream text, oxblood-red
-  actions. `text-felt` on a card or the background measures about 1.4:1 and is
-  invisible. Text on the felt band uses `text-felt-foreground`, never a dark button ink.
-- **Never mix a logical inset with a physical transform.** `insetInlineStart` flips
-  under `dir="rtl"` and `translate-x` does not, so together they mirror an element away
-  from where the maths put it. This shipped a table with seats rendered outside their
-  container. Pick one system: `left` + `translate(-50%,-50%)` is the safe pair. ESLint
-  cannot catch this, because the logical property is normally the correct one.
+- **Check contrast against the surface, not the page.** Almost no text sits on the page, so
+  a ratio measured there flatters every step by about a stop. `--text-3` is disabled-only;
+  using it for meta ships text at 1.8:1 on a card. See `docs/design-system.md`.
+- **Never mix a logical inset with a physical transform.** `start-1/2` flips under
+  `dir="rtl"` and `-translate-x-1/2` does not, so together they land an element a full
+  offset from where the maths put it. This shipped seats outside their container, and later
+  a winner's crown beside the winner's head. `left: 50%` + `-translate-x-1/2` is the safe
+  pair. ESLint matches the pair, not either name — neither utility is wrong alone.
 - **Latency is the product.** A tap updates local state immediately and persists in the
   background, rolling back with an error toast on failure. Never block a tap on a round trip.

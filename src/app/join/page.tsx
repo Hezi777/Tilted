@@ -1,5 +1,8 @@
 "use client";
 
+import { motion, useReducedMotion } from "framer-motion";
+import { motionSafe, rise, stagger } from "@/lib/motion";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
@@ -33,6 +36,7 @@ import {
 
 /** The spoken-code join flow. The game permalink always switches to its UUID. */
 export default function JoinPage() {
+  const reduceMotion = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
   const identity = useIdentity();
@@ -280,9 +284,17 @@ export default function JoinPage() {
                 </CardContent>
               </Card>
             )}
-            <div className="flex flex-col gap-2">
+            {/* The moment the code spoken across the room resolves into the faces of
+                the people in it. It used to arrive with no bridge at all. */}
+            <motion.div
+              variants={motionSafe(stagger, reduceMotion)}
+              initial="hidden"
+              animate="show"
+              className="flex flex-col gap-2"
+            >
               {game.players.map((player) => (
-                <Card key={player.id} className="surface-card shadow-none" size="sm">
+                <motion.div key={player.id} variants={motionSafe(rise, reduceMotion)}>
+                <Card className="surface-card shadow-none" size="sm">
                   <CardHeader className="flex flex-row items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <ChipAvatar avatarKey={player.avatarKey} name={player.name} className="size-12" />
@@ -320,8 +332,9 @@ export default function JoinPage() {
                     )}
                   </CardContent>
                 </Card>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </section>
         )}
       </div>

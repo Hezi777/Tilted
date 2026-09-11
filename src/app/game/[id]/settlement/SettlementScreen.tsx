@@ -13,7 +13,7 @@ function readToken(name: string, fallback: string): string {
     .trim();
   return value || fallback;
 }
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Transition, type Variants } from "framer-motion";
 import { toBlob } from "html-to-image";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
@@ -27,7 +27,7 @@ import type { SettlementPlayer, SettlementState } from "@/db/settlement-queries"
 import type { TransferRecord } from "@/db/transfer-queries";
 import { apiFetch, ApiError } from "@/lib/api";
 import { normalizeIsraeliPhone } from "@/lib/bit";
-import { haptic } from "@/lib/motion";
+import { DUR, EASE_OUT, haptic, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type SequenceStage = "pending" | "playing" | "complete";
@@ -41,6 +41,120 @@ const CHIP_PATHS = [
   { x: -42, y: -118, rotate: -75 },
   { x: 56, y: -126, rotate: 130 },
 ];
+
+/**
+ * The stage marks of the settlement sequence, in seconds.
+ *
+ * These were six magic numbers spread through the JSX. The ordering *between* them
+ * is the whole design -- the pot lands, then the winner, then the crown on top of
+ * the winner -- so they belong in one place where changing one shows you the rest.
+ */
+const STAGE = {
+  chips: 0.2,
+  pot: 0.7,
+  winner: 1.2,
+  crown: 1.4,
+  winnerNet: 1.55,
+  players: 1.6,
+  transfers: 2.2,
+  actions: 2.6,
+} as const;
+
+/**
+ * Every staged element is driven by a variant *label*, never by a target object.
+ *
+ * "Any tap completes it immediately" only works if the thing Framer watches
+ * actually changes. Each element here animates to the same final values in both
+ * cases, so flipping `initial` and `transition.delay` -- which is all the `staged`
+ * flag used to do -- changed nothing at all once mounted, and the sequence went on
+ * playing underneath the tap that was meant to end it. Swapping the label is a
+ * change Framer can act on, so `done` genuinely cuts the sequence short.
+ */
+const INSTANT: Transition = { duration: 0 };
+const TWEEN: Transition = { duration: DUR.base, ease: EASE_OUT };
+
+const POT: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: TWEEN },
+  done: { opacity: 1, transition: INSTANT },
+};
+
+function chipVariants(path: (typeof CHIP_PATHS)[number], index: number): Variants {
+  const resting = {
+    x: (index - 2.5) * 8,
+    y: 68 - index * 3,
+    rotate: index * 18,
+    scale: 1,
+    opacity: 1,
+  };
+  return {
+    hidden: { x: path.x, y: path.y, rotate: path.rotate, scale: 0.65, opacity: 0 },
+    show: {
+      ...resting,
+      transition: { delay: STAGE.chips + index * 0.035, duration: 0.48, ease: EASE_OUT },
+    },
+    done: { ...resting, transition: INSTANT },
+  };
+}
+
+const WINNER: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { ...SPRING, delay: STAGE.winner } },
+  done: { opacity: 1, y: 0, transition: INSTANT },
+};
+
+const CROWN: Variants = {
+  hidden: { opacity: 0, y: -28, rotate: -18 },
+  show: { opacity: 1, y: 0, rotate: 0, transition: { ...SPRING, delay: STAGE.crown } },
+  done: { opacity: 1, y: 0, rotate: 0, transition: INSTANT },
+};
+
+function playerRowVariants(index: number): Variants {
+  return {
+    hidden: { opacity: 0, y: 10 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { delay: STAGE.players + index * 0.06, duration: DUR.base, ease: EASE_OUT },
+    },
+    done: { opacity: 1, y: 0, transition: INSTANT },
+  };
+}
+
+/**
+ * The paid dim lives in the variant rather than in an `opacity-60` class because
+ * Framer writes `style.opacity` inline, and inline style beats a utility class --
+ * so the class was silently dead and marking a transfer paid dimmed nothing. The
+ * `done` transition stays a real tween so the dim reads as a state change.
+ */
+function transferRowVariants(index: number, paid: boolean): Variants {
+  const settled = paid ? 0.6 : 1;
+  return {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: settled,
+      transition: { delay: STAGE.transfers + index * 0.08, duration: DUR.base, ease: EASE_OUT },
+    },
+    done: { opacity: settled, transition: TWEEN },
+  };
+}
+
+function transferArrowVariants(index: number): Variants {
+  return {
+    hidden: { scaleX: 0 },
+    show: {
+      scaleX: 1,
+      transition: { delay: STAGE.transfers + index * 0.08, duration: DUR.base, ease: EASE_OUT },
+    },
+    done: { scaleX: 1, transition: INSTANT },
+  };
+}
+
+const ACTIONS: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { delay: STAGE.actions, duration: DUR.enter, ease: EASE_OUT } },
+  done: { opacity: 1, y: 0, transition: INSTANT },
+};
 
 function outcomeClass(player: SettlementPlayer): string {
   if (player.outcome === "winner") return "text-profit";
@@ -62,7 +176,10 @@ function ShareCard({ state, winner }: { state: SettlementState; winner?: Settlem
         <div className="mt-6 flex items-center gap-6 rounded-[34px] border-[3px] border-brand-500/55 bg-surface-2 p-6">
           <div className="relative">
             <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-24 ring-[4px] ring-brand-500/65" />
-            <CrownIcon className="absolute -top-6 start-1/2 size-11 -translate-x-1/2 fill-brand-500 text-brand-300" />
+            <CrownIcon
+              className="absolute -top-6 size-11 -translate-x-1/2 fill-brand-500 text-brand-300"
+              style={{ left: "50%" }}
+            />
           </div>
           <div>
             <p className="text-[22px] text-muted-foreground">בראש הערימה</p>
@@ -132,7 +249,14 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     setError(null);
     apiFetch<SettlementState>(`/api/game/${gameId}/settlement`)
       .then((next) => {
-        if (!cancelled) setState(next);
+        if (cancelled) return;
+        /* The stage is decided in the same update that delivers the state. Deriving
+           it in a follow-up effect left one committed frame at `pending`, which
+           paints the bare felt panel -- a green flash immediately before the
+           sequence that panel exists to stand in for. */
+        const alreadyPlayed = localStorage.getItem(`tilted:settlement:${gameId}:seen`) === "1";
+        setStage(reduceMotion || alreadyPlayed ? "complete" : "playing");
+        setState(next);
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof ApiError ? reason.message : "טעינת הסיכום נכשלה");
@@ -143,7 +267,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [gameId]);
+  }, [gameId, reduceMotion]);
 
   useEffect(() => {
     // Initial data must be loaded from the settlement route after mount.
@@ -199,13 +323,6 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     [gameId],
   );
 
-  useEffect(() => {
-    if (!state) return;
-    const alreadyPlayed = localStorage.getItem(`tilted:settlement:${gameId}:seen`) === "1";
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStage(reduceMotion || alreadyPlayed ? "complete" : "playing");
-  }, [gameId, reduceMotion, state]);
-
   const finishSequence = useCallback(() => {
     localStorage.setItem(`tilted:settlement:${gameId}:seen`, "1");
     setStage("complete");
@@ -239,7 +356,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
       void confetti({ ...base, angle: 55, drift: 0.1, origin: { x: 0.16, y: 0.54 } });
       void confetti({ ...base, angle: 125, drift: -0.1, origin: { x: 0.84, y: 0.54 } });
     }, 1400);
-    const done = window.setTimeout(finishSequence, 2600);
+    const done = window.setTimeout(finishSequence, STAGE.actions * 1000);
     return () => {
       window.clearTimeout(celebration);
       window.clearTimeout(done);
@@ -320,8 +437,9 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
         {state && stage !== "pending" && (
           <>
             <motion.section
-              initial={staged ? { opacity: 0 } : false}
-              animate={{ opacity: 1 }}
+              variants={POT}
+              initial={staged ? "hidden" : false}
+              animate={staged ? "show" : "done"}
               className="felt-panel relative -mx-5 flex min-h-52 flex-col items-center justify-center overflow-hidden px-5 text-center"
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgb(245_237_230/0.08),transparent_48%)]" />
@@ -329,30 +447,35 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 <motion.span
                   key={index}
                   className={cn("absolute size-10 rounded-full border-[5px] border-foreground/55 shadow-lg", CHIP_COLORS[index % CHIP_COLORS.length])}
-                  initial={staged ? { x: path.x, y: path.y, rotate: path.rotate, scale: 0.65, opacity: 0 } : false}
-                  animate={{ x: (index - 2.5) * 8, y: 68 - index * 3, rotate: index * 18, scale: 1, opacity: 1 }}
-                  transition={{ delay: staged ? 0.2 + index * 0.035 : 0, duration: staged ? 0.48 : 0.1, ease: [0.2, 0.8, 0.2, 1] }}
+                  variants={chipVariants(path, index)}
+                  initial={staged ? "hidden" : false}
+                  animate={staged ? "show" : "done"}
                 />
               ))}
               <p className="relative z-10 text-sm font-semibold text-felt-foreground-muted">הקופה של הערב</p>
-              <AnimatedMoney value={state.pot} from={staged ? 0 : state.pot} delay={staged ? 0.7 : 0} className="money-display relative z-10 mt-1 text-felt-foreground drop-shadow-lg" />
+              <AnimatedMoney value={state.pot} from={staged ? 0 : state.pot} delay={staged ? STAGE.pot : 0} className="money-display relative z-10 mt-1 text-felt-foreground drop-shadow-lg" />
             </motion.section>
 
             {winner && (
               <motion.div
-                initial={staged ? { opacity: 0, y: 24 } : false}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: staged ? 1.2 : 0, duration: staged ? 0.36 : 0.1, type: staged ? "spring" : "tween", bounce: 0.22 }}
+                variants={WINNER}
+                initial={staged ? "hidden" : false}
+                animate={staged ? "show" : "done"}
               >
                 <Card className="accent-rim bg-[linear-gradient(145deg,var(--ink-700),var(--ink-900))]">
                   <CardContent className="flex items-center gap-4">
                     <div className="relative">
                       <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-20 ring-2 ring-brand-500/70" />
                       <motion.div
-                        className="absolute -top-5 start-1/2 -translate-x-1/2"
-                        initial={staged ? { opacity: 0, y: -28, rotate: -18 } : false}
-                        animate={{ opacity: 1, y: 0, rotate: 0 }}
-                        transition={{ delay: staged ? 1.4 : 0, type: "spring", stiffness: 420, damping: 15 }}
+                        /* `left` + `translate-x`, never `start-1/2` + `translate-x`. The
+                           logical inset flips under dir="rtl" and the physical transform
+                           does not, so together they carry the crown a full icon-width off
+                           the head it belongs to. Same pair the Dialog primitive uses. */
+                        className="absolute -top-5 -translate-x-1/2"
+                        style={{ left: "50%" }}
+                        variants={CROWN}
+                        initial={staged ? "hidden" : false}
+                        animate={staged ? "show" : "done"}
                       >
                         <CrownIcon className="size-8 fill-brand-500 text-brand-300 drop-shadow-[0_3px_8px_rgb(194_30_58/0.5)]" />
                       </motion.div>
@@ -360,7 +483,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                     <div className="min-w-0">
                       <p className="text-sm text-muted-foreground">בראש הערימה</p>
                       <p className="truncate text-2xl font-bold">{winner.name}</p>
-                      <AnimatedMoney value={winner.net} signed from={staged ? 0 : winner.net} delay={staged ? 1.55 : 0} className="mt-1 text-2xl font-bold text-profit" />
+                      <AnimatedMoney value={winner.net} signed from={staged ? 0 : winner.net} delay={staged ? STAGE.winnerNet : 0} className="mt-1 text-2xl font-bold text-profit" />
                       <p className="mt-2 text-sm leading-snug text-muted-foreground">{voiceLine}</p>
                     </div>
                   </CardContent>
@@ -374,14 +497,14 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 {state.players.map((player, index) => (
                   <motion.div
                     key={player.id}
-                    initial={staged ? { opacity: 0, y: 10 } : false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: staged ? 1.6 + index * 0.06 : 0, duration: 0.2 }}
+                    variants={playerRowVariants(index)}
+                    initial={staged ? "hidden" : false}
+                    animate={staged ? "show" : "done"}
                     className="flex min-h-14 items-center gap-3 py-2"
                   >
                     <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
                     <span className="min-w-0 truncate font-semibold">{player.name}</span>
-                    <AnimatedMoney value={player.net} signed from={staged ? 0 : player.net} delay={staged ? 1.6 + index * 0.06 : 0} className={cn("ms-auto text-lg font-bold", outcomeClass(player))} />
+                    <AnimatedMoney value={player.net} signed from={staged ? 0 : player.net} delay={staged ? STAGE.players + index * 0.06 : 0} className={cn("ms-auto text-lg font-bold", outcomeClass(player))} />
                   </motion.div>
                 ))}
               </CardContent>
@@ -402,17 +525,22 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                     return (
                       <motion.div
                         key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`}
-                        initial={staged ? { opacity: 0 } : false}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: staged ? 2.2 + index * 0.08 : 0 }}
-                        className={cn(
-                          "flex flex-col gap-2 py-3",
-                          paid && "opacity-60",
-                        )}
+                        variants={transferRowVariants(index, paid)}
+                        initial={staged ? "hidden" : false}
+                        animate={staged ? "show" : "done"}
+                        className="flex flex-col gap-2 py-3"
                       >
                         <div className="flex min-h-10 items-center gap-2">
                           <span className="min-w-0 truncate">{transfer.fromName}</span>
-                          <motion.span initial={staged ? { scaleX: 0 } : false} animate={{ scaleX: 1 }} transition={{ delay: staged ? 2.2 + index * 0.08 : 0, duration: 0.18 }} className="flex flex-1 origin-right items-center gap-1 text-brand-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></motion.span>
+                          <motion.span
+                            variants={transferArrowVariants(index)}
+                            initial={staged ? "hidden" : false}
+                            animate={staged ? "show" : "done"}
+                            /* `origin-right` is physical on purpose: the app is dir="rtl"
+                               only, so right *is* the start edge, and Tailwind has no
+                               logical transform-origin to reach for. */
+                            className="flex flex-1 origin-right items-center gap-1 text-brand-300"
+                          ><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></motion.span>
                           <span className="min-w-0 truncate">{transfer.toName}</span>
                           <Money
                             value={transfer.amount}
@@ -453,7 +581,18 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
 
             {state.resolution && <p className="text-sm text-muted-foreground">{state.resolution.kind === "split" ? "ההפרש בספירה פוצל בין המנצחים" : "ההפרש בספירה הוקצה לשחקן"}</p>}
 
-            <motion.div initial={staged ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: staged ? 2.6 : 0 }} className="sticky bottom-0 z-50 -mx-5 mt-auto flex flex-col gap-2 bg-ink-950/85 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
+            <motion.div
+              variants={ACTIONS}
+              initial={staged ? "hidden" : false}
+              animate={staged ? "show" : "done"}
+              /* Invisible is not inert. While the sequence stages this bar sits at
+                 opacity 0, and the whole screen is a tap target for skipping -- so a
+                 skip tap that landed in the bottom third fired "share the summary". */
+              className={cn(
+                "sticky bottom-0 z-50 -mx-5 mt-auto flex flex-col gap-2 bg-ink-950/85 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-xl",
+                staged && "pointer-events-none",
+              )}
+            >
               <Button className="h-14 text-base" disabled={sharing} onClick={() => void shareImage()}><Share2Icon />{sharing ? "מכינים תמונה..." : "שתפו את הסיכום"}</Button>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" className="h-12" onClick={() => void copySummary()}><CopyIcon />העתיקו טקסט</Button>

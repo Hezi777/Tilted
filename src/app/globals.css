@@ -32,7 +32,7 @@
 @theme inline {
   --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-app), ui-sans-serif, system-ui, sans-serif;
-  --font-money: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  --font-money: var(--font-numeral), var(--font-app), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: var(--background);
@@ -143,11 +143,19 @@
   --glass-2: rgb(255 255 255 / 10%);
   --glass-3: rgb(255 255 255 / 14%);
 
-  /* -- Type, against --ink-950 ------------------------------------------- */
-  --text-0: #f5f6f7; /* 17.7:1 */
-  --text-1: #9e9eac; /*  7.2:1 */
-  --text-2: #7b7b8a; /*  4.6:1 -- meta, and still passes body */
-  --text-3: #45454f; /*         disabled */
+  /* -- Type. -------------------------------------------------------------
+   * Ratios are quoted against --ink-800, the CARD, not against the page. The
+   * page is the easiest surface in the app and almost no text sits directly on
+   * it; quoting the page number flattered every step by about a stop and hid
+   * that --text-2 was failing AA on the surfaces it is actually used on.
+   * The second number is --ink-700 (pill, input, popover), the lightest ground
+   * that ordinary text sits on. */
+  --text-0: #f5f6f7; /* 15.7:1 / 13.9:1 */
+  --text-1: #9e9eac; /*  6.4:1 /  5.7:1 */
+  --text-2: #8c8c99; /*  5.1:1 /  4.5:1 -- meta. Was #7b7b8a, which measured
+                        4.1:1 on a card and 3.6:1 in a pill: under AA on both,
+                        while the comment here claimed 4.6:1 off the page. */
+  --text-3: #45454f; /* disabled only, which WCAG exempts. Never for meta. */
 
   /* -- The primary action ------------------------------------------------ */
   --light: #f5f6f7;
@@ -277,12 +285,26 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  @keyframes reduced-working {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       scroll-behavior: auto !important;
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+    }
+
+    /* A determinate animation can be cut to one iteration safely. An indeterminate
+       one cannot: `animate-spin` means "still working", and a spinner frozen at a
+       random angle reads as a hang -- the exact opposite of the reassurance it is
+       there to give. So these keep looping, on opacity alone, which is the form
+       reduced motion takes everywhere else in this file. */
+    .animate-spin {
+      animation: reduced-working 1.4s ease-in-out infinite !important;
     }
   }
 
@@ -296,13 +318,21 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  [data-reduce-motion="true"] .animate-spin {
+    animation: reduced-working 1.4s ease-in-out infinite !important;
+  }
 }
 
 @layer components {
   /* -- Type. Eight steps, and nothing outside them. ---------------------- */
+  /* Leading is 1.15 rather than 1.05 because Hebrew finals (ך ן ף ץ) descend well
+     below the baseline, and this step is the one `AppHeader` clamps to two lines --
+     at 1.05 the second line clipped their tails. Latin has no descender at this
+     weight to warn you, which is why the tight value looked right. */
   .t-display {
     font-size: 2.5rem;
-    line-height: 2.625rem;
+    line-height: 2.875rem;
     font-weight: 700;
     letter-spacing: -0.03em;
   }
@@ -314,8 +344,13 @@
     letter-spacing: -0.025em;
   }
 
-  .t-heading { font-size: 1.375rem; line-height: 1.75rem; font-weight: 600; letter-spacing: -0.02em; }
-  .t-title { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
+  /* No negative tracking below the display steps. Hebrew has no ascender/descender
+     rhythm to hold letters apart, and several pairs are told apart only by an open
+     counter -- ב/כ, ד/ר, ה/ח. Tightening at 18-22px closes exactly those counters,
+     and `.t-title` is the step player names are set in. The display steps keep
+     their tracking: at 30px and up the counters survive it. */
+  .t-heading { font-size: 1.375rem; line-height: 1.75rem; font-weight: 600; }
+  .t-title { font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; }
   .t-body { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
   .t-label { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
   .t-caption { font-size: 0.8125rem; line-height: 1.125rem; font-weight: 400; }
@@ -328,12 +363,19 @@
      digit changes. */
   .money,
   .tabular {
+    /* Rubik, via `--font-money`. It is the only Hebrew-capable face tested that
+       ships genuinely tabular figures (0px advance spread across digit strings) AND
+       a native shekel sign. Latin geometric faces -- Poppins, Montserrat, Outfit --
+       have no U+20AA at all, so an amount set in one renders as their digits plus a
+       system-fallback shekel: two fonts in every price. */
+    font-family: var(--font-money);
     font-variant-numeric: tabular-nums lining-nums;
     font-feature-settings: "tnum" 1, "lnum" 1;
     letter-spacing: -0.02em;
   }
 
   .money-display {
+    font-family: var(--font-money);
     font-size: 3rem;
     line-height: 1;
     font-weight: 700;
@@ -374,6 +416,55 @@
    *
    * Green is therefore free to mean one thing in this app -- money up -- which
    * is the whole point of rationing colour. */
+  /* The arc table, for `PokerTableArc`.
+   *
+   * Sampled off the reference, and the order of the bands is the whole trick:
+   *
+   *     glow  (#5e34c2 at the apex, diffuse, ABOVE the table)
+   *     rail  (#23223d -- a DARK groove, the table's lip in silhouette)
+   *     felt  (#2a263c, lifting toward the middle)
+   *
+   * The lip is dark. Drawing it as a bright line -- which is the obvious reading
+   * of "the arc glows" -- gets it backwards: the light is behind the table, and
+   * the rail is the thing standing in front of it. */
+  .table-arc {
+    position: relative;
+    background:
+      /* the lift toward the middle of the felt, kept clear of the rail band */
+      radial-gradient(ellipse 36% 14% at 50% 9%, #2c2840 0%, transparent 76%),
+      radial-gradient(ellipse 66% 26% at 50% 17%, #242236 0%, transparent 78%),
+      linear-gradient(
+        to bottom,
+        /* the rail, in silhouette against the lamp behind it */
+        #15141e 0%,
+        #1a1929 2.5%,
+        #23223d 4.5%,
+        /* and out onto the felt */
+        #2e2942 8%,
+        #2a2640 15%,
+        #201e30 26%,
+        #141320 38%,
+        #0b0b0f 50%,
+        #0b0b0f 100%
+      );
+  }
+
+  /* The lamp. The same ellipse as the table, nudged up, so its light follows the
+     lip's curve; the table then covers everything but the crescent above the rail.
+     A rectangle with a radial inside cannot do this -- it cuts straight across a
+     curved lip, which is exactly what it looked like. */
+  .table-arc-glow {
+    background: radial-gradient(
+      ellipse 48% 26% at 50% 0%,
+      rgb(140 96 252 / 88%) 0%,
+      rgb(108 64 222 / 60%) 26%,
+      rgb(84 50 178 / 30%) 46%,
+      rgb(58 37 122 / 12%) 66%,
+      transparent 86%
+    );
+    filter: blur(26px);
+  }
+
   .felt-panel {
     /* `relative`, not `absolute`: this class is also used as an ordinary card on the
        cash-out screen, and absolute positioning here pulled it out of flow and dropped

@@ -121,7 +121,9 @@ function ColorWell({
               aria-pressed={selected}
               onClick={() => onChange(swatch)}
               className={cn(
-                "size-8 shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] active:scale-95 disabled:opacity-50",
+                // The drawn size stays 32px -- in a colour picker the swatch size is
+                // doing real work -- and the tap target grows underneath it instead.
+                "relative size-8 shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] after:absolute after:-inset-1.5 active:scale-95 disabled:opacity-50",
                 selected && "shadow-[0_0_0_2px_var(--text-0)]",
               )}
               style={{ backgroundColor: swatch }}

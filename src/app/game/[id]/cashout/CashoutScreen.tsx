@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { AmountInput } from "@/components/AmountInput";
 import { AppHeader } from "@/components/AppHeader";
@@ -81,6 +81,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [savingId, setSavingId] = React.useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [assigning, setAssigning] = React.useState(false);
   const chipSaveTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -172,7 +173,22 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
           body: JSON.stringify({ playerId, amount, early: state.status === "active" }),
         },
       );
-      setState(next);
+      /* The response is authoritative for the player just saved and for the
+         ledger, but it also carries every other player's counts as last persisted
+         -- which would discard whatever they have tapped in and not yet committed.
+         Only the saved player takes the server's counts. */
+      setState((current) => {
+        if (!current) return next;
+        const local = new Map(current.players.map((entry) => [entry.id, entry.chipCounts]));
+        return {
+          ...next,
+          players: next.players.map((entry) => {
+            if (entry.id === playerId) return entry;
+            const counts = local.get(entry.id);
+            return counts ? { ...entry, chipCounts: counts } : entry;
+          }),
+        };
+      });
     } catch (error) {
       setState(previous);
       toast.error(errorText(error));
@@ -433,7 +449,11 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
 
                     <div className="flex min-h-6 items-center justify-between">
                       <span className="t-caption ink-3">מאזן כרגע</span>
-                      <AnimatePresence>
+                      {/* `popLayout` takes the outgoing figure out of flow. On the
+                          default `sync` mode both signs occupied the row while it
+                          crossed zero, so the number slid sideways at the exact
+                          moment the host was reading it. */}
+                      <AnimatePresence mode="popLayout" initial={false}>
                         {player.cashOut !== null && (
                           <motion.span
                             key={Math.sign(net)}
@@ -535,19 +555,34 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                   <p className="t-caption ink-3">
                     שחקן אחד סופג את כל ההפרש לבד. בדרך כלל מי שכנראה טעה בספירה.
                   </p>
-                  {assigning && (
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      {state.players.map((player) => (
-                        <Button
-                          key={player.id}
-                          variant="secondary"
-                          onClick={() => void resolve("assign", player.id)}
-                        >
-                          {player.name}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
+                  {/* A disclosure that appears under the button that asks for it, so
+                      the list reads as belonging to it rather than as the layout
+                      jumping. `height: auto` is a layout animation and cannot be
+                      flattened by `motionSafe`, so reduced motion skips it outright. */}
+                  <AnimatePresence initial={false}>
+                    {assigning && (
+                      <motion.div
+                        key="assign-targets"
+                        initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                        transition={{ duration: reduceMotion ? 0 : DUR.base, ease: EASE_OUT }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          {state.players.map((player) => (
+                            <Button
+                              key={player.id}
+                              variant="secondary"
+                              onClick={() => void resolve("assign", player.id)}
+                            >
+                              {player.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             )}

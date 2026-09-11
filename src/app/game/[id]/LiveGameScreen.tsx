@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
+import { motion, useReducedMotion } from "framer-motion";
+import { motionSafe, rise, stagger } from "@/lib/motion";
 import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
@@ -16,7 +18,7 @@ import { HandRecorder } from "@/components/HandRecorder";
 import { MusicButton } from "@/components/MusicButton";
 import { GameRulesDialog } from "@/components/GameRulesDialog";
 import { PlayerCard } from "@/components/PlayerCard";
-import { PokerTable } from "@/components/PokerTable";
+import { PokerTableArc } from "@/components/PokerTableArc";
 import { RebuyButton } from "@/components/RebuyButton";
 import { SeatPicker } from "@/components/SeatPicker";
 import { LiveFeed } from "@/components/LiveFeed";
@@ -49,6 +51,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [streaks, setStreaks] = useState<PlayerStreakMap>({});
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     apiFetch<{ badges: PlayerStreakMap }>(`/api/streaks?view=live&gameId=${gameId}`)
@@ -225,7 +228,17 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-1 flex-col gap-2 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    /* The live screen was the only major screen that simply appeared: the table
+       settled in on its own while the meta pill, the rebuy row and everything else
+       popped in around it. One stagger parent puts them all on the same arrival.
+       `AppHeader` and the fixed nav stay plain elements, so they do not move and
+       act as the anchor the rest settles against. */
+    <motion.main
+      variants={motionSafe(stagger, reduceMotion)}
+      initial="hidden"
+      animate="show"
+      className="flex min-h-[100dvh] flex-1 flex-col gap-2 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]"
+    >
       <AppHeader
         title={game.name ?? "משחק"}
         subtitle={
@@ -255,7 +268,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         }
       />
 
-      <div className="surface-card mx-5 flex h-12 shrink-0 items-center justify-between gap-2 rounded-full px-3">
+      <motion.div variants={motionSafe(rise, reduceMotion)} className="surface-card mx-5 flex h-12 shrink-0 items-center justify-between gap-2 rounded-full px-3">
         <MetaPill icon={Clock3Icon}>
           <span className="text-[var(--text-2)]">שעת יציאה</span>
           <time className="tabular font-bold text-foreground" dateTime={game.plannedEndAt}>
@@ -267,7 +280,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             <SlidersHorizontalIcon aria-hidden="true" />
           </Button>
         )}
-      </div>
+      </motion.div>
 
       {error && (
         <div className="surface-card mx-5 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 t-body text-destructive">
@@ -277,16 +290,15 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       )}
       {/* The table, then your own action directly under it: poker clients keep the
           primary action in one fixed place so it is never hunted for. */}
-      <section aria-label="שולחן" className="flex min-h-0 flex-1 items-center px-5">
-        <PokerTable
+      <motion.section variants={motionSafe(rise, reduceMotion)} aria-label="שולחן" className="flex min-h-0 flex-1 items-center px-5">
+        <PokerTableArc
           players={seated}
           pot={game.pot}
           streaks={streaks}
           selectedPlayerId={game.isHost ? focusedPlayerId : null}
           onSeatSelect={game.isHost ? (player) => setFocusedPlayerId((current) => current === player.id ? null : player.id) : undefined}
-          compact
         />
-      </section>
+      </motion.section>
 
       {game.players.length === 1 && (
         <p className="surface-card t-body text-muted-foreground mx-5 rounded-[20px] px-4 py-3 text-center">
@@ -310,7 +322,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       )}
 
       {you && !you.isSettled && (
-        <div className="flex shrink-0 gap-2 px-5">
+        <motion.div variants={motionSafe(rise, reduceMotion)} className="flex shrink-0 gap-2 px-5">
           <RebuyButton
             amount={game.rebuyAmount}
             // `addRebuy` carries the haptic: committing money is one of the two
@@ -322,14 +334,14 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           <Button type="button" variant="secondary" size="lg" onClick={() => setCustomPlayer(you)} className="shrink-0">
             סכום אחר
           </Button>
-        </div>
+        </motion.div>
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות מארח">
-        <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={() => void shareInvite()}><Share2Icon strokeWidth={1.75} /> הזמנה</Button>
-        <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={() => setHistoryOpen(true)}><HistoryIcon strokeWidth={1.75} /> היסטוריה</Button>
+        <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => void shareInvite()}><Share2Icon strokeWidth={1.75} /> הזמנה</Button>
+        <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => setHistoryOpen(true)}><HistoryIcon strokeWidth={1.75} /> היסטוריה</Button>
         {game.isHost && <HandRecorder gameId={gameId} players={seated} />}
-        {game.isHost && <Button asChild type="button" size="sm" className="flex-1"><Link href={`/game/${gameId}/cashout`}>סגירת הערב</Link></Button>}
+        {game.isHost && <Button asChild type="button" className="flex-1 px-2"><Link href={`/game/${gameId}/cashout`}>סגירת הערב</Link></Button>}
       </nav>
 
       <Dialog open={focusedPlayer !== null} onOpenChange={(open) => !open && setFocusedPlayerId(null)}>
@@ -462,6 +474,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           }}
         />
       )}
-    </main>
+    </motion.main>
   );
 }
