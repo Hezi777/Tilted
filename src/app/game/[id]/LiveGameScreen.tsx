@@ -290,7 +290,10 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       )}
       {/* The table, then your own action directly under it: poker clients keep the
           primary action in one fixed place so it is never hunted for. */}
-      <motion.section variants={motionSafe(rise, reduceMotion)} aria-label="שולחן" className="flex min-h-0 flex-1 items-center px-5">
+      {/* No horizontal padding: the table is full-bleed. Its ellipse is wider than
+          the viewport on purpose and runs off both edges, which is the whole reason
+          it reads as a table you are sitting at rather than a card on a page. */}
+      <motion.section variants={motionSafe(rise, reduceMotion)} aria-label="שולחן" className="flex min-h-0 flex-1 items-center">
         <PokerTableArc
           players={seated}
           pot={game.pot}

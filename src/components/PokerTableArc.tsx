@@ -152,7 +152,7 @@ export function PokerTableArc({
       variants={tableVariants}
       initial={reduceMotion ? false : "hidden"}
       animate="show"
-      className="relative mx-auto aspect-[1/1.18] w-full max-w-[400px] overflow-hidden"
+      className="relative mx-auto aspect-[1/1.18] w-full max-w-[450px] overflow-hidden"
     >
       {/* The lamp over the table, drawn first so the table cuts it off. Its bottom
           edge is the rail, which is what makes the arc read as a dark lip against
