@@ -9,6 +9,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
 import { shekelsToAgorot } from "@/lib/money";
+import { UNDO_WINDOW_MS } from "@/lib/authz";
 import { useLiveGame } from "@/hooks/useLiveGame";
 import type { LivePlayer } from "@/db/live-queries";
 import type { PlayerStreakMap } from "@/db/streak-queries";
@@ -75,6 +76,30 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   // Seats keep table order for anyone who has not chosen a physical chair.
   const seated = useMemo(() => [...playersWithSeats].sort((a, b) => a.seatOrder - b.seatOrder), [playersWithSeats]);
   const you = useMemo(() => seated.find((player) => player.isYou) ?? null, [seated]);
+
+  // A rebuy added by mistake. The toast that offers "בטל" lives five seconds; the rule
+  // gives a player a full minute over their own row (5.4), and until now the only way
+  // to reach that minute was to be the host. The button below is that minute, made
+  // visible -- it counts down so nobody taps it a second after it closed.
+  const [now, setNow] = useState(() => Date.now());
+  const yourLastRebuy = useMemo(
+    () =>
+      you
+        ? game?.feed.find((item) => item.playerId === you.id && item.kind === "rebuy") ?? null
+        : null,
+    [game?.feed, you],
+  );
+  const undoSecondsLeft = yourLastRebuy
+    ? Math.ceil(
+        (UNDO_WINDOW_MS - (now - new Date(yourLastRebuy.createdAt).getTime())) / 1000,
+      )
+    : 0;
+  const canUndoOwnRebuy = undoSecondsLeft > 0;
+  useEffect(() => {
+    if (!canUndoOwnRebuy) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [canUndoOwnRebuy]);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const focusedPlayer = useMemo(() => seated.find((player) => player.id === focusedPlayerId) ?? null, [seated, focusedPlayerId]);
 
@@ -338,6 +363,19 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             סכום אחר
           </Button>
         </motion.div>
+      )}
+
+      {you && !you.isSettled && canUndoOwnRebuy && yourLastRebuy && (
+        <div className="px-5">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => void undo(yourLastRebuy.opId)}
+          >
+            ביטול הריביי האחרון ({undoSecondsLeft})
+          </Button>
+        </div>
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות מארח">
