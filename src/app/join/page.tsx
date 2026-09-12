@@ -48,6 +48,7 @@ export default function JoinPage() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [avatarPlayer, setAvatarPlayer] = useState<JoinRosterPlayer | null>(null);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
+  const [takingSeat, setTakingSeat] = useState(false);
 
   // No route code -> the code prompt itself may be unnecessary. This account may
   // already have an open seat.
@@ -149,6 +150,23 @@ export default function JoinPage() {
       } catch {
         // Keep the original, actionable conflict visible if the refresh also fails.
       }
+    }
+  }
+
+  // Spec 5.3: a guest picks their name from the roster, or adds it if the host has
+  // not. The code is the invitation, so a share link works for anyone who has it.
+  async function takeSeat() {
+    if (!game) return;
+    setTakingSeat(true);
+    setError(null);
+    try {
+      const seat = await apiFetch<{ gameId: string }>(`/api/games/${game.code}/join`, {
+        method: "POST",
+      });
+      router.replace(`/game/${seat.gameId}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ההצטרפות נכשלה");
+      setTakingSeat(false);
     }
   }
 
@@ -291,8 +309,21 @@ export default function JoinPage() {
             </div>
             {game.players.length === 0 && (
               <Card className="surface-card shadow-none">
-                <CardContent className="t-body text-[var(--text-2)]">
-                  החשבון שלכם עדיין לא נמצא בשולחן הזה. בקשו מהמארח להוסיף אתכם.
+                <CardContent className="flex flex-col gap-3">
+                  <p className="t-body text-[var(--text-2)]">
+                    {game.status === "active"
+                      ? "המקום שלכם עדיין לא נפתח בשולחן הזה. אפשר לשבת עכשיו, עם הכניסה הראשונה של הערב."
+                      : "השולחן כבר לא מקבל שחקנים חדשים."}
+                  </p>
+                  {game.status === "active" && (
+                    <Button
+                      className="w-full"
+                      disabled={takingSeat}
+                      onClick={() => void takeSeat()}
+                    >
+                      {takingSeat ? "מתיישבים..." : "תופסים מקום בשולחן"}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )}

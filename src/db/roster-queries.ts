@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { buyIns, games, people, players } from "@/db/schema";
-import { AVATAR_KEYS, firstAvailableAvatarKey } from "@/lib/avatar";
+import { AVATAR_KEYS, avatarKeyForPlayer } from "@/lib/avatar";
 import type { JoinGameDetail } from "@/lib/api";
 import {
   assertCanManageRoster,
@@ -138,6 +138,100 @@ export async function claimPlayer(
   return claimed;
 }
 
+/**
+ * Seats the signed-in account at a table it was never added to (spec 5.3: a guest
+ * "picks their name from the roster, or adds it if the host has not").
+ *
+ * Self-service, so there is no host guard -- knowing the four-character code is the
+ * whole entitlement, which is what makes a share link work. Everything else is the
+ * same seat `addPlayerToGame` makes: a Player bound to this Person, its initial
+ * buy-in, and the next seat around the felt. The claim is folded in, because someone
+ * who just created their own seat has nothing to claim.
+ */
+export async function joinGameByCode(
+  code: string,
+  actorPersonId: string,
+): Promise<{ gameId: string; playerId: string }> {
+  const [game] = await db
+    .select({ id: games.id, buyIn: games.buyIn })
+    .from(games)
+    .where(and(eq(games.code, code), eq(games.status, "active")))
+    .limit(1);
+  if (!game) throw new RosterConflictError("המשחק לא נמצא או שכבר נסגר");
+
+  const [person] = await db
+    .select({ id: people.id, name: people.name, avatarKey: people.avatarKey })
+    .from(people)
+    .where(and(eq(people.id, actorPersonId), sql`${people.userId} IS NOT NULL`));
+  if (!person) throw new RosterConflictError("לא נמצא חשבון שחקן");
+
+  const seated = await db
+    .select({ id: players.id, personId: players.personId, avatarKey: players.avatarKey })
+    .from(players)
+    .where(and(eq(players.gameId, game.id), isNull(players.deletedAt)));
+
+  // Already at this table -- the host added them, or they tapped the link twice. Hand
+  // back the seat they have rather than making a second one.
+  const existing = seated.find((row) => row.personId === person.id);
+  if (existing) {
+    await db
+      .update(players)
+      .set({ deviceId: actorPersonId })
+      .where(and(eq(players.id, existing.id), isNull(players.deviceId)));
+    return { gameId: game.id, playerId: existing.id };
+  }
+
+  const avatarKey = avatarKeyForPlayer(
+    person.avatarKey,
+    seated.map((row) => row.avatarKey),
+  );
+  if (!avatarKey) throw new RosterConflictError("אין עוד דמויות פנויות בשולחן");
+
+  const playerId = randomUUID();
+  const result = await db.execute<{ player_id: string }>(sql`
+    WITH active_game AS (
+      SELECT id, buy_in FROM ${games}
+      WHERE id = ${game.id}::uuid AND status = 'active'
+      FOR UPDATE
+    ), inserted_player AS (
+      INSERT INTO ${players}
+        (id, game_id, person_id, name, avatar_key, seat_order, device_id, is_host)
+      SELECT ${playerId}::uuid, g.id, ${person.id}::uuid, ${person.name},
+        ${avatarKey},
+        coalesce((SELECT max(existing.seat_order) + 1 FROM ${players} existing WHERE existing.game_id = g.id), 0),
+        ${actorPersonId}, false
+      FROM active_game g
+      WHERE NOT EXISTS (
+          SELECT 1 FROM ${players} duplicate
+          WHERE duplicate.game_id = g.id
+            AND duplicate.person_id = ${person.id}::uuid
+            AND duplicate.deleted_at IS NULL
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ${players} occupied
+          WHERE occupied.game_id = g.id
+            AND occupied.avatar_key = ${avatarKey}
+            AND occupied.deleted_at IS NULL
+        )
+      RETURNING id, game_id
+    ), inserted_buyin AS (
+      INSERT INTO ${buyIns}
+        (id, game_id, player_id, amount, kind, op_id, created_by_device)
+      SELECT ${randomUUID()}::uuid, p.game_id, p.id, g.buy_in, 'initial',
+        ${randomUUID()}::uuid, ${actorPersonId}
+      FROM inserted_player p
+      INNER JOIN active_game g ON g.id = p.game_id
+      RETURNING player_id
+    )
+    SELECT player_id FROM inserted_buyin
+  `);
+
+  if (!result.rows[0]) {
+    throw new RosterConflictError("המשחק כבר לא פעיל או שהמקום נתפס");
+  }
+  return { gameId: game.id, playerId };
+}
+
 export class RosterConflictError extends Error {
   constructor(message = "השחקן כבר נמצא במשחק") {
     super(message);
@@ -197,7 +291,7 @@ export async function addPlayerToGame(
   assertCanManageRoster(context.game.status as GameStatus, actor);
 
   const [person] = await db
-    .select({ id: people.id, name: people.name })
+    .select({ id: people.id, name: people.name, avatarKey: people.avatarKey })
     .from(people)
     .where(and(eq(people.id, input.personId), sql`${people.userId} IS NOT NULL`));
   if (!person) throw new Error("לא נמצא חשבון שחקן");
@@ -206,7 +300,10 @@ export async function addPlayerToGame(
     .select({ avatarKey: players.avatarKey })
     .from(players)
     .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)));
-  const avatarKey = firstAvailableAvatarKey(usedAvatars.map((row) => row.avatarKey));
+  const avatarKey = avatarKeyForPlayer(
+    person.avatarKey,
+    usedAvatars.map((row) => row.avatarKey),
+  );
   if (!avatarKey) throw new RosterConflictError("אין עוד דמויות פנויות בשולחן");
 
   const [duplicate] = await db

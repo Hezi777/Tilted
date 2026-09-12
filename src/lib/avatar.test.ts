@@ -6,6 +6,7 @@ import {
   SELECTABLE_AVATAR_KEYS,
   avatarSrc,
   avatarKeyForPerson,
+  avatarKeyForPlayer,
   avatarKeyForSeat,
   isReservedAvatarKey,
   reservedAvatarForName,
@@ -69,6 +70,24 @@ describe("defaults", () => {
     for (let seat = 0; seat < 20; seat += 1) {
       expect(isReservedAvatarKey(avatarKeyForSeat(seat))).toBe(false);
     }
+  });
+});
+
+describe("avatarKeyForPlayer", () => {
+  it("seats someone as the character their profile shows", () => {
+    expect(avatarKeyForPlayer("hen", [])).toBe("hen");
+    expect(avatarKeyForPlayer("cap", ["bald"])).toBe("cap");
+  });
+
+  it("falls back to an open character when the table already wears theirs", () => {
+    const seated = avatarKeyForPlayer("cap", ["cap"]);
+    expect(seated).not.toBe("cap");
+    expect(isReservedAvatarKey(seated!)).toBe(false);
+  });
+
+  it("gives an open character to someone who has never picked one", () => {
+    const seated = avatarKeyForPlayer(null, []);
+    expect(isReservedAvatarKey(seated!)).toBe(false);
   });
 });
 

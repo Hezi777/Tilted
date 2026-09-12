@@ -22,7 +22,7 @@ import {
   transfers,
 } from "@/db/schema";
 import { generateRoomCode } from "@/lib/codes";
-import { AVATAR_KEYS, avatarKeyForSeat } from "@/lib/avatar";
+import { AVATAR_KEYS, avatarKeyForPlayer } from "@/lib/avatar";
 import { getActorForGame } from "@/db/cashout-queries";
 import { AuthzError, requireHost } from "@/lib/authz";
 import type { GameSummary, GameStatus, PersonSummary } from "@/lib/api";
@@ -225,7 +225,7 @@ export async function createGame(
     throw new Error("A table cannot have more character slots than available avatars");
   }
   const selectedPeople = await db
-    .select({ id: people.id, name: people.name })
+    .select({ id: people.id, name: people.name, avatarKey: people.avatarKey })
     .from(people)
     .where(inArray(people.id, input.personIds));
 
@@ -249,16 +249,22 @@ export async function createGame(
     const gameId = randomUUID();
     const code = generateRoomCode();
 
+    // Everyone sits as themselves. The host is seated first, so on the rare collision
+    // -- two people whose profiles show the same open character -- it is the later seat
+    // that takes an open one instead.
+    const takenAvatars = new Set<string>();
     const playerRows = seatedPersonIds.map((personId, seatOrder) => {
       const person = byId.get(personId);
       if (!person) throw new Error(`Unknown person id: ${personId}`);
       const isHost = personId === input.hostPersonId;
+      const avatarKey = avatarKeyForPlayer(person.avatarKey, takenAvatars);
+      if (avatarKey) takenAvatars.add(avatarKey);
       return {
         id: randomUUID(),
         gameId,
         personId,
         name: person.name,
-        avatarKey: avatarKeyForSeat(seatOrder),
+        avatarKey,
         seatOrder,
         deviceId: isHost ? deviceId : null,
         isHost,

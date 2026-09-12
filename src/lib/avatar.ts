@@ -193,6 +193,23 @@ export function avatarKeyForSeat(seatOrder: number): AvatarKey {
   return SELECTABLE_AVATAR_KEYS[seatOrder % OPEN_COUNT];
 }
 
+/**
+ * The character to seat someone in.
+ *
+ * Their own, the one their profile shows everywhere else in the app, whenever this
+ * table has not already given it to somebody. A seat that ignores it puts a stranger's
+ * face on a friend at the only screen everybody is looking at. The fallback is an open
+ * character, never a reserved one.
+ */
+export function avatarKeyForPlayer(
+  own: string | null,
+  usedKeys: Iterable<string | null>,
+): AvatarKey | null {
+  const used = new Set(usedKeys);
+  if (own && isAvatarKey(own) && !used.has(own)) return own;
+  return firstAvailableAvatarKey(used);
+}
+
 export function firstAvailableAvatarKey(
   usedKeys: Iterable<string | null>,
 ): AvatarKey | null {
