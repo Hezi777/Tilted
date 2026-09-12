@@ -11,9 +11,6 @@
  * database.
  */
 
-/** Undo window for your own rebuy, after which only the host can remove it (5.4). */
-export const UNDO_WINDOW_MS = 60_000;
-
 export type GameStatus = "active" | "settling" | "closed" | "cancelled";
 
 /** Who may type a player's final number. Mirrors the `result_entry` enum. */
@@ -36,6 +33,7 @@ export interface TargetPlayer {
 export interface BuyInRow {
   id: string;
   playerId: string;
+  kind: "initial" | "rebuy";
   createdByDevice: string | null;
   createdAt: Date;
   deletedAt: Date | null;
@@ -49,7 +47,7 @@ export type AuthzCode =
   | "game_not_active"
   | "player_settled"
   | "player_deleted"
-  | "undo_window_closed"
+  | "initial_buy_in"
   | "already_deleted";
 
 const STATUS: Record<AuthzCode, number> = {
@@ -60,7 +58,7 @@ const STATUS: Record<AuthzCode, number> = {
   game_not_active: 409,
   player_settled: 409,
   player_deleted: 409,
-  undo_window_closed: 403,
+  initial_buy_in: 409,
   already_deleted: 409,
 };
 
@@ -73,7 +71,7 @@ const MESSAGE: Record<AuthzCode, string> = {
   game_not_active: "המשחק כבר לא פעיל",
   player_settled: "השחקן כבר סגר חשבון",
   player_deleted: "השחקן הוסר מהמשחק",
-  undo_window_closed: "עברו יותר מדקה, רק המארח יכול למחוק",
+  initial_buy_in: "אי אפשר להסיר את הכניסה הראשונה",
   already_deleted: "השורה כבר נמחקה",
 };
 
@@ -143,29 +141,32 @@ export function assertCanCashOutEarly(
 }
 
 /**
- * Removing a buy-in: the host at any time, or the device that actually wrote the row,
- * within 60 seconds of the server's timestamp.
+ * Removing a rebuy: the host at any seat, or a player at their own, for as long as the
+ * game is open.
  *
- * Authorship is checked against created_by_device rather than the seat, so a host
- * correction filed on a guest's card is not undoable by that guest.
+ * This used to close sixty seconds after the row was written, which read as a rule
+ * about honesty and worked as a rule about reflexes -- an accidental tap noticed two
+ * hands later could only be fixed by the host, and the table agreeing to a smaller
+ * rebuy mid-evening could not be recorded at all. The product owner retired the window
+ * on 2026-09-13. The single authorization rule is untouched: your own row, and the
+ * host's exception.
+ *
+ * Ownership is the seat, not the device that wrote the row, so a rebuy the host filed
+ * on your card is still yours to correct.
+ *
+ * The initial buy-in is not a rebuy and nobody removes it -- a seat without one is a
+ * player who never bought in, which the settlement has no way to read.
  */
 export function assertCanDeleteBuyIn(
   status: GameStatus,
   actor: ActorPlayer,
   row: BuyInRow,
-  now: Date = new Date(),
 ): void {
   requireActiveGame(status);
   assert(row.deletedAt === null, "already_deleted");
+  assert(row.kind === "rebuy", "initial_buy_in");
   if (actor.isHost) return;
-  assert(
-    row.createdByDevice !== null && row.createdByDevice === actor.deviceId,
-    "not_your_seat",
-  );
-  assert(
-    now.getTime() - row.createdAt.getTime() <= UNDO_WINDOW_MS,
-    "undo_window_closed",
-  );
+  assert(row.playerId === actor.id, "not_your_seat");
 }
 
 /**

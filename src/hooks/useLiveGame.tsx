@@ -147,16 +147,21 @@ export function useLiveGame(gameId: string) {
     };
   }, [poll]);
 
-  const undo = useCallback(async (opId: string) => {
+  const undo = useCallback(async (opId: string, options?: { silent?: boolean }): Promise<boolean> => {
     const details = rebuyDetailsRef.current.get(opId);
     pendingRef.current = pendingRef.current.filter((item) => item.opId !== opId);
     setGame((current) => {
       if (!current) return current;
-      const found = current.feed.find((item) => item.opId === opId);
+      // The row may be older than the twelve the shared feed keeps, in which case the
+      // player's own list is the only place it still appears.
+      const found =
+        current.feed.find((item) => item.opId === opId) ??
+        current.yourBuyIns.find((item) => item.opId === opId);
       if (!found) return current;
       return mergePendingGame({
         ...current,
         feed: current.feed.filter((item) => item.opId !== opId),
+        yourBuyIns: current.yourBuyIns.filter((item) => item.opId !== opId),
         players: current.players.map((player) => player.id === found.playerId
           ? { ...player, totalIn: subtractMoney(player.totalIn, found.amount), buyInCount: Math.max(0, player.buyInCount - 1) }
           : player),
@@ -166,27 +171,31 @@ export function useLiveGame(gameId: string) {
     const createPromise = createPromisesRef.current.get(opId);
     const rowDetails = details ?? (() => {
       const current = game;
-      const found = current?.feed.find((item) => item.opId === opId);
+      const found =
+        current?.feed.find((item) => item.opId === opId) ??
+        current?.yourBuyIns.find((item) => item.opId === opId);
       return found ? { playerId: found.playerId, amount: found.amount } : undefined;
     })();
     try {
-      if (!rowDetails) return;
+      if (!rowDetails) return false;
       const result = await afterCreateSettles(createPromise, () => apiFetch<{ deleted: boolean }>(`/api/game/${gameId}/buy-ins/${opId}`, {
         method: "DELETE",
         body: JSON.stringify(rowDetails),
       }));
-      if (!result.deleted) return;
-      toast.success("הריביי בוטל");
+      if (!result.deleted) return false;
+      if (!options?.silent) toast.success("הריביי בוטל");
+      return true;
     } catch (reason) {
       toast.error(reason instanceof ApiError ? reason.message : "ביטול הריביי נכשל");
       void poll();
+      return false;
     } finally {
       createPromisesRef.current.delete(opId);
       rebuyDetailsRef.current.delete(opId);
     }
   }, [game, gameId, poll]);
 
-  const addRebuy = useCallback((playerId: string, amount: number) => {
+  const addRebuy = useCallback((playerId: string, amount: number, options?: { silent?: boolean }) => {
     if (!Number.isInteger(amount) || amount <= 0) return;
     const player = game?.players.find((candidate) => candidate.id === playerId);
     if (!player) return;
@@ -204,17 +213,22 @@ export function useLiveGame(gameId: string) {
           ? { ...candidate, totalIn: addMoney(candidate.totalIn, amount), buyInCount: candidate.buyInCount + 1 }
           : candidate),
         feed: [{ id: `pending:${opId}`, opId, playerId, playerName: player?.name ?? item.playerName, amount, kind: "rebuy" as const, createdAt: item.createdAt }, ...current.feed].slice(0, 12),
+        yourBuyIns: playerId === current.youId
+          ? [{ id: `pending:${opId}`, opId, playerId, playerName: player?.name ?? item.playerName, amount, kind: "rebuy" as const, createdAt: item.createdAt }, ...current.yourBuyIns]
+          : current.yourBuyIns,
       };
     });
     // The single buzz for a rebuy. Every path into one -- the button, the custom
     // amount dialog, the host acting from a player card -- funnels through here, so
     // this is the only place it belongs.
     haptic();
-    toast.success(`${player.name} הוסיף ריביי`, {
-      duration: 5_000,
-      // Section 8.2: the rebuy burst is the one place this asset appears.
-      action: { label: "בטל", onClick: () => void undo(opId) },
-    });
+    if (!options?.silent) {
+      toast.success(`${player.name} הוסיף ריביי`, {
+        duration: 5_000,
+        // Section 8.2: the rebuy burst is the one place this asset appears.
+        action: { label: "בטל", onClick: () => void undo(opId) },
+      });
+    }
     const createPromise = apiFetch(`/api/game/${gameId}/buy-ins`, {
       method: "POST",
       body: JSON.stringify({ playerId, amount, opId }),
@@ -227,5 +241,18 @@ export function useLiveGame(gameId: string) {
     });
   }, [game, gameId, undo]);
 
-  return { game, loading, error, addRebuy, undo, refresh: poll };
+  /**
+   * A rebuy the table agreed to change after the fact -- half a rebuy, or the wrong
+   * amount typed in a hurry. The ledger is append-only, so a correction is the old row
+   * soft-deleted and a new one written, and the second half only runs if the first
+   * succeeded: a failed removal must never leave the pot counting both.
+   */
+  const editRebuy = useCallback(async (opId: string, playerId: string, amount: number) => {
+    if (!Number.isInteger(amount) || amount <= 0) return;
+    if (!(await undo(opId, { silent: true }))) return;
+    addRebuy(playerId, amount, { silent: true });
+    toast.success("הריביי עודכן");
+  }, [addRebuy, undo]);
+
+  return { game, loading, error, addRebuy, undo, editRebuy, refresh: poll };
 }

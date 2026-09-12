@@ -113,7 +113,8 @@ The host reads out a 4-character code. Each guest opens the app, enters the code
   - Everyone else's card: read-only. The host additionally sees a small `···` menu on every card.
   - `···` menu (own card, or any card if host): ריביי בסכום אחר / ביטול ריביי אחרון / (host only) מחיקת שחקן.
 - The screen polls `GET /api/game/[code]` every 3 seconds while the tab is visible, and pauses polling on `visibilitychange`. No websockets, no realtime service.
-- Every rebuy triggers a short haptic + a toast with an **בטל** action for 5 seconds. You can undo your own rebuy for 60 seconds; after that only the host can remove it.
+- Every rebuy triggers a short haptic + a toast with an **בטל** action for 5 seconds. ~~You can undo your own rebuy for 60 seconds; after that only the host can remove it.~~
+  - **Superseded 2026-09-13 by the product owner.** The sixty-second window is gone. A player may remove *or edit* any rebuy on their own seat for as long as the game is open, and the host may do it on any seat. A correction is the old row soft-deleted and a new one written, so the ledger stays append-only and the table sees the corrected amount. The initial buy-in is never removable, by anyone. The write rule in the bullet above is unchanged: your own row, with the host as the single exception. Ownership here is the **seat**, not the device that wrote the row, so a rebuy the host filed on your card is yours to correct.
 - A small live feed at the bottom shows the last few actions (`רועי הוסיף ריביי · לפני 2 דק'`) so the table can see what got logged without opening anything.
 - Host bottom bar: **הוסף שחקן**, **קוד החדר**, **סיום משחק**. Guests see only **קוד החדר**.
 

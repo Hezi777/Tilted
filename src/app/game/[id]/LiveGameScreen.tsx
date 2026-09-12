@@ -8,8 +8,7 @@ import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
-import { shekelsToAgorot } from "@/lib/money";
-import { UNDO_WINDOW_MS } from "@/lib/authz";
+import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
 import type { LivePlayer } from "@/db/live-queries";
 import type { PlayerStreakMap } from "@/db/streak-queries";
@@ -39,7 +38,7 @@ function elapsed(startedAt: string): string {
 }
 
 export default function LiveGameScreen({ gameId }: { gameId: string }) {
-  const { game, loading, error, addRebuy, undo, refresh } = useLiveGame(gameId);
+  const { game, loading, error, addRebuy, undo, editRebuy, refresh } = useLiveGame(gameId);
   const [customPlayer, setCustomPlayer] = useState<{ id: string; name: string } | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const [deletePlayer, setDeletePlayer] = useState<{ id: string; name: string } | null>(null);
@@ -77,29 +76,16 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const seated = useMemo(() => [...playersWithSeats].sort((a, b) => a.seatOrder - b.seatOrder), [playersWithSeats]);
   const you = useMemo(() => seated.find((player) => player.isYou) ?? null, [seated]);
 
-  // A rebuy added by mistake. The toast that offers "בטל" lives five seconds; the rule
-  // gives a player a full minute over their own row (5.4), and until now the only way
-  // to reach that minute was to be the host. The button below is that minute, made
-  // visible -- it counts down so nobody taps it a second after it closed.
-  const [now, setNow] = useState(() => Date.now());
-  const yourLastRebuy = useMemo(
-    () =>
-      you
-        ? game?.feed.find((item) => item.playerId === you.id && item.kind === "rebuy") ?? null
-        : null,
-    [game?.feed, you],
+  // A rebuy added by mistake, or one the table agreed to halve. Both are corrections
+  // to your own row, which the rule has always allowed -- until 2026-09-13 it just
+  // expired after a minute, and the only door to it was the host's seat dialog.
+  const [rebuysOpen, setRebuysOpen] = useState(false);
+  const [editing, setEditing] = useState<{ opId: string; playerId: string; amount: number } | null>(null);
+  const [editAmount, setEditAmount] = useState<number | null>(null);
+  const yourRebuys = useMemo(
+    () => (game?.yourBuyIns ?? []).filter((item) => item.kind === "rebuy"),
+    [game?.yourBuyIns],
   );
-  const undoSecondsLeft = yourLastRebuy
-    ? Math.ceil(
-        (UNDO_WINDOW_MS - (now - new Date(yourLastRebuy.createdAt).getTime())) / 1000,
-      )
-    : 0;
-  const canUndoOwnRebuy = undoSecondsLeft > 0;
-  useEffect(() => {
-    if (!canUndoOwnRebuy) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [canUndoOwnRebuy]);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const focusedPlayer = useMemo(() => seated.find((player) => player.id === focusedPlayerId) ?? null, [seated, focusedPlayerId]);
 
@@ -362,21 +348,21 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           <Button type="button" variant="secondary" size="lg" onClick={() => setCustomPlayer(you)} className="shrink-0">
             סכום אחר
           </Button>
+          {yourRebuys.length > 0 && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="shrink-0"
+              aria-label="הריביים שלי"
+              onClick={() => setRebuysOpen(true)}
+            >
+              <SlidersHorizontalIcon strokeWidth={1.75} />
+            </Button>
+          )}
         </motion.div>
       )}
 
-      {you && !you.isSettled && canUndoOwnRebuy && yourLastRebuy && (
-        <div className="px-5">
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full"
-            onClick={() => void undo(yourLastRebuy.opId)}
-          >
-            ביטול הריביי האחרון ({undoSecondsLeft})
-          </Button>
-        </div>
-      )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות מארח">
         <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => void shareInvite()}><Share2Icon strokeWidth={1.75} /> הזמנה</Button>
@@ -403,6 +389,94 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           <DialogFooter><Button type="button" variant="outline" className="h-12" onClick={() => setHistoryOpen(false)}>חזרה לשולחן</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Your own money, the whole evening -- the shared feed keeps twelve rows and a
+          rebuy from two hands ago has long since fallen off it. */}
+      <Drawer open={rebuysOpen} onOpenChange={setRebuysOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>הריביים שלי הערב</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex flex-col gap-2 px-4">
+            {yourRebuys.map((item) => (
+              <div
+                key={item.opId}
+                className="surface-card flex items-center justify-between gap-3 rounded-[20px] px-4 py-3"
+              >
+                <div className="flex min-w-0 flex-col">
+                  <span className="money t-title">{formatILS(agorot(item.amount))}</span>
+                  <span className="t-caption text-[var(--text-2)]">
+                    {new Date(item.createdAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setEditAmount(item.amount);
+                      setEditing({ opId: item.opId, playerId: item.playerId, amount: item.amount });
+                    }}
+                  >
+                    עריכה
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => void undo(item.opId)}
+                  >
+                    הסרה
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <p className="t-caption text-[var(--text-2)] px-1">
+              הכניסה הראשונה של הערב נשארת תמיד. אפשר לתקן ריביי כל עוד השולחן פתוח.
+            </p>
+          </div>
+          <DrawerFooter>
+            <Button type="button" variant="outline" className="h-12" onClick={() => setRebuysOpen(false)}>
+              חזרה לשולחן
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>תיקון ריביי</DialogTitle>
+            <DialogDescription>
+              הסכום הקודם יוחלף בחדש. השולחן יראה את הסכום המתוקן.
+            </DialogDescription>
+          </DialogHeader>
+          <Label>כמה בסוף נכנס?</Label>
+          <AmountInput
+            aria-label="סכום הריביי המתוקן"
+            initialAmount={editing?.amount ?? null}
+            onChange={setEditAmount}
+            onCommit={setEditAmount}
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={editAmount === null || editAmount <= 0}
+              onClick={() => {
+                if (!editing || editAmount === null) return;
+                void editRebuy(editing.opId, editing.playerId, editAmount);
+                setEditing(null);
+                setRebuysOpen(false);
+              }}
+            >
+              שמירת התיקון
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+              ביטול
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
         <DrawerContent>
           <DrawerHeader>

@@ -8,7 +8,6 @@ import {
   assertCanSettle,
   AuthzError,
   requireActor,
-  UNDO_WINDOW_MS,
   type ActorPlayer,
   type BuyInRow,
 } from "@/lib/authz";
@@ -34,6 +33,7 @@ function buyIn(over: Partial<BuyInRow> = {}): BuyInRow {
   return {
     id: "b1",
     playerId: "me",
+    kind: "rebuy",
     createdByDevice: "device-a",
     createdAt: new Date(NOW.getTime() - 5_000),
     deletedAt: null,
@@ -133,47 +133,50 @@ describe("assertCanCashOutEarly", () => {
 });
 
 describe("assertCanDeleteBuyIn", () => {
-  it("allows the author inside the 60 second window", () => {
-    expect(codeOf(() => assertCanDeleteBuyIn("active", actor(), buyIn(), NOW))).toBe(
-      "ok",
-    );
+  it("allows a player to remove their own rebuy", () => {
+    expect(codeOf(() => assertCanDeleteBuyIn("active", actor(), buyIn()))).toBe("ok");
   });
 
-  it("refuses the author once the window has closed", () => {
-    const old = buyIn({
-      createdAt: new Date(NOW.getTime() - UNDO_WINDOW_MS - 1),
-    });
-    expect(codeOf(() => assertCanDeleteBuyIn("active", actor(), old, NOW))).toBe(
-      "undo_window_closed",
-    );
+  // The sixty-second window was retired on 2026-09-13: a mis-tap noticed two hands
+  // later is still a mis-tap, and a table that agrees on a smaller rebuy mid-evening
+  // needs to be able to say so.
+  it("still allows it hours later", () => {
+    const old = buyIn({ createdAt: new Date(NOW.getTime() - 4 * 60 * 60_000) });
+    expect(codeOf(() => assertCanDeleteBuyIn("active", actor(), old))).toBe("ok");
   });
 
-  it("still allows the host after the window", () => {
-    const old = buyIn({
-      createdAt: new Date(NOW.getTime() - UNDO_WINDOW_MS - 60_000),
-      createdByDevice: "someone-else",
-    });
+  it("allows the host to remove anyone's rebuy", () => {
+    const theirs = buyIn({ playerId: "other", createdByDevice: "someone-else" });
     expect(
-      codeOf(() =>
-        assertCanDeleteBuyIn("active", actor({ isHost: true }), old, NOW),
-      ),
+      codeOf(() => assertCanDeleteBuyIn("active", actor({ isHost: true }), theirs)),
     ).toBe("ok");
   });
 
-  it("does not let a guest undo a host-entered correction on their own card", () => {
-    // The row sits on this guest's seat, but the host wrote it. Checking the seat
-    // instead of the author would wrongly allow this.
+  it("lets a player correct a rebuy the host filed on their card", () => {
+    // Ownership is the seat, not the author: the money is theirs either way.
     const hostWritten = buyIn({ playerId: "me", createdByDevice: "device-host" });
+    expect(codeOf(() => assertCanDeleteBuyIn("active", actor(), hostWritten))).toBe("ok");
+  });
+
+  it("refuses a guest reaching for another player's rebuy", () => {
     expect(
-      codeOf(() => assertCanDeleteBuyIn("active", actor(), hostWritten, NOW)),
+      codeOf(() => assertCanDeleteBuyIn("active", actor(), buyIn({ playerId: "other" }))),
     ).toBe("not_your_seat");
+  });
+
+  it("never removes the initial buy-in, not even for the host", () => {
+    const initial = buyIn({ kind: "initial" });
+    expect(codeOf(() => assertCanDeleteBuyIn("active", actor(), initial))).toBe(
+      "initial_buy_in",
+    );
+    expect(
+      codeOf(() => assertCanDeleteBuyIn("active", actor({ isHost: true }), initial)),
+    ).toBe("initial_buy_in");
   });
 
   it("refuses a row that is already soft-deleted", () => {
     expect(
-      codeOf(() =>
-        assertCanDeleteBuyIn("active", actor(), buyIn({ deletedAt: NOW }), NOW),
-      ),
+      codeOf(() => assertCanDeleteBuyIn("active", actor(), buyIn({ deletedAt: NOW }))),
     ).toBe("already_deleted");
   });
 });

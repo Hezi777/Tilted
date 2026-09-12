@@ -8,6 +8,7 @@ const game: LiveGame = {
   pot: 10_000, youId: "p1", isHost: false,
   players: [{ id: "p1", personId: "person-1", name: "א", avatarKey: null, seatOrder: 0, isHost: false, isYou: true, isSettled: false, totalIn: 10_000, buyInCount: 2, tableSeat: null }],
   feed: [],
+  yourBuyIns: [],
 };
 
 const pending: PendingRebuy = { opId: "op1", playerId: "p1", amount: 5_000, playerName: "א", createdAt: "2026-09-03T20:01:00.000Z" };

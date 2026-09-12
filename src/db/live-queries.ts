@@ -63,6 +63,12 @@ export interface LiveGame {
   pot: number;
   players: LivePlayer[];
   feed: LiveFeedItem[];
+  /**
+   * Every live buy-in on the viewer's own seat, newest first -- the whole evening, not
+   * the twelve rows the shared feed keeps. A player correcting a rebuy from two hands
+   * ago has to be able to see it, and the feed had long since scrolled past it.
+   */
+  yourBuyIns: LiveFeedItem[];
   youId: string | null;
   isHost: boolean;
 }
@@ -189,6 +195,28 @@ export async function getLiveGame(
     tableSeat: row.tableSeat,
   }));
 
+  const youRow = playersOut.find((player) => player.isYou) ?? null;
+  const yourRows = youRow
+    ? await db
+        .select({
+          id: buyIns.id,
+          opId: buyIns.opId,
+          playerId: buyIns.playerId,
+          amount: buyIns.amount,
+          kind: buyIns.kind,
+          createdAt: buyIns.createdAt,
+        })
+        .from(buyIns)
+        .where(
+          and(
+            eq(buyIns.gameId, gameId),
+            eq(buyIns.playerId, youRow.id),
+            isNull(buyIns.deletedAt),
+          ),
+        )
+        .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
+    : [];
+
   return {
     id: game.id,
     code: game.code,
@@ -209,7 +237,16 @@ export async function getLiveGame(
       kind: row.kind,
       createdAt: row.createdAt.toISOString(),
     })),
-    youId: playersOut.find((player) => player.isYou)?.id ?? null,
+    yourBuyIns: yourRows.map((row) => ({
+      id: row.id,
+      opId: row.opId,
+      playerId: row.playerId,
+      playerName: youRow?.name ?? "",
+      amount: row.amount,
+      kind: row.kind,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    youId: youRow?.id ?? null,
     isHost: playersOut.some((player) => player.isYou && player.isHost),
   };
 }
@@ -336,6 +373,7 @@ export async function deleteRebuy(
     .select({
       id: buyIns.id,
       playerId: buyIns.playerId,
+      kind: buyIns.kind,
       createdByDevice: buyIns.createdByDevice,
       createdAt: buyIns.createdAt,
       deletedAt: buyIns.deletedAt,
@@ -384,6 +422,7 @@ export async function deleteRebuy(
         id: buyIns.id,
         gameId: buyIns.gameId,
         playerId: buyIns.playerId,
+        kind: buyIns.kind,
         amount: buyIns.amount,
         createdByDevice: buyIns.createdByDevice,
         createdAt: buyIns.createdAt,
