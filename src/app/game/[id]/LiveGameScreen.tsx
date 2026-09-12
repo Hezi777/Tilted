@@ -335,31 +335,38 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </div>
       )}
 
+      {/* One hot action, then the cold ones. The default rebuy owns its own line and
+          stays a single confident tap; the two that modify it -- a different amount,
+          or a correction to one already logged -- share the line below, both with a
+          word on them. The correction used to be an unlabeled sliders icon crowding
+          the primary, which reads as "settings" and appeared only after the first
+          rebuy, sliding the other button out from under your thumb mid-evening. */}
       {you && !you.isSettled && (
-        <motion.div variants={motionSafe(rise, reduceMotion)} className="flex shrink-0 gap-2 px-5">
+        <motion.div variants={motionSafe(rise, reduceMotion)} className="flex shrink-0 flex-col gap-2 px-5">
           <RebuyButton
             amount={game.rebuyAmount}
             // `addRebuy` carries the haptic: committing money is one of the two
             // moments in the app worth a buzz, and it belongs to the operation
             // rather than to whichever control started it.
             onClick={() => addRebuy(you.id, game.rebuyAmount)}
-            className="h-14 flex-1"
+            className="h-14 w-full"
           />
-          <Button type="button" variant="secondary" size="lg" onClick={() => setCustomPlayer(you)} className="shrink-0">
-            סכום אחר
-          </Button>
-          {yourRebuys.length > 0 && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              className="shrink-0"
-              aria-label="הריביים שלי"
-              onClick={() => setRebuysOpen(true)}
-            >
-              <SlidersHorizontalIcon strokeWidth={1.75} />
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => setCustomPlayer(you)} className="flex-1">
+              סכום אחר
             </Button>
-          )}
+            {yourRebuys.length > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setRebuysOpen(true)}
+              >
+                <SlidersHorizontalIcon aria-hidden="true" strokeWidth={1.75} />
+                תיקון ריביי
+              </Button>
+            )}
+          </div>
         </motion.div>
       )}
 
