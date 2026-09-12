@@ -248,7 +248,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       variants={motionSafe(stagger, reduceMotion)}
       initial="hidden"
       animate="show"
-      className="flex min-h-[100dvh] flex-1 flex-col gap-2 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))]"
+      className="flex min-h-[100dvh] flex-1 flex-col gap-2 overflow-y-auto pb-[calc(9.5rem+env(safe-area-inset-bottom))]"
     >
       <AppHeader
         title={game.name ?? "משחק"}
@@ -261,20 +261,16 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         backHref="/"
         backLabel="לדף הבית"
         action={
+          /* Ending the night is deliberate and happens once, so it sits at the far
+             corner of the screen rather than under the thumb, where it spent months
+             one mis-tap away from closing the evening for everyone. */
           <div className="flex items-center gap-2">
-            <MusicButton gameId={gameId} isHost={game.isHost} />
             {game.isHost && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                aria-label="עריכת פרטי הערב"
-                onClick={() => setRulesOpen(true)}
-              >
-                <Settings2Icon aria-hidden="true" />
+              <Button asChild type="button" variant="secondary" size="sm">
+                <Link href={`/game/${gameId}/cashout`}>סגירת הערב</Link>
               </Button>
             )}
-            <Button type="button" variant="secondary" onClick={copyCode} className="gap-1.5" aria-label="העתקת קוד החדר">{copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money">{game.code}</span></Button>
+            <MusicButton gameId={gameId} isHost={game.isHost} />
           </div>
         }
       />
@@ -286,11 +282,9 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             {new Date(game.plannedEndAt).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
           </time>
         </MetaPill>
-        {(game.isHost || you) && (
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="פעולות נוספות" onClick={() => setMoreOpen(true)}>
-            <SlidersHorizontalIcon aria-hidden="true" />
-          </Button>
-        )}
+        <Button type="button" variant="ghost" size="sm" onClick={copyCode} className="gap-1.5" aria-label="העתקת קוד החדר">
+          {copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money font-bold">{game.code}</span>
+        </Button>
       </motion.div>
 
       {error && (
@@ -309,8 +303,14 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           players={seated}
           pot={game.pot}
           streaks={streaks}
-          selectedPlayerId={game.isHost ? focusedPlayerId : null}
-          onSeatSelect={game.isHost ? (player) => setFocusedPlayerId((current) => current === player.id ? null : player.id) : undefined}
+          selectedPlayerId={focusedPlayerId}
+          // Tapping a face is the most obvious gesture on this screen and it used to do
+          // nothing unless you were the host. A guest may open their own seat; the
+          // single write rule is unchanged, and the sheet only offers what it allows.
+          onSeatSelect={(player) => {
+            if (!game.isHost && !player.isYou) return;
+            setFocusedPlayerId((current) => (current === player.id ? null : player.id));
+          }}
         />
       </motion.section>
 
@@ -335,14 +335,17 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </div>
       )}
 
-      {/* One hot action, then the cold ones. The default rebuy owns its own line and
-          stays a single confident tap; the two that modify it -- a different amount,
-          or a correction to one already logged -- share the line below, both with a
-          word on them. The correction used to be an unlabeled sliders icon crowding
-          the primary, which reads as "settings" and appeared only after the first
-          rebuy, sliding the other button out from under your thumb mid-evening. */}
-      {you && !you.isSettled && (
-        <motion.div variants={motionSafe(rise, reduceMotion)} className="flex shrink-0 flex-col gap-2 px-5">
+      {/* The only fixed thing on the screen, and so the only thing that never has to
+          be hunted for: the action an evening repeats fifteen times owns the top line,
+          the two that modify it share the second, and everything cold -- history, the
+          invite, leaving early, the host's own tools -- is one tap behind ⋯.
+
+          It used to hold the invite, the history, the hand recorder and סגירת הערב:
+          four things you touch once a night, parked in the easiest place on a phone to
+          reach, while the rebuy sat above in normal flow and moved as the table
+          resized. */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] flex-col gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות השולחן">
+        {you && !you.isSettled && (
           <RebuyButton
             amount={game.rebuyAmount}
             // `addRebuy` carries the haptic: committing money is one of the two
@@ -351,37 +354,37 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             onClick={() => addRebuy(you.id, game.rebuyAmount)}
             className="h-14 w-full"
           />
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={() => setCustomPlayer(you)} className="flex-1">
-              סכום אחר
-            </Button>
-            {yourRebuys.length > 0 && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1"
-                onClick={() => setRebuysOpen(true)}
-              >
-                <SlidersHorizontalIcon aria-hidden="true" strokeWidth={1.75} />
-                תיקון ריביי
+        )}
+        <div className="flex items-center gap-2">
+          {you && !you.isSettled && (
+            <>
+              <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => setCustomPlayer(you)}>
+                סכום אחר
               </Button>
-            )}
-          </div>
-        </motion.div>
-      )}
-
-
-      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] items-center gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות מארח">
-        <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => void shareInvite()}><Share2Icon strokeWidth={1.75} /> הזמנה</Button>
-        <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => setHistoryOpen(true)}><HistoryIcon strokeWidth={1.75} /> היסטוריה</Button>
-        {game.isHost && <HandRecorder gameId={gameId} players={seated} />}
-        {game.isHost && <Button asChild type="button" className="flex-1 px-2"><Link href={`/game/${gameId}/cashout`}>סגירת הערב</Link></Button>}
+              {yourRebuys.length > 0 && (
+                <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => setRebuysOpen(true)}>
+                  תיקון ריביי
+                </Button>
+              )}
+            </>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            className={you && !you.isSettled ? "shrink-0" : "flex-1"}
+            aria-label="פעולות נוספות"
+            onClick={() => setMoreOpen(true)}
+          >
+            <SlidersHorizontalIcon aria-hidden="true" strokeWidth={1.75} />
+            {(!you || you.isSettled) && "פעולות נוספות"}
+          </Button>
+        </div>
       </nav>
 
       <Dialog open={focusedPlayer !== null} onOpenChange={(open) => !open && setFocusedPlayerId(null)}>
         <DialogContent showCloseButton={false}>
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
-          {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />}
+          {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage={game.isHost} onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />}
           {focusedPlayer && (
             <Button type="button" variant="secondary" onClick={() => setSeatPickerPlayer(focusedPlayer)}>
               <ArmchairIcon /> קביעת מקום בשולחן
@@ -484,26 +487,52 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </DialogContent>
       </Dialog>
 
+      {/* Everything the evening does not repeat. Ordered by who needs it soonest: a
+          guest leaving, then the table's own record, then the host's tools. */}
       <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>פעולות נוספות</DrawerTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-2 px-4">
-            {game.isHost && (
+            {you && !you.isSettled && (
               <Button
                 type="button"
                 variant="secondary"
                 className="w-full justify-start"
                 onClick={() => {
                   setMoreOpen(false);
-                  void extendTime();
+                  setEarlyExitOpen(true);
                 }}
               >
-                <Clock3Icon aria-hidden="true" strokeWidth={1.75} />
-                עוד 30 דקות
+                <LogOutIcon aria-hidden="true" strokeWidth={1.75} />
+                יציאה מוקדמת
               </Button>
             )}
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={() => {
+                setMoreOpen(false);
+                setHistoryOpen(true);
+              }}
+            >
+              <HistoryIcon aria-hidden="true" strokeWidth={1.75} />
+              היסטוריית השולחן
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={() => {
+                setMoreOpen(false);
+                void shareInvite();
+              }}
+            >
+              <Share2Icon aria-hidden="true" strokeWidth={1.75} />
+              הזמנה לשולחן
+            </Button>
             {you && (
               <Button
                 type="button"
@@ -518,19 +547,34 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
                 המקום שלי בשולחן
               </Button>
             )}
-            {you && !you.isSettled && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-start"
-                onClick={() => {
-                  setMoreOpen(false);
-                  setEarlyExitOpen(true);
-                }}
-              >
-                <LogOutIcon aria-hidden="true" strokeWidth={1.75} />
-                יציאה מוקדמת
-              </Button>
+            {game.isHost && (
+              <>
+                <HandRecorder gameId={gameId} players={seated} triggerClassName="w-full justify-start" />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    void extendTime();
+                  }}
+                >
+                  <Clock3Icon aria-hidden="true" strokeWidth={1.75} />
+                  עוד 30 דקות
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setRulesOpen(true);
+                  }}
+                >
+                  <Settings2Icon aria-hidden="true" strokeWidth={1.75} />
+                  עריכת פרטי הערב
+                </Button>
+              </>
             )}
           </div>
           <DrawerFooter>

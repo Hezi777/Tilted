@@ -105,7 +105,7 @@ function initialDraft(players: LivePlayer[]): Record<string, PlayerDraft> {
   );
 }
 
-export function HandRecorder({ gameId, players }: { gameId: string; players: LivePlayer[] }) {
+export function HandRecorder({ gameId, players, triggerClassName }: { gameId: string; players: LivePlayer[]; triggerClassName?: string }) {
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -215,7 +215,7 @@ export function HandRecorder({ gameId, players }: { gameId: string; players: Liv
 
   return (
     <>
-      <Button type="button" variant="secondary" className="flex-1 px-2" onClick={() => setOpen(true)}>
+      <Button type="button" variant="secondary" className={triggerClassName ?? "flex-1 px-2"} onClick={() => setOpen(true)}>
         <BookMarkedIcon aria-hidden="true" /> יד לזכור
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
