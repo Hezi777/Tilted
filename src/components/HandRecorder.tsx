@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { DUR, EASE_OUT } from "@/lib/motion";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookMarkedIcon, CrownIcon, PlusIcon, SpadeIcon, Trash2Icon } from "lucide-react";
+import { BookMarkedIcon, CrownIcon, PlusIcon, SpadeIcon, Trash2Icon } from "@/components/icons";
 import { toast } from "sonner";
 import type { LivePlayer } from "@/db/live-queries";
 import type { MemorableHandRecord } from "@/db/music-hand-queries";

@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { CrownIcon } from "lucide-react";
+import { CrownIcon } from "@/components/icons";
 import { motion, useAnimationControls, useReducedMotion, type Variants } from "framer-motion";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { assignSlots } from "@/components/PokerTable";

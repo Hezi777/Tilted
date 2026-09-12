@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, PlusIcon } from "@/components/icons";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

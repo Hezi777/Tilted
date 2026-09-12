@@ -8,7 +8,7 @@ import {
   PencilIcon,
   TrendingDownIcon,
   TrendingUpIcon,
-} from "lucide-react";
+} from "@/components/icons";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";

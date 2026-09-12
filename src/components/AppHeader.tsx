@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 export function AppHeader({

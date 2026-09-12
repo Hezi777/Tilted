@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClubIcon, HistoryIcon, UserRoundIcon } from "lucide-react";
+import { ClubIcon, HistoryIcon, UserRoundIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,7 +58,7 @@ export function TabBar() {
               active ? "text-foreground" : "text-[var(--text-2)] hover:text-[var(--text-1)]",
             )}
           >
-            <Icon aria-hidden="true" className="size-5" />
+            <Icon aria-hidden="true" className="size-6" />
             <span className="text-[11px] font-semibold">{tab.label}</span>
           </Link>
         );

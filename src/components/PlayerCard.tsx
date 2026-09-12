@@ -1,6 +1,6 @@
 "use client";
 
-import { Link2OffIcon, MoreVerticalIcon, Trash2Icon, Undo2Icon } from "lucide-react";
+import { Link2OffIcon, MoreVerticalIcon, Trash2Icon, Undo2Icon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";

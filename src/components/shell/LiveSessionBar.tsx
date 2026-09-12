@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon } from "@/components/icons";
 import { Money } from "@/components/Money";
 import type { GameSummary } from "@/lib/api";
 

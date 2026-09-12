@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { UsersIcon } from "lucide-react";
+import { UsersIcon } from "@/components/icons";
 import { AppHeader } from "@/components/AppHeader";
 import { Money } from "@/components/Money";
 import { getGamesForDevice } from "@/db/queries";

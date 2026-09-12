@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLinkIcon, Music2Icon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ExternalLinkIcon, Music2Icon, PlusIcon, Trash2Icon } from "@/components/icons";
 import { toast } from "sonner";
 import type { PlaylistRecord } from "@/db/music-hand-queries";
 import { apiFetch, ApiError } from "@/lib/api";

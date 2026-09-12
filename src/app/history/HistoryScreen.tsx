@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, CrownIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, CrownIcon, Trash2Icon } from "@/components/icons";
 import { toast } from "sonner";
 import type { HistoryState } from "@/db/history-queries";
 import type { MemorableHandRecord } from "@/db/music-hand-queries";

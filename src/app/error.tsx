@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
-import { RefreshCwIcon } from "lucide-react";
+import { RefreshCwIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 
 /**

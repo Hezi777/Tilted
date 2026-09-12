@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { AppIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,7 +11,7 @@ export function MetaPill({
   children,
   className,
   ...props
-}: React.ComponentProps<"span"> & { icon: LucideIcon }) {
+}: React.ComponentProps<"span"> & { icon: AppIcon }) {
   return (
     <span
       className={cn(

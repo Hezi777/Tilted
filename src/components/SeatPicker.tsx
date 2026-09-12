@@ -1,6 +1,6 @@
 "use client";
 
-import { ArmchairIcon } from "lucide-react";
+import { ArmchairIcon } from "@/components/icons";
 import { MAX_TABLE_SEATS, type LivePlayer } from "@/db/live-queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
