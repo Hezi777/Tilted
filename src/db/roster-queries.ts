@@ -66,6 +66,9 @@ export async function getGameByRoomCode(
     code: game.code,
     name: game.name,
     status: game.status,
+    takenAvatarKeys: rosterRows
+      .map((player) => player.avatarKey)
+      .filter((key): key is string => key !== null),
     players: visibleRows.map((player) => ({
       id: player.id,
       name: player.name,

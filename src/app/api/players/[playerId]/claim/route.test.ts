@@ -35,14 +35,14 @@ describe("POST /api/players/[playerId]/claim", () => {
     vi.clearAllMocks();
     requireViewer.mockResolvedValue({
       userId: "auth-user",
-      person: { id: PERSON_ID, name: "עידו", nickname: null },
+      person: { id: PERSON_ID, name: "עידו", nickname: null, avatarKey: "ido" },
     });
     claimPlayer.mockResolvedValue({ id: PLAYER_ID });
   });
 
   it("derives the claiming identity from the session, not a forged header", async () => {
     const response = await POST(
-      request({ gameId: GAME_ID, avatarKey: "chip-03" }),
+      request({ gameId: GAME_ID, avatarKey: "cap" }),
       { params: Promise.resolve({ playerId: PLAYER_ID }) },
     );
 
@@ -51,14 +51,35 @@ describe("POST /api/players/[playerId]/claim", () => {
       GAME_ID,
       PLAYER_ID,
       PERSON_ID,
-      "chip-03",
+      "cap",
     );
     expect(claimPlayer).not.toHaveBeenCalledWith(
       GAME_ID,
       PLAYER_ID,
       "attacker-controlled",
-      "chip-03",
+      "cap",
     );
+  });
+
+  // The regex this schema used to carry still spelled the retired `chip-NN` keys, so
+  // every real claim was rejected as malformed input and nobody could take their seat.
+  it("accepts the characters the table actually uses", async () => {
+    const response = await POST(
+      request({ gameId: GAME_ID, avatarKey: "longhair" }),
+      { params: Promise.resolve({ playerId: PLAYER_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("refuses a reserved character this account was never given", async () => {
+    const response = await POST(
+      request({ gameId: GAME_ID, avatarKey: "hen" }),
+      { params: Promise.resolve({ playerId: PLAYER_ID }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(claimPlayer).not.toHaveBeenCalled();
   });
 
   it("stops before the claim when there is no authenticated viewer", async () => {
@@ -67,7 +88,7 @@ describe("POST /api/players/[playerId]/claim", () => {
     );
 
     const response = await POST(
-      request({ gameId: GAME_ID, avatarKey: "chip-03" }),
+      request({ gameId: GAME_ID, avatarKey: "cap" }),
       { params: Promise.resolve({ playerId: PLAYER_ID }) },
     );
 
@@ -77,7 +98,7 @@ describe("POST /api/players/[playerId]/claim", () => {
 
   it("ignores the retired force-claim field", async () => {
     await POST(
-      request({ gameId: GAME_ID, avatarKey: "chip-03", force: true }),
+      request({ gameId: GAME_ID, avatarKey: "cap", force: true }),
       { params: Promise.resolve({ playerId: PLAYER_ID }) },
     );
 

@@ -84,6 +84,12 @@ export interface JoinGameDetail {
   name: string | null;
   status: GameStatus;
   players: JoinRosterPlayer[];
+  /**
+   * Every character already worn at this table, including the seats this viewer
+   * may not see. The roster itself is filtered to the viewer's own seat, so
+   * without this the picker believes the whole set is free and the claim fails.
+   */
+  takenAvatarKeys: string[];
   currentPlayerId: string | null;
   currentPlayerIsHost: boolean;
 }

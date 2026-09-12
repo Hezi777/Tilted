@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { GameSummary, JoinGameDetail, JoinRosterPlayer } from "@/lib/api";
-import { AVATAR_KEYS } from "@/lib/avatar";
+import { selectableAvatarKeys } from "@/lib/avatar";
 import { useIdentity } from "@/lib/identity";
 import { cn } from "@/lib/utils";
 import {
@@ -112,6 +112,23 @@ export default function JoinPage() {
     return () => window.clearTimeout(timeoutId);
   }, [findGame, routeCode]);
 
+  // The roster only ever carries this viewer's own seat, so the characters the rest
+  // of the table is already wearing arrive separately. Without them the picker offers
+  // a face that is taken and the claim comes back 409.
+  const choices = useMemo(
+    () => selectableAvatarKeys(identity?.avatarKey ?? null),
+    [identity?.avatarKey],
+  );
+  const takenByOthers = useCallback(
+    (player: JoinRosterPlayer | null) =>
+      new Set(
+        (game?.takenAvatarKeys ?? []).filter(
+          (key) => key !== (player?.avatarKey ?? null),
+        ),
+      ),
+    [game],
+  );
+
   async function claim(player: JoinRosterPlayer, avatarKey: string) {
     if (!game) return;
     setClaiming(player.id);
@@ -137,15 +154,10 @@ export default function JoinPage() {
 
   function chooseAvatar(player: JoinRosterPlayer) {
     if (!game) return;
-    const occupied = new Set(
-      game.players
-        .filter((item) => item.id !== player.id)
-        .map((item) => item.avatarKey)
-        .filter((key): key is string => key !== null),
-    );
+    const occupied = takenByOthers(player);
     const firstAvailable =
       (player.avatarKey && !occupied.has(player.avatarKey) ? player.avatarKey : null) ??
-      AVATAR_KEYS.find((key) => !occupied.has(key)) ??
+      choices.find((key) => !occupied.has(key)) ??
       null;
     setSelectedAvatar(firstAvailable);
     setAvatarPlayer(player);
@@ -346,8 +358,8 @@ export default function JoinPage() {
             <DialogDescription>הדמויות שכבר יושבות בשולחן לא זמינות.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="בחירת דמות">
-            {AVATAR_KEYS.map((avatarKey, index) => {
-              const taken = game?.players.some((player) => player.id !== avatarPlayer?.id && player.avatarKey === avatarKey) ?? false;
+            {choices.map((avatarKey, index) => {
+              const taken = takenByOthers(avatarPlayer).has(avatarKey);
               const selected = selectedAvatar === avatarKey;
               return (
                 <Button
