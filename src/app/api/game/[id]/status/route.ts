@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   beginSettling,
   closeSettlingGame,
+  getActorForGame,
 } from "@/db/cashout-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
@@ -53,7 +54,15 @@ export async function POST(
     const state = parsed.data.status === "settling"
       ? await beginSettling(parsedId.data, viewer.person.id)
       : await closeSettlingGame(parsedId.data, viewer.person.id);
-    return NextResponse.json(state);
+    // Only the host may reach this route (assertCanSettle), so viewerIsHost is
+    // always true here -- but the fields stay present so the screen's state shape
+    // does not lose them on this response.
+    const access = await getActorForGame(parsedId.data, viewer.person.id);
+    return NextResponse.json({
+      ...state,
+      viewerIsHost: true,
+      viewerPlayerId: access?.actor.id ?? "",
+    });
   } catch (error) {
     return errorResponse(error);
   }

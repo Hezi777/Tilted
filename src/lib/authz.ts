@@ -48,7 +48,8 @@ export type AuthzCode =
   | "player_settled"
   | "player_deleted"
   | "initial_buy_in"
-  | "already_deleted";
+  | "already_deleted"
+  | "invalid_successor";
 
 const STATUS: Record<AuthzCode, number> = {
   no_device: 401,
@@ -60,6 +61,7 @@ const STATUS: Record<AuthzCode, number> = {
   player_deleted: 409,
   initial_buy_in: 409,
   already_deleted: 409,
+  invalid_successor: 409,
 };
 
 /** Hebrew because these surface directly in a toast. */
@@ -73,6 +75,7 @@ const MESSAGE: Record<AuthzCode, string> = {
   player_deleted: "השחקן הוסר מהמשחק",
   initial_buy_in: "אי אפשר להסיר את הכניסה הראשונה",
   already_deleted: "השורה כבר נמחקה",
+  invalid_successor: "אי אפשר להעביר את הניהול לשחקן הזה",
 };
 
 export class AuthzError extends Error {
@@ -170,21 +173,53 @@ export function assertCanDeleteBuyIn(
 }
 
 /**
- * Entering a player's result. The host may always write anyone's row; whether a player
- * may write their own is the table's own policy, chosen when the game was opened
- * (requirements item 4). This is not a second permission system — it is the same single
- * rule, with the host exception, narrowed by a setting.
+ * Entering a player's result. The universal rule (2026-09-13): every player writes
+ * their own row, and the host may always write anyone's. `result_entry` stays on the
+ * schema for the games it was already recorded on, but nothing branches on it any
+ * more.
+ *
+ * A player whose own row is already frozen (an early exit set `settledAt`) may not
+ * silently rewrite it -- that is the whole point of freezing it. The host still can;
+ * that is a deliberate override, not an accident, and it is the single exception the
+ * rest of this file already grants everywhere else.
  */
 export function assertCanEnterResult(
   status: GameStatus,
   actor: ActorPlayer,
-  targetPlayerId: string,
-  resultEntry: ResultEntry,
+  target: TargetPlayer,
 ): void {
   assert(status === "active" || status === "settling", "game_not_active");
   if (actor.isHost) return;
-  assert(resultEntry === "players", "not_host");
-  assert(actor.id === targetPlayerId, "not_your_seat");
+  assert(actor.id === target.id, "not_your_seat");
+  assert(target.settledAt === null, "player_settled");
+}
+
+export interface SuccessorCandidate {
+  id: string;
+  hasAccount: boolean;
+  settledAt: Date | null;
+  deletedAt: Date | null;
+}
+
+/**
+ * Choosing who takes over as operational host when the current host leaves alone
+ * (the "יציאה רק שלי" path). The successor must be another live, signed-in seat at
+ * this table: handing the role to a departed seat, to a frozen seat, or to the
+ * departing host's own seat makes no sense, and the single-host constraint
+ * (players_game_id_host_unique) would refuse the write anyway -- this is the
+ * readable error in front of that database guard, not a replacement for it.
+ */
+export function assertCanHandoffHost(
+  status: GameStatus,
+  actor: ActorPlayer,
+  successor: SuccessorCandidate,
+): void {
+  requireActiveGame(status);
+  requireHost(actor);
+  assert(successor.id !== actor.id, "invalid_successor");
+  assert(successor.deletedAt === null, "invalid_successor");
+  assert(successor.settledAt === null, "invalid_successor");
+  assert(successor.hasAccount, "invalid_successor");
 }
 
 /** Final counting, mismatch resolution, closing and cancelling are host-only. */

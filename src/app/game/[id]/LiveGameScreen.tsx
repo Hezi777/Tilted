@@ -2,6 +2,7 @@
 
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon } from "@/components/icons";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ function elapsed(startedAt: string): string {
 }
 
 export default function LiveGameScreen({ gameId }: { gameId: string }) {
+  const router = useRouter();
   const { game, loading, error, addRebuy, undo, editRebuy, refresh } = useLiveGame(gameId);
   const [customPlayer, setCustomPlayer] = useState<{ id: string; name: string } | null>(null);
   const [customAmount, setCustomAmount] = useState("");
@@ -52,6 +54,25 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [streaks, setStreaks] = useState<PlayerStreakMap>({});
   const reduceMotion = useReducedMotion();
+
+  // Host choice ("סיום לכולם" / "יציאה רק שלי") and the successor picker that
+  // follows the second option. `successor` is also read by `saveEarlyExit` below to
+  // decide which endpoint an exit actually submits to.
+  const [exitChoiceOpen, setExitChoiceOpen] = useState(false);
+  const [successorPickerOpen, setSuccessorPickerOpen] = useState(false);
+  const [successor, setSuccessor] = useState<{ id: string; name: string } | null>(null);
+  const [endingForAll, setEndingForAll] = useState(false);
+
+  // Every client's poll has to follow the game through its lifecycle (the bug this
+  // fixes: a guest whose phone never learned the host had moved the table to
+  // settling, or closed it). `game.status` already carries this on every poll --
+  // this just has to act on it once, wherever it changes.
+  useEffect(() => {
+    if (!game) return;
+    if (game.status === "settling") router.replace(`/game/${gameId}/cashout`);
+    else if (game.status === "closed") router.replace(`/game/${gameId}/settlement`);
+    else if (game.status === "cancelled") router.replace("/");
+  }, [game, gameId, router]);
 
   useEffect(() => {
     apiFetch<{ badges: PlayerStreakMap }>(`/api/streaks?view=live&gameId=${gameId}`)
@@ -88,6 +109,14 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   );
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const focusedPlayer = useMemo(() => seated.find((player) => player.id === focusedPlayerId) ?? null, [seated, focusedPlayerId]);
+
+  // Who the host may hand the table to: any other seat still at the table. The
+  // server re-checks this against a live, signed-in seat before the handoff commits
+  // -- this list is only for the picker, not the authorization.
+  const eligibleSuccessors = useMemo(
+    () => seated.filter((player) => !player.isYou && !player.isSettled),
+    [seated],
+  );
 
   async function submitCustom() {
     if (!customPlayer) return;
@@ -197,18 +226,45 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     if (!you || earlyAmount === null) return;
     setSavingEarlyExit(true);
     try {
-      await apiFetch(`/api/game/${gameId}/cashout`, {
-        method: "POST",
-        body: JSON.stringify({ playerId: you.id, amount: earlyAmount, early: true }),
-      });
-      toast.success("היציאה והתוצאה נשמרו");
+      if (successor) {
+        // The host leaves alone: their own result and the handoff of operational
+        // host land in one transaction on the server, so this can never half-apply.
+        await apiFetch(`/api/game/${gameId}/exit`, {
+          method: "POST",
+          body: JSON.stringify({ successorPlayerId: successor.id, amount: earlyAmount }),
+        });
+        toast.success(`היציאה נשמרה. ${successor.name} מנהלים את השולחן מעכשיו`);
+      } else {
+        await apiFetch(`/api/game/${gameId}/cashout`, {
+          method: "POST",
+          body: JSON.stringify({ playerId: you.id, amount: earlyAmount, early: true }),
+        });
+        toast.success("היציאה והתוצאה נשמרו");
+      }
       setEarlyExitOpen(false);
       setEarlyAmount(null);
+      setSuccessor(null);
       await refresh();
     } catch (reason) {
       toast.error(reason instanceof ApiError ? reason.message : "שמירת היציאה נכשלה");
     } finally {
       setSavingEarlyExit(false);
+    }
+  }
+
+  async function endForAll() {
+    setEndingForAll(true);
+    try {
+      await apiFetch(`/api/game/${gameId}/status`, {
+        method: "POST",
+        body: JSON.stringify({ status: "settling" }),
+      });
+      setExitChoiceOpen(false);
+      router.push(`/game/${gameId}/cashout`);
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "סיום הערב נכשל");
+    } finally {
+      setEndingForAll(false);
     }
   }
 
@@ -261,13 +317,19 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         backHref="/"
         backLabel="לדף הבית"
         action={
-          /* Ending the night is deliberate and happens once, so it sits at the far
-             corner of the screen rather than under the thumb, where it spent months
-             one mis-tap away from closing the evening for everyone. */
+          /* One visible exit control, not a buried one: a guest's own early exit
+             and the host's two ways to leave (end it for everyone, or hand the
+             table to someone else and step out alone) all start here. */
           <div className="flex items-center gap-2">
-            {game.isHost && (
-              <Button asChild type="button" variant="secondary" size="sm">
-                <Link href={`/game/${gameId}/cashout`}>סגירת הערב</Link>
+            {you && !you.isSettled && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => (game.isHost ? setExitChoiceOpen(true) : setEarlyExitOpen(true))}
+              >
+                <LogOutIcon aria-hidden="true" strokeWidth={1.75} />
+                יציאה
               </Button>
             )}
             <MusicButton gameId={gameId} isHost={game.isHost} />
@@ -495,20 +557,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             <DrawerTitle>פעולות נוספות</DrawerTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-2 px-4">
-            {you && !you.isSettled && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-start"
-                onClick={() => {
-                  setMoreOpen(false);
-                  setEarlyExitOpen(true);
-                }}
-              >
-                <LogOutIcon aria-hidden="true" strokeWidth={1.75} />
-                יציאה מוקדמת
-              </Button>
-            )}
             <Button
               type="button"
               variant="secondary"
@@ -585,11 +633,21 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </DrawerContent>
       </Drawer>
 
-      <Dialog open={earlyExitOpen} onOpenChange={setEarlyExitOpen}>
+      <Dialog
+        open={earlyExitOpen}
+        onOpenChange={(open) => {
+          setEarlyExitOpen(open);
+          if (!open) setSuccessor(null);
+        }}
+      >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>יוצאים לפני כולם?</DialogTitle>
-            <DialogDescription>ספרו את הז׳יטונים שנשארו לכם. הסכום ושעת היציאה יישמרו, והשולחן ימשיך בלעדיכם.</DialogDescription>
+            <DialogTitle>{successor ? `יוצאים ומעבירים ל${successor.name}?` : "יוצאים לפני כולם?"}</DialogTitle>
+            <DialogDescription>
+              {successor
+                ? `ספרו את הז׳יטונים שנשארו לכם. ${successor.name} ינהלו את השולחן מכאן.`
+                : "ספרו את הז׳יטונים שנשארו לכם. הסכום ושעת היציאה יישמרו, והשולחן ימשיך בלעדיכם."}
+            </DialogDescription>
           </DialogHeader>
           <Label>כמה נשאר לכם?</Label>
           <AmountInput
@@ -603,7 +661,69 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             <Button type="button" disabled={earlyAmount === null || savingEarlyExit} onClick={() => void saveEarlyExit()}>
               {savingEarlyExit ? "שומרים..." : "שמרו וסיימו את הערב"}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setEarlyExitOpen(false)}>נשארים בשולחן</Button>
+            <Button type="button" variant="secondary" onClick={() => { setEarlyExitOpen(false); setSuccessor(null); }}>נשארים בשולחן</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={exitChoiceOpen} onOpenChange={setExitChoiceOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>איך יוצאים?</DialogTitle>
+            <DialogDescription>כמארחים אפשר לסיים את הערב לכולם, או לצאת בעצמכם ולהעביר את הניהול.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button type="button" disabled={endingForAll} onClick={() => void endForAll()}>
+              {endingForAll ? "מסיימים..." : "סיום לכולם"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={eligibleSuccessors.length === 0}
+              onClick={() => {
+                setExitChoiceOpen(false);
+                setSuccessorPickerOpen(true);
+              }}
+            >
+              יציאה רק שלי
+            </Button>
+            {eligibleSuccessors.length === 0 && (
+              <p className="t-caption text-[var(--text-2)]">
+                אין עוד שחקנים פעילים שאפשר להעביר להם את הניהול.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setExitChoiceOpen(false)}>ביטול</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={successorPickerOpen} onOpenChange={setSuccessorPickerOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>מי ינהל את השולחן?</DialogTitle>
+            <DialogDescription>בוחרים שחקן פעיל שיקבל את הניהול במקומכם.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {eligibleSuccessors.map((player) => (
+              <Button
+                key={player.id}
+                type="button"
+                variant="secondary"
+                className="justify-start"
+                onClick={() => {
+                  setSuccessor({ id: player.id, name: player.name });
+                  setSuccessorPickerOpen(false);
+                  setEarlyExitOpen(true);
+                }}
+              >
+                {player.name}
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setSuccessorPickerOpen(false)}>ביטול</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

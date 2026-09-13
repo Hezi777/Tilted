@@ -42,7 +42,11 @@ export default function Home() {
     };
   }, [retryCount]);
 
-  const activeGame = games?.find((game) => game.status === "active") ?? null;
+  // A settling game is not over -- the host started closing it, but every seat still
+  // has its own result to enter, so home has to keep leading back in rather than
+  // dropping it once the table itself has moved on.
+  const activeGame =
+    games?.find((game) => game.status === "active" || game.status === "settling") ?? null;
   const closedGames = games?.filter((game) => game.status === "closed") ?? [];
 
   async function cancelGame() {
@@ -137,15 +141,21 @@ export default function Home() {
                   <p className="truncate text-base font-bold">{activeGame.name ?? "משחק פעיל"}</p>
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="size-2 rounded-full bg-[var(--green-400)]" />
-                    שולחן פתוח
+                    {activeGame.status === "settling" ? "סוגרים חשבון" : "שולחן פתוח"}
                     <span className="inline-flex items-center gap-1"><UsersIcon className="size-3.5" />{activeGame.playerCount}</span>
                   </p>
                 </div>
                 {/* Both were 40px, 4px apart, with the irreversible one directly under
                     the happy path. They are on the 48px floor now and separated. */}
                 <div className="flex shrink-0 flex-col gap-2">
-                  <Button asChild><Link href={`/game/${activeGame.id}`}>חזרה לשולחן</Link></Button>
-                  <Button type="button" variant="ghost" className="text-[var(--text-2)]" onClick={() => setCancelTarget(activeGame)}>ביטול משחק</Button>
+                  <Button asChild>
+                    <Link href={activeGame.status === "settling" ? `/game/${activeGame.id}/cashout` : `/game/${activeGame.id}`}>
+                      {activeGame.status === "settling" ? "לספירת הקופה" : "חזרה לשולחן"}
+                    </Link>
+                  </Button>
+                  {activeGame.status === "active" && (
+                    <Button type="button" variant="ghost" className="text-[var(--text-2)]" onClick={() => setCancelTarget(activeGame)}>ביטול משחק</Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

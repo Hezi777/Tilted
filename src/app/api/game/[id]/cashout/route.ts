@@ -59,9 +59,17 @@ export async function GET(
     );
   }
   const state = await getCashoutState(gameId);
-  return state
-    ? NextResponse.json(state)
-    : NextResponse.json<ApiErrorBody>({ error: "המשחק לא נמצא" }, { status: 404 });
+  if (!state) {
+    return NextResponse.json<ApiErrorBody>({ error: "המשחק לא נמצא" }, { status: 404 });
+  }
+  // The screen needs this to know whether it may override an already-frozen early
+  // exit -- the host is the single exception, and only the server knows who is
+  // asking.
+  return NextResponse.json({
+    ...state,
+    viewerIsHost: access.actor.isHost,
+    viewerPlayerId: access.actor.id,
+  });
 }
 
 export async function POST(
@@ -87,6 +95,13 @@ export async function POST(
 
   try {
     const gameId = parsedId.data;
+    const access = await getActorForGame(gameId, viewer.person.id);
+    if (!access) {
+      return NextResponse.json<ApiErrorBody>(
+        { error: "אינך משתתף במשחק הזה" },
+        { status: 403 },
+      );
+    }
     const state = await saveCashout(
       gameId,
       viewer.person.id,
@@ -96,7 +111,11 @@ export async function POST(
         : { amount: parsed.data.amount },
       parsed.data.early,
     );
-    return NextResponse.json(state);
+    return NextResponse.json({
+      ...state,
+      viewerIsHost: access.actor.isHost,
+      viewerPlayerId: access.actor.id,
+    });
   } catch (error) {
     return errorResponse(error);
   }

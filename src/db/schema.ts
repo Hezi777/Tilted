@@ -228,6 +228,13 @@ export const players = pgTable(
     uniqueIndex("players_game_id_table_seat_unique")
       .on(table.gameId, table.tableSeat)
       .where(sql`"table_seat" IS NOT NULL AND "deleted_at" IS NULL`),
+    // v2: exactly one operational host per live game. A host handoff must clear the
+    // old host's flag before -- or in the same statement as -- setting the new one,
+    // or this index is what turns a half-applied handoff into a rejected write
+    // instead of two live hosts.
+    uniqueIndex("players_game_id_host_unique")
+      .on(table.gameId)
+      .where(sql`"is_host" AND "deleted_at" IS NULL`),
   ],
 );
 

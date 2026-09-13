@@ -71,6 +71,13 @@
       "when": 1788645557269,
       "tag": "0009_lying_nightshade",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789297191630,
+      "tag": "0010_kind_robbie_robertson",
+      "breakpoints": true
     }
   ]
 }

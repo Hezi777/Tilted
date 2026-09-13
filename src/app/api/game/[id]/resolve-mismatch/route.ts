@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { applyMismatchResolution } from "@/db/cashout-queries";
+import { applyMismatchResolution, getActorForGame } from "@/db/cashout-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
 
@@ -49,13 +49,19 @@ export async function POST(
   }
 
   try {
-    return NextResponse.json(
-      await applyMismatchResolution(
-        parsedId.data,
-        viewer.person.id,
-        parsed.data,
-      ),
+    const state = await applyMismatchResolution(
+      parsedId.data,
+      viewer.person.id,
+      parsed.data,
     );
+    // Host-only route (assertCanSettle), so viewerIsHost is always true here -- kept
+    // present so the screen's state shape does not lose it on this response.
+    const access = await getActorForGame(parsedId.data, viewer.person.id);
+    return NextResponse.json({
+      ...state,
+      viewerIsHost: true,
+      viewerPlayerId: access?.actor.id ?? "",
+    });
   } catch (error) {
     return errorResponse(error);
   }

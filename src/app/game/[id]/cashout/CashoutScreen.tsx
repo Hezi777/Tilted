@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { agorot } from "@/lib/money";
 import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
+import { mergeCashoutPlayers } from "@/lib/cashout-sync";
 import { computeNets, countedTotal, mismatchDelta, type PlayerLedger } from "@/lib/settlement";
 
 interface CashoutPlayer {
@@ -57,6 +58,9 @@ interface CashoutState {
   mismatchPlayerId: string | null;
   chipSet: CashoutChipSet | null;
   players: CashoutPlayer[];
+  /** Who is asking -- the host is the one seat allowed to override a frozen early exit. */
+  viewerIsHost: boolean;
+  viewerPlayerId: string;
 }
 
 function ledgers(state: CashoutState): PlayerLedger[] {
@@ -80,12 +84,30 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const [state, setState] = React.useState<CashoutState | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [savingId, setSavingId] = React.useState<string | null>(null);
+  const [savingIds, setSavingIds] = React.useState<Set<string>>(new Set());
   const reduceMotion = useReducedMotion();
-  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
+  const [overriddenIds, setOverriddenIds] = React.useState<Set<string>>(new Set());
   const [assigning, setAssigning] = React.useState(false);
   const chipSaveTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const chipSaveVersions = React.useRef(new Map<string, number>());
+
+  function addTo(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) {
+    setter((current) => {
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+  function removeFrom(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) {
+    setter((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -111,6 +133,51 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     },
     [],
   );
+
+  // A player sitting in checkout has to follow the host to the settlement screen the
+  // moment the game closes, and has to see other players' completed counts land --
+  // without this poll ever overwriting the row this client is itself mid-edit on
+  // (a chip tapped a moment ago, still inside its debounce window or its save).
+  const poll = React.useCallback(async () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    try {
+      const next = await apiFetch<CashoutState>(`/api/game/${gameId}/cashout`);
+      if (next.status === "closed") {
+        router.push(`/game/${gameId}/settlement`);
+        return;
+      }
+      if (next.status === "cancelled") {
+        router.push("/");
+        return;
+      }
+      setState((current) => {
+        if (!current) return next;
+        const editingIds = new Set(chipSaveTimers.current.keys());
+        for (const id of savingIds) editingIds.add(id);
+        return {
+          ...next,
+          players: mergeCashoutPlayers(next.players, current.players, editingIds),
+        };
+      });
+    } catch {
+      // A transient poll failure keeps the last-known state; only the initial load
+      // surfaces an error banner.
+    }
+  }, [gameId, router, savingIds]);
+
+  React.useEffect(() => {
+    const interval = window.setInterval(() => void poll(), 3_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void poll();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [poll]);
 
   function optimisticAmount(playerId: string, amount: number | null) {
     setState((current) => {
@@ -164,7 +231,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   async function save(playerId: string, amount: number) {
     if (!state) return;
     const previous = state;
-    setSavingId(playerId);
+    addTo(setSavingIds, playerId);
     try {
       const next = await apiFetch<CashoutState>(
         `/api/game/${gameId}/cashout`,
@@ -193,7 +260,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
       setState(previous);
       toast.error(errorText(error));
     } finally {
-      setSavingId(null);
+      removeFrom(setSavingIds, playerId);
     }
   }
 
@@ -203,8 +270,8 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     version: number,
   ) {
     if (!state) return;
-    setPendingId(null);
-    setSavingId(playerId);
+    removeFrom(setPendingIds, playerId);
+    addTo(setSavingIds, playerId);
     try {
       const next = await apiFetch<CashoutState>(`/api/game/${gameId}/cashout`, {
         method: "POST",
@@ -241,7 +308,9 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         void load();
       }
     } finally {
-      if (chipSaveVersions.current.get(playerId) === version) setSavingId(null);
+      if (chipSaveVersions.current.get(playerId) === version) {
+        removeFrom(setSavingIds, playerId);
+      }
     }
   }
 
@@ -249,7 +318,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     if (!state) return;
     optimisticChipCounts(playerId, chipCounts);
     if (state.status !== "settling") return;
-    setPendingId(playerId);
+    addTo(setPendingIds, playerId);
 
     const currentTimer = chipSaveTimers.current.get(playerId);
     if (currentTimer) clearTimeout(currentTimer);
@@ -393,9 +462,15 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
 
             <section className="flex flex-col gap-3" aria-label="ספירת שחקנים">
               {state.players.map((player) => {
-                const isPending = pendingId === player.id;
-                const isSaving = savingId === player.id;
+                const isPending = pendingIds.has(player.id);
+                const isSaving = savingIds.has(player.id);
                 const net = liveNets.get(player.id) ?? 0;
+                // An early exit freezes this row (spec 5.4 / the settlement invariant):
+                // once settled, only a deliberate host override may write over it --
+                // never an incidental edit while the host is entering everyone else's.
+                const frozen = player.settledAt !== null && state.status === "settling";
+                const overridable = frozen && state.viewerIsHost;
+                const locked = frozen && !overriddenIds.has(player.id);
                 return (
                   <div
                     key={player.id}
@@ -410,8 +485,22 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                         <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-11" />
                         <p className="t-title">{player.name}</p>
                       </div>
-                      {player.settledAt && <Badge variant="secondary">סגר חשבון</Badge>}
+                      {player.settledAt && (
+                        <Badge variant="secondary">{frozen ? "תוצאה קפואה" : "סגר חשבון"}</Badge>
+                      )}
                     </div>
+
+                    {locked && overridable && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="self-start text-[var(--text-2)]"
+                        onClick={() => addTo(setOverriddenIds, player.id)}
+                      >
+                        לשנות בכל זאת
+                      </Button>
+                    )}
 
                     {state.chipSet ? (
                       <>
@@ -427,7 +516,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                           denominations={state.chipSet.denominations}
                           counts={player.chipCounts}
                           onChange={(counts) => updateChipCounts(player.id, counts)}
-                          disabled={state.status === "closed"}
+                          disabled={state.status === "closed" || locked}
                         />
                       </>
                     ) : (
@@ -438,7 +527,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                           </Label>
                           <AmountInput
                             aria-label={`סכום נספר עבור ${player.name}`}
-                            disabled={state.status === "closed" || isSaving}
+                            disabled={state.status === "closed" || isSaving || locked}
                             initialAmount={player.cashOut}
                             onChange={(amount) => optimisticAmount(player.id, amount)}
                             onCommit={(amount) => void save(player.id, amount)}
@@ -589,6 +678,14 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
 
             {state.status === "settling" && (
               <div className="flex flex-col gap-2">
+                {/* The server must settle the number the host is actually looking
+                    at -- closing while a debounced chip count is still mid-flight
+                    would settle the previous count instead. */}
+                {pendingIds.size > 0 && !blockReason && (
+                  <p className="t-label text-center text-[var(--text-2)]">
+                    שומרים ספירה...
+                  </p>
+                )}
                 {blockReason && (
                   <p className="t-label text-center text-loss" role="alert">
                     {blockReason}
@@ -597,8 +694,8 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 <Button
                   size="lg"
                   className="w-full"
-                  disabled={savingId !== null || missing || (mismatch && !resolved)}
-                  aria-disabled={savingId !== null || missing || (mismatch && !resolved)}
+                  disabled={savingIds.size > 0 || pendingIds.size > 0 || missing || (mismatch && !resolved)}
+                  aria-disabled={savingIds.size > 0 || pendingIds.size > 0 || missing || (mismatch && !resolved)}
                   onClick={() => void changeStatus("closed")}
                 >
                   סגרו את החשבון

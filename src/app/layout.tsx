@@ -88,9 +88,11 @@ export default async function RootLayout({
   const viewer = await getViewer();
   // Resolved here rather than fetched by the bar itself: the layout is already dynamic
   // and server-rendered, so an open table is known before the first paint.
+  // A settling game is not over -- the host has started closing it, but every other
+  // seat still has its own result to enter, so the strip has to keep leading back in.
   const activeGame = viewer
     ? ((await getGamesForDevice(viewer.person.id)).find(
-        (game) => game.status === "active",
+        (game) => game.status === "active" || game.status === "settling",
       ) ?? null)
     : null;
 

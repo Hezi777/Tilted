@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "players_game_id_host_unique" ON "players" USING btree ("game_id") WHERE "is_host" AND "deleted_at" IS NULL;

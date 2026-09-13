@@ -13,12 +13,14 @@ import {
   cashOutChips,
   cashOuts,
   games,
+  people,
   players,
 } from "@/db/schema";
 import { getChipSet, type ChipSetDetail } from "@/db/chip-queries";
 import {
   assertCanCashOutEarly,
   assertCanEnterResult,
+  assertCanHandoffHost,
   assertCanSettle,
   requireActor,
   type ActorPlayer,
@@ -383,14 +385,15 @@ export async function saveCashout(
     `);
     if (!saved.rows[0]) throw new Error("השחקן או המשחק כבר לא פעילים");
   } else {
-    assertCanEnterResult(
-      access.game.status,
-      access.actor,
-      playerId,
-      access.game.resultEntry,
-    );
+    assertCanEnterResult(access.game.status, access.actor, target);
     // Guard every write by settling status. If close wins a race first, this
-    // statement inserts nothing and cannot edit an already closed game.
+    // statement inserts nothing and cannot edit an already closed game. The
+    // settled_at check repeats what assertCanEnterResult already checked, for the
+    // same reason every other mutation here repeats its guard in the statement --
+    // a JS-side check before the query cannot stop a race with another request that
+    // reads its authorization a moment earlier, and an early-exit's frozen result
+    // must never be overwritten by an incidental write during finalization. The
+    // host's own deliberate override is the one case this lets through.
     const saved = await db.execute<{ id: string }>(sql`
       WITH settling_game AS (
         SELECT id FROM games
@@ -403,6 +406,7 @@ export async function saveCashout(
         JOIN players p ON p.game_id = g.id
         WHERE p.id = ${playerId}::uuid
           AND p.deleted_at IS NULL
+          AND (p.settled_at IS NULL OR ${access.actor.isHost})
         ON CONFLICT (game_id, player_id)
         DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
         RETURNING id, game_id
@@ -602,5 +606,101 @@ export async function closeSettlingGame(
   if (state.status !== "closed") {
     throw new Error("אי אפשר לסגור לפני שכל הסכומים מאוזנים");
   }
+  return state;
+}
+
+/**
+ * The host leaves alone (the "יציאה רק שלי" path): their own result is saved and
+ * frozen, and operational host (`players.is_host`) moves to the chosen successor --
+ * in one statement, so a failure never leaves the table with a saved exit and the
+ * old host still in charge, or a new host with no departing player settled.
+ *
+ * `games.created_by_person_id` is untouched. That is permanent ownership, and this
+ * handoff only ever moves who currently runs the table.
+ */
+export async function exitHostAsSuccessor(
+  gameId: string,
+  deviceId: string,
+  successorPlayerId: string,
+  entry: CashoutEntry,
+): Promise<CashoutState> {
+  const access = await getActorForGame(gameId, deviceId);
+  if (!access) throw new Error("המשחק לא נמצא");
+  if (access.game.status !== "active") throw new Error("המשחק כבר לא פעיל");
+
+  const [successorRow] = await db
+    .select({
+      id: players.id,
+      settledAt: players.settledAt,
+      deletedAt: players.deletedAt,
+      hasAccount: sql<boolean>`${people.userId} IS NOT NULL`,
+    })
+    .from(players)
+    .leftJoin(people, eq(people.id, players.personId))
+    .where(and(eq(players.id, successorPlayerId), eq(players.gameId, gameId)))
+    .limit(1);
+  if (!successorRow) throw new Error("השחקן לא נמצא");
+  assertCanHandoffHost(access.game.status, access.actor, successorRow);
+
+  const { amount, chipCounts } = await resolveCashoutEntry(
+    access.game.chipSetId,
+    entry,
+  );
+  const insertedChipCounts = insertChipCountsSql(chipCounts);
+  const hostPlayerId = access.actor.id;
+
+  // The eligibility check is recomputed here, against the row locked by
+  // active_game, rather than trusted from the read above -- the same reason every
+  // other mutation in this file repeats its guard inside the statement that writes.
+  const result = await db.execute<{ id: string }>(sql`
+    WITH active_game AS (
+      SELECT id FROM ${games}
+      WHERE id = ${gameId}::uuid AND status = 'active'
+      FOR UPDATE
+    ), eligible_successor AS (
+      SELECT p.id FROM ${players} p
+      INNER JOIN ${people} pe ON pe.id = p.person_id
+      WHERE p.id = ${successorPlayerId}::uuid
+        AND p.game_id = (SELECT id FROM active_game)
+        AND p.deleted_at IS NULL
+        AND p.settled_at IS NULL
+        AND p.id <> ${hostPlayerId}::uuid
+        AND pe.user_id IS NOT NULL
+    ), saved AS (
+      INSERT INTO ${cashOuts} (id, game_id, player_id, amount, adjustment)
+      SELECT gen_random_uuid(), g.id, ${hostPlayerId}::uuid, ${amount}, 0
+      FROM active_game g
+      WHERE EXISTS (SELECT 1 FROM eligible_successor)
+      ON CONFLICT (game_id, player_id)
+      DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
+      RETURNING id
+    ), deleted_counts AS (
+      DELETE FROM ${cashOutChips}
+      WHERE cash_out_id IN (SELECT id FROM saved)
+      RETURNING id
+    ), inserted_counts AS (
+      ${insertedChipCounts}
+    ), demoted_host AS (
+      UPDATE ${players}
+      SET settled_at = coalesce(settled_at, now()), is_host = false
+      WHERE id = ${hostPlayerId}::uuid AND EXISTS (SELECT 1 FROM saved)
+      RETURNING id
+    ), promoted_successor AS (
+      UPDATE ${players}
+      SET is_host = true
+      WHERE id = ${successorPlayerId}::uuid AND EXISTS (SELECT 1 FROM demoted_host)
+      RETURNING id
+    )
+    SELECT id FROM promoted_successor
+  `);
+
+  if (!result.rows[0]) {
+    throw new Error(
+      "היציאה לא נשמרה. אולי המשחק כבר לא פעיל או שהשחקן שנבחר כבר לא פנוי",
+    );
+  }
+
+  const state = await getCashoutState(gameId);
+  if (!state) throw new Error("המשחק לא נמצא");
   return state;
 }

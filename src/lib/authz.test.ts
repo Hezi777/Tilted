@@ -3,6 +3,7 @@ import {
   assertCanCashOutEarly,
   assertCanDeleteBuyIn,
   assertCanEnterResult,
+  assertCanHandoffHost,
   assertCanInsertBuyIn,
   assertCanManageRoster,
   assertCanSettle,
@@ -10,6 +11,7 @@ import {
   requireActor,
   type ActorPlayer,
   type BuyInRow,
+  type SuccessorCandidate,
 } from "@/lib/authz";
 
 const NOW = new Date("2026-09-03T20:00:00Z");
@@ -201,38 +203,104 @@ describe("host-only operations", () => {
 });
 
 describe("assertCanEnterResult", () => {
-  it("lets the host write anyone's result under either policy", () => {
+  it("lets the host write anyone's result, settled or not", () => {
     const host = actor({ isHost: true });
     expect(
-      codeOf(() => assertCanEnterResult("settling", host, "other", "host_only")),
+      codeOf(() => assertCanEnterResult("settling", host, target("other"))),
     ).toBe("ok");
     expect(
-      codeOf(() => assertCanEnterResult("settling", host, "other", "players")),
+      codeOf(() =>
+        assertCanEnterResult("settling", host, target("other", { settledAt: NOW })),
+      ),
     ).toBe("ok");
   });
 
-  it("refuses a player their own result when the table is host-only", () => {
+  it("lets a player write their own, unsettled result", () => {
     expect(
-      codeOf(() => assertCanEnterResult("settling", actor(), "me", "host_only")),
-    ).toBe("not_host");
-  });
-
-  it("lets a player write their own result when the table allows it", () => {
-    expect(
-      codeOf(() => assertCanEnterResult("settling", actor(), "me", "players")),
+      codeOf(() => assertCanEnterResult("settling", actor(), target("me"))),
     ).toBe("ok");
   });
 
   it("never lets a player write someone else's result", () => {
     expect(
-      codeOf(() => assertCanEnterResult("settling", actor(), "other", "players")),
+      codeOf(() => assertCanEnterResult("settling", actor(), target("other"))),
     ).toBe("not_your_seat");
+  });
+
+  it("refuses a player rewriting their own frozen early exit", () => {
+    expect(
+      codeOf(() =>
+        assertCanEnterResult("settling", actor(), target("me", { settledAt: NOW })),
+      ),
+    ).toBe("player_settled");
   });
 
   it("refuses once the game is closed, whoever is asking", () => {
     expect(
       codeOf(() =>
-        assertCanEnterResult("closed", actor({ isHost: true }), "me", "players"),
+        assertCanEnterResult("closed", actor({ isHost: true }), target("me")),
+      ),
+    ).toBe("game_not_active");
+  });
+});
+
+describe("assertCanHandoffHost", () => {
+  function successor(over: Partial<SuccessorCandidate> = {}): SuccessorCandidate {
+    return { id: "other", hasAccount: true, settledAt: null, deletedAt: null, ...over };
+  }
+
+  it("lets the host hand off to another live, signed-in seat", () => {
+    expect(
+      codeOf(() =>
+        assertCanHandoffHost("active", actor({ isHost: true }), successor()),
+      ),
+    ).toBe("ok");
+  });
+
+  it("refuses a non-host trying to hand off", () => {
+    expect(
+      codeOf(() => assertCanHandoffHost("active", actor(), successor())),
+    ).toBe("not_host");
+  });
+
+  it("refuses handing off to yourself", () => {
+    expect(
+      codeOf(() =>
+        assertCanHandoffHost(
+          "active",
+          actor({ isHost: true }),
+          successor({ id: "me" }),
+        ),
+      ),
+    ).toBe("invalid_successor");
+  });
+
+  it("refuses a deleted or already-settled seat", () => {
+    const host = actor({ isHost: true });
+    expect(
+      codeOf(() => assertCanHandoffHost("active", host, successor({ deletedAt: NOW }))),
+    ).toBe("invalid_successor");
+    expect(
+      codeOf(() => assertCanHandoffHost("active", host, successor({ settledAt: NOW }))),
+    ).toBe("invalid_successor");
+  });
+
+  it("refuses a seat with no account", () => {
+    expect(
+      codeOf(() =>
+        assertCanHandoffHost(
+          "active",
+          actor({ isHost: true }),
+          successor({ hasAccount: false }),
+        ),
+      ),
+    ).toBe("invalid_successor");
+  });
+
+  it("refuses once the game is no longer active", () => {
+    expect(
+      codeOf(() =>
+        assertCanHandoffHost("settling", actor({ isHost: true }), successor()),
       ),
     ).toBe("game_not_active");
   });
