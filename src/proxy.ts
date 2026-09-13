@@ -20,6 +20,9 @@ export default function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!auth/sign-in|api/auth|_next/static|_next/image|favicon.ico|art|manifest.webmanifest).*)",
+    // `sw.js` has to be excluded like any other static asset, and for a sharper
+    // reason: a service worker script that answers with a redirect does not
+    // register at all, so protecting it silently turns push off in production.
+    "/((?!auth/sign-in|api/auth|_next/static|_next/image|favicon.ico|art|sw.js|manifest.webmanifest).*)",
   ],
 };
