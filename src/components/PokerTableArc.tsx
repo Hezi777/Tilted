@@ -20,6 +20,7 @@ import { motion, useAnimationControls, useReducedMotion, type Variants } from "f
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { assignSlots } from "@/components/PokerTable";
 import { AnimatedMoney, Money } from "@/components/Money";
+import { PotStack } from "@/components/PotStack";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StreakBadge } from "@/components/StreakBadge";
 import type { LivePlayer } from "@/db/live-queries";
@@ -190,6 +191,7 @@ export function PokerTableArc({
 }) {
   const reduceMotion = useReducedMotion();
   const you = players.find((player) => player.isYou) ?? null;
+  const buyInCount = players.reduce((total, player) => total + player.buyInCount, 0);
   /* Ordered by the same physical-chair assignment the ring used, so `SeatPicker`
      still means something here: an arc has no numbered chairs, but the chair you
      chose still decides where along the rail you sit relative to everyone else. */
@@ -252,11 +254,7 @@ export function PokerTableArc({
         className="pointer-events-none absolute inset-x-0 z-10 flex justify-center"
         style={{ top: `${rail.apex + 38}%` }}
       >
-        <div className="relative h-12 w-16 drop-shadow-[0_9px_10px_rgb(0_0_0/0.7)]">
-          <span className="absolute inset-x-2 bottom-1 h-5 rounded-[50%] border-[5px] border-light bg-felt-highlight" />
-          <span className="absolute inset-x-1 bottom-3 h-5 rounded-[50%] border-[5px] border-light bg-brand-500" />
-          <span className="absolute inset-x-2 bottom-5 h-5 rounded-[50%] border-[5px] border-light bg-surface-4" />
-        </div>
+        <PotStack buyInCount={buyInCount} />
       </div>
       )}
 

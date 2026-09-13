@@ -10,7 +10,9 @@ import type { LivePlayer } from "@/db/live-queries";
 import type { MemorableHandRecord } from "@/db/music-hand-queries";
 import { apiFetch, ApiError } from "@/lib/api";
 import { agorot, shekelsToAgorot, sumAgorot } from "@/lib/money";
+import { parsePlayingCards, serializePlayingCards, type PlayingCardCode } from "@/lib/cards";
 import { ChipAvatar } from "@/components/ChipAvatar";
+import { CardPicker, PlayingCardRow } from "@/components/CardPicker";
 import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,11 +30,20 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-function Street({ label, cards }: { label: string; cards: string }) {
+function Street({ label, cards, slots }: { label: string; cards: string; slots: number }) {
+  const parsed = parsePlayingCards(cards);
   return (
-    <div className="flex min-h-12 flex-1 flex-col items-center justify-center rounded-xl bg-felt-deep/45 px-2 py-1.5">
+    <div className="flex min-w-0 flex-col items-center gap-1.5">
+      {parsed.length > 0 ? (
+        <PlayingCardRow cards={parsed} emptySlots={slots} />
+      ) : cards ? (
+        <span dir="ltr" className="flex h-10 items-center rounded-lg bg-white/8 px-2 text-xs font-semibold text-felt-foreground">
+          {cards}
+        </span>
+      ) : (
+        <PlayingCardRow cards={[]} emptySlots={slots} />
+      )}
       <span className="t-caption text-felt-foreground-muted">{label}</span>
-      <span dir="ltr" className="min-h-5 text-center font-semibold text-felt-foreground">{cards || "—"}</span>
     </div>
   );
 }
@@ -63,10 +74,10 @@ export function MemorableHandCard({
         )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="felt-panel flex gap-2 rounded-[14px] p-2" aria-label="קלפי הקהילה">
-          <Street label="פלופ" cards={record.board.flop} />
-          <Street label="טרן" cards={record.board.turn} />
-          <Street label="ריבר" cards={record.board.river} />
+        <div className="felt-panel flex items-start justify-center gap-3 rounded-[14px] p-3" aria-label="קלפי הקהילה">
+          <Street label="פלופ" cards={record.board.flop} slots={3} />
+          <Street label="טרן" cards={record.board.turn} slots={1} />
+          <Street label="ריבר" cards={record.board.river} slots={1} />
         </div>
         <div className="surface-raised flex items-center gap-2 rounded-xl px-3 py-2">
           <CrownIcon aria-hidden="true" className="size-4 fill-[var(--amber-400)] text-[var(--amber-400)]" />
@@ -78,7 +89,11 @@ export function MemorableHandCard({
             <li key={player.playerId} className="flex min-h-12 items-center gap-2 py-1.5">
               <ChipAvatar avatarKey={player.avatarKey} personId={player.playerId} name={player.name} className="size-8" />
               <span className="font-medium">{player.name}</span>
-              {player.holeCards && <span dir="ltr" className="text-xs text-muted-foreground">{player.holeCards}</span>}
+              {player.holeCards && (
+                parsePlayingCards(player.holeCards).length > 0
+                  ? <PlayingCardRow cards={parsePlayingCards(player.holeCards)} />
+                  : <span dir="ltr" className="text-xs text-muted-foreground">{player.holeCards}</span>
+              )}
               <Money
                 value={player.delta}
                 signed
@@ -95,13 +110,13 @@ export function MemorableHandCard({
 
 interface PlayerDraft {
   included: boolean;
-  holeCards: string;
+  holeCards: PlayingCardCode[];
   delta: string;
 }
 
 function initialDraft(players: LivePlayer[]): Record<string, PlayerDraft> {
   return Object.fromEntries(
-    players.map((player) => [player.id, { included: false, holeCards: "", delta: "" }]),
+    players.map((player) => [player.id, { included: false, holeCards: [], delta: "" }]),
   );
 }
 
@@ -112,9 +127,9 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
   const [records, setRecords] = useState<MemorableHandRecord[] | null>(null);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
-  const [flop, setFlop] = useState("");
-  const [turn, setTurn] = useState("");
-  const [river, setRiver] = useState("");
+  const [flop, setFlop] = useState<PlayingCardCode[]>([]);
+  const [turn, setTurn] = useState<PlayingCardCode[]>([]);
+  const [river, setRiver] = useState<PlayingCardCode[]>([]);
   const [pot, setPot] = useState("");
   const [winnerPlayerId, setWinnerPlayerId] = useState("");
   const [draft, setDraft] = useState<Record<string, PlayerDraft>>(() => initialDraft(players));
@@ -123,6 +138,21 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
     () => players.filter((player) => draft[player.id]?.included),
     [draft, players],
   );
+  const selectedCards = useMemo(
+    () => new Set<PlayingCardCode>([
+      ...flop,
+      ...turn,
+      ...river,
+      ...includedPlayers.flatMap((player) => draft[player.id]?.holeCards ?? []),
+    ]),
+    [draft, flop, includedPlayers, river, turn],
+  );
+
+  function unavailableExcept(cards: readonly PlayingCardCode[]): ReadonlySet<PlayingCardCode> {
+    const unavailable = new Set(selectedCards);
+    cards.forEach((card) => unavailable.delete(card));
+    return unavailable;
+  }
 
   useEffect(() => {
     if (!open || records !== null) return;
@@ -152,9 +182,9 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
   function resetForm() {
     setTitle("");
     setNote("");
-    setFlop("");
-    setTurn("");
-    setRiver("");
+    setFlop([]);
+    setTurn([]);
+    setRiver([]);
     setPot("");
     setWinnerPlayerId("");
     setDraft(initialDraft(players));
@@ -168,7 +198,7 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
       if (!winnerPlayerId) throw new Error("בחרו מי לקח את היד");
       const participantInput = includedPlayers.map((player) => ({
         playerId: player.id,
-        holeCards: draft[player.id].holeCards.trim(),
+        holeCards: serializePlayingCards(draft[player.id].holeCards),
         delta: shekelsToAgorot(Number(draft[player.id].delta)),
       }));
       if (sumAgorot(participantInput.map((player) => agorot(player.delta))) !== 0) {
@@ -185,7 +215,11 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
         body: JSON.stringify({
           title,
           note,
-          board: { flop, turn, river },
+          board: {
+            flop: serializePlayingCards(flop),
+            turn: serializePlayingCards(turn),
+            river: serializePlayingCards(river),
+          },
           potAmount,
           winnerPlayerId,
           players: participantInput,
@@ -231,10 +265,13 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
                 <Label htmlFor="hand-title">שם היד</Label>
                 <Input id="hand-title" className="h-12" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="הריבר ששינה הכול" autoFocus />
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col gap-2"><Label htmlFor="hand-flop">פלופ</Label><Input id="hand-flop" className="h-12" dir="ltr" maxLength={30} value={flop} onChange={(event) => setFlop(event.target.value)} placeholder="A♠ K♦ 7♥" /></div>
-                <div className="flex flex-col gap-2"><Label htmlFor="hand-turn">טרן</Label><Input id="hand-turn" className="h-12" dir="ltr" maxLength={10} value={turn} onChange={(event) => setTurn(event.target.value)} placeholder="2♣" /></div>
-                <div className="flex flex-col gap-2"><Label htmlFor="hand-river">ריבר</Label><Input id="hand-river" className="h-12" dir="ltr" maxLength={10} value={river} onChange={(event) => setRiver(event.target.value)} placeholder="Q♠" /></div>
+              <div className="flex flex-col gap-2">
+                <Label>קלפי הקהילה</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <CardPicker label="פלופ" selected={flop} maxCards={3} unavailable={unavailableExcept(flop)} onChange={setFlop} />
+                  <CardPicker label="טרן" selected={turn} maxCards={1} unavailable={unavailableExcept(turn)} onChange={setTurn} />
+                  <CardPicker label="ריבר" selected={river} maxCards={1} unavailable={unavailableExcept(river)} onChange={setRiver} />
+                </div>
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="hand-pot">גובה הקופה בשקלים (לא חובה)</Label>
@@ -244,11 +281,17 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
                 <Label>מי השתתף ומה הייתה התוצאה?</Label>
                 <div className="flex flex-col gap-2">
                   {players.map((player) => {
-                    const playerDraft = draft[player.id] ?? { included: false, holeCards: "", delta: "" };
+                    const playerDraft = draft[player.id] ?? { included: false, holeCards: [], delta: "" };
                     return (
                       <div key={player.id} className="surface-card rounded-[14px] p-3">
                         <Label className="min-h-12 cursor-pointer gap-3">
-                          <Checkbox checked={playerDraft.included} onCheckedChange={(checked) => updatePlayer(player.id, { included: checked === true })} />
+                          <Checkbox
+                            checked={playerDraft.included}
+                            onCheckedChange={(checked) => updatePlayer(player.id, {
+                              included: checked === true,
+                              holeCards: checked === true ? playerDraft.holeCards : [],
+                            })}
+                          />
                           <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-8" />
                           <span>{player.name}</span>
                         </Label>
@@ -266,8 +309,14 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
                               transition={{ duration: reduceMotion ? 0 : DUR.base, ease: EASE_OUT }}
                               className="overflow-hidden"
                             >
-                              <div className="mt-3 grid grid-cols-2 gap-2">
-                                <Input aria-label={`הקלפים של ${player.name}`} className="h-12" dir="ltr" maxLength={30} value={playerDraft.holeCards} onChange={(event) => updatePlayer(player.id, { holeCards: event.target.value })} placeholder="קלפים, לא חובה" />
+                              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <CardPicker
+                                  label={`הקלפים של ${player.name}`}
+                                  selected={playerDraft.holeCards}
+                                  maxCards={2}
+                                  unavailable={unavailableExcept(playerDraft.holeCards)}
+                                  onChange={(holeCards) => updatePlayer(player.id, { holeCards })}
+                                />
                                 <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="number" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
                               </div>
                             </motion.div>

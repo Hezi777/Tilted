@@ -220,13 +220,103 @@ regenerating art.
 
 ---
 
-## Why no chip or card art
+## Pot stack and playing cards
 
-Both are drawn in code and should stay that way. `PokerChip` renders any body and edge colour
-at any size from the maths in `src/lib/chip-art.ts`, including a denomination ink guaranteed to
-clear 4.5:1 — a raster can only ever be the colours somebody pre-generated, and this app lets a
-host describe their own physical tray. Cards are not rendered anywhere; this is a ledger, not a
-game client.
+The 2026-09-13 memorable-hand picker supersedes the earlier “cards are not rendered” note.
+Card faces are still drawn in code: the picker needs all 52 exact rank/suit combinations, and
+raster-generated lettering is less reliable and less accessible than real text. Their visual
+direction comes from the supplied Moon Poker reference: pale lavender-white stock, oversized
+sparse ranks and suit marks, rounded corners, and a soft violet-cast shadow.
+
+Denomination chips also remain code-drawn because a host may choose any body and edge colour.
+The pot stack is the exception: it has three fixed colours and is an atmospheric illustration,
+so it benefits from the same matte 3D material as the avatar characters.
+
+### Pot stack — `public/art/states/pot-stack.webp`
+
+Generated with the built-in ImageGen tool using the old outlined stack as a composition
+reference and `avatar-aner.webp` plus `states/counting.webp` as material/style references.
+
+```
+Use case: stylized-concept
+Asset type: small game UI icon for the pot at the center of a mobile poker table
+Primary request: replace the minimal outlined three-chip stack with a polished stack of three
+physical poker chips that belongs beside the chip-creature characters
+Scene/backdrop: genuinely transparent background
+Subject: three poker chips stacked at a slight three-quarter angle, one charcoal chip, one
+coral-red chip, and one jade-green chip, each with cream edge inserts; readable as a single
+compact silhouette at 48–64 CSS pixels
+Style/medium: stylized 3D game asset; soft matte clay and painted resin; rounded forms; the same
+sculpted material, soft key light, deep ambient fill, and subtle cool-violet rim light as the
+character references
+Composition/framing: centered, compact, nearly square; stack fills the canvas with a small even
+margin; no cast shadow outside the object
+Lighting/mood: broad soft key from upper left, gentle cool violet rim from upper right
+Color palette: charcoal #26262F, coral #FF4D6A, jade #1FB97A, cream #F5F6F7
+Materials/textures: smooth matte molded resin with subtle bevels, no gloss
+Constraints: transparent alpha background; exactly three chips; no faces, no arms, no legs, no
+denomination, no text, no numbers, no logos, no watermark
+Avoid: thin outline icon, flat vector rings, casino branding, money, cards, dice, table, scenery,
+extra chips, photorealistic casino photography
+```
+
+### Progressive pot variants
+
+All three use `pot-stack.webp` as the exact construction/material reference and
+`avatar-aner.webp` as the wider character-world reference. Each has a transparent backdrop,
+the same upper-left key and violet upper-right rim, and the same charcoal/coral/jade/cream
+palette. Shared constraints: preserve chip proportions and edge inserts; no faces, limbs,
+denominations, text, numbers, logos, watermark, cards, dice, table, scenery, or external cast
+shadow.
+
+`public/art/states/pot-stack-2.webp`
+
+```
+Use case: stylized-concept
+Asset type: tier 2 pot artwork for a mobile poker table UI
+Primary request: create a visibly larger version of the referenced poker-chip pot: two short
+uneven stacks plus one loose chip resting against them
+Subject: about seven physical poker chips; two compact stacks of different heights and one
+loose chip
+Style/medium: the same stylized 3D soft matte clay and painted-resin game asset as the reference
+Composition/framing: centered and compact inside a nearly square canvas; wider than tier 1 but
+with an even safety margin; readable at 56–72 CSS pixels
+Avoid: flat vector rings, glossy casino chips, tall narrow tower, visual clutter
+```
+
+`public/art/states/pot-stack-3.webp`
+
+```
+Use case: stylized-concept
+Asset type: tier 3 pot artwork for a mobile poker table UI
+Primary request: create a substantially larger pot in the exact reference style: three uneven
+short chip stacks, with one chip caught tipping diagonally off the front stack to imply fresh
+movement after a rebuy
+Subject: roughly twelve physical poker chips; three compact stacks, one diagonally tipping chip,
+no chips floating
+Style/medium: the same stylized 3D soft matte clay and painted-resin game asset as the reference
+Composition/framing: centered, broad, stable triangular silhouette inside a nearly square
+canvas; keep all chips within a generous safety margin; readable at 64–84 CSS pixels
+Avoid: explosive motion, airborne chips, flat vector rings, glossy casino chips, tall narrow tower
+```
+
+`public/art/states/pot-stack-4.webp`
+
+```
+Use case: stylized-concept
+Asset type: tier 4 maximum pot artwork for a mobile poker table UI
+Primary request: create the biggest capped pot in the exact reference style: four compact uneven
+stacks forming one broad pile, with one chip slipping down a side and two chips spilled flat at
+the front
+Subject: a generous pile of roughly eighteen physical poker chips; four low stacks, one slipping
+chip, two flat spilled chips
+Style/medium: the same stylized 3D soft matte clay and painted-resin game asset as the reference
+Composition/framing: centered, widest tier but still compact inside a nearly square canvas; low
+broad silhouette with every chip inside a generous safety margin; readable at 72–96 CSS pixels
+Constraints: this is the final capped tier, so keep the pile controlled rather than huge
+Avoid: overflowing composition, explosion, airborne chips, flat vector rings, glossy casino
+chips, tall narrow towers
+```
 
 ---
 
