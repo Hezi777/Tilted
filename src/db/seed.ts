@@ -14,43 +14,16 @@ import {
   games,
   people,
   players,
-  playlists,
 } from "@/db/schema";
 
 const BUY_IN = 5000; // ₪50
 const REBUY = 5000; // ₪50
 
-/** Starter playlists behind the music button (plan item 11). */
-async function seedPlaylists() {
-  const existing = await db.select({ id: playlists.id }).from(playlists).limit(1);
-  if (existing.length > 0) return;
-
-  await db.insert(playlists).values([
-    {
-      name: "פוקר עד מאוחר",
-      url: "https://open.spotify.com/playlist/37i9dQZF1DX4UtSsGT1Sbe",
-      sortOrder: 0,
-    },
-    {
-      name: "ג׳אז לשולחן",
-      url: "https://open.spotify.com/playlist/37i9dQZF1DXbITWG1ZJKYt",
-      sortOrder: 1,
-    },
-    {
-      name: "בלוז מעושן",
-      url: "https://open.spotify.com/playlist/37i9dQZF1DXd9rSDyQguIk",
-      sortOrder: 2,
-    },
-  ]);
-}
-
 async function seed() {
-  await seedPlaylists();
-
   // The fake game below predates accounts: it inserts People with no `user_id`, which
   // the roster now filters out. Skip it unless explicitly asked for.
   if (!process.env.SEED_DEMO_GAME) {
-    console.log("Seeded playlists. Chip-set presets install themselves on first use.");
+    console.log("Nothing to seed. Chip-set presets install themselves on first use.");
     return;
   }
 

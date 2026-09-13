@@ -44,16 +44,6 @@ export interface ChipSetDetail extends ChipSetSummary {
 
 const PRESET_SETS = [
   {
-    id: "11000000-0000-4000-8000-000000000001",
-    name: "חבילה קלאסית",
-    denominations: [
-      { id: "12000000-0000-4000-8000-000000000001", color: "#F4F1E8", edgeColor: "#C1121F", value: 100 },
-      { id: "12000000-0000-4000-8000-000000000002", color: "#C1121F", edgeColor: "#F4F1E8", value: 500 },
-      { id: "12000000-0000-4000-8000-000000000003", color: "#14713D", edgeColor: "#F4F1E8", value: 2000 },
-      { id: "12000000-0000-4000-8000-000000000004", color: "#14110F", edgeColor: "#F4F1E8", value: 10000 },
-    ],
-  },
-  {
     id: "11000000-0000-4000-8000-000000000002",
     name: "חבילה למשחק גבוה",
     denominations: [
