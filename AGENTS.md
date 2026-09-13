@@ -72,6 +72,12 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
   money maths outside `src/lib/money.ts`. Format only at display time.
 - **`money.ts` and `settlement.ts` are hand-written and test-locked.** Do not edit them and
   do not reimplement net or transfer logic anywhere else. If they lack something, say so.
+- **Two aggregates compared in one query must be derived from the same row filter.** A sum
+  over every row, set equal to a sum over live rows, is not the comparison it reads as.
+  This is what made a night unclosable once a player who had cashed out was removed from
+  the table: `closeSettlingGame` summed `cash_outs` for the whole game against buy-ins for
+  live seats only, so the two sides disagreed by exactly that player's count, while
+  `getCashoutState` filtered both sides and went on reporting a difference of zero.
 - **One authorization rule, enforced server-side:** the signed-in Person writes only for
   their own Player row. The host is the single exception. Derive the Person from the Neon
   Auth session on every route and action; never trust a person id or device id supplied by
