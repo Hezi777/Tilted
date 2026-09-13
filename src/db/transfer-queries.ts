@@ -8,7 +8,7 @@
  * `paid_at` survives a re-sync after a mismatch resolution changes the numbers.
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { people, players, transfers } from "@/db/schema";
@@ -33,11 +33,22 @@ export interface TransferRecord {
   markedByDevice: string | null;
 }
 
+function pairKey(row: { fromPlayerId: string; toPlayerId: string }): string {
+  return `${row.fromPlayerId}:${row.toPlayerId}`;
+}
+
 /**
- * Replaces the stored transfer rows for a game with the freshly computed set,
- * carrying `paid_at`/`marked_by_device` over for a pair whose amount is unchanged
- * or was merely recomputed. A pair that no longer owes anything is dropped, since
- * the debt it recorded does not exist anymore.
+ * Brings the stored transfer rows in line with the freshly computed set: a pair that
+ * still owes is updated in place, and one that no longer owes anything is dropped,
+ * since the debt it recorded does not exist anymore.
+ *
+ * Updating in place rather than replacing the table is the point. This runs on every
+ * read, so a delete-then-insert minted a new primary key each time the settlement
+ * screen was opened -- and a second phone loading the page invalidated the id the
+ * first phone was still holding, so its "mark as paid" hit a row that no longer
+ * existed. The upsert rides `transfers_game_from_to_unique`, which makes (game, from,
+ * to) the stable identity it always was in practice, and leaves `id`, `paid_at` and
+ * `marked_by_device` untouched on a row that persists.
  */
 async function syncTransfers(
   gameId: string,
@@ -45,31 +56,44 @@ async function syncTransfers(
 ): Promise<void> {
   const existing = await db
     .select({
+      id: transfers.id,
       fromPlayerId: transfers.fromPlayerId,
       toPlayerId: transfers.toPlayerId,
-      paidAt: transfers.paidAt,
-      markedByDevice: transfers.markedByDevice,
     })
     .from(transfers)
     .where(eq(transfers.gameId, gameId));
-  const carried = new Map(
-    existing.map((row) => [`${row.fromPlayerId}:${row.toPlayerId}`, row]),
-  );
+
+  const wanted = new Set(computed.map(pairKey));
+  const staleIds = existing
+    .filter((row) => !wanted.has(pairKey(row)))
+    .map((row) => row.id);
 
   const writes = [
-    db.delete(transfers).where(eq(transfers.gameId, gameId)),
-    ...computed.map((transfer) => {
-      const previous = carried.get(`${transfer.fromPlayerId}:${transfer.toPlayerId}`);
-      return db.insert(transfers).values({
-        gameId,
-        fromPlayerId: transfer.fromPlayerId,
-        toPlayerId: transfer.toPlayerId,
-        amount: transfer.amount,
-        paidAt: previous?.paidAt ?? null,
-        markedByDevice: previous?.markedByDevice ?? null,
-      });
-    }),
+    ...(staleIds.length > 0
+      ? [db.delete(transfers).where(inArray(transfers.id, staleIds))]
+      : []),
+    ...computed.map((transfer) =>
+      db
+        .insert(transfers)
+        .values({
+          gameId,
+          fromPlayerId: transfer.fromPlayerId,
+          toPlayerId: transfer.toPlayerId,
+          amount: transfer.amount,
+        })
+        .onConflictDoUpdate({
+          target: [
+            transfers.gameId,
+            transfers.fromPlayerId,
+            transfers.toPlayerId,
+          ],
+          // Only the amount. Touching paid_at here would un-tick a transfer every
+          // time somebody opened the screen.
+          set: { amount: transfer.amount },
+        }),
+    ),
   ];
+  if (writes.length === 0) return;
   await db.batch(writes as [(typeof writes)[number], ...(typeof writes)[number][]]);
 }
 
