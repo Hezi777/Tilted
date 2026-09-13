@@ -324,6 +324,35 @@ export interface GameOwnership {
   notes: string | null;
 }
 
+/**
+ * May this Person read this game at all: do they hold a seat at it, removed seats
+ * aside. The same test `buildHistoryListQuery` already uses to decide which games
+ * appear in someone's history, so a game they can see in the list is a game they can
+ * open.
+ *
+ * Keyed on `person_id`, not on the `device_id` actor key `getActorForGame` uses. That
+ * one answers "who may write here" and deliberately needs a *claimed* seat; a seat the
+ * host made and the invitee has not opened yet has `device_id` NULL, and the invite
+ * notification links them straight to the game screen. Reading is not writing.
+ */
+export async function isSeatedInGame(
+  gameId: string,
+  personId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: players.id })
+    .from(players)
+    .where(
+      and(
+        eq(players.gameId, gameId),
+        eq(players.personId, personId),
+        isNull(players.deletedAt),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
 export async function getGameOwnership(
   gameId: string,
 ): Promise<GameOwnership | null> {

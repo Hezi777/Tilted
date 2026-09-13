@@ -3,6 +3,7 @@ import { getLiveGame } from "@/db/live-queries";
 import {
   deleteGame,
   getGameOwnership,
+  isSeatedInGame,
   updateGameRules,
   GameDeleteError,
 } from "@/db/queries";
@@ -22,6 +23,12 @@ export async function GET(
   if (!id.success) return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
+  if (!(await isSeatedInGame(id.data, viewer.person.id))) {
+    return NextResponse.json<ApiErrorBody>(
+      { error: "אינך משתתף במשחק הזה" },
+      { status: 403 },
+    );
+  }
   const game = await getLiveGame(id.data, viewer.person.id);
   if (!game) return NextResponse.json<ApiErrorBody>({ error: "המשחק לא נמצא" }, { status: 404 });
   // v2: location, notes and who may delete this game layer onto the live-game

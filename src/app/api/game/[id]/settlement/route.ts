@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { isSeatedInGame } from "@/db/queries";
 import {
   getSettlementState,
   SettlementUnavailableError,
@@ -20,6 +21,13 @@ export async function GET(
   const parsed = idSchema.safeParse(rawId);
   if (!parsed.success) {
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
+  }
+
+  if (!(await isSeatedInGame(parsed.data, viewer.person.id))) {
+    return NextResponse.json<ApiErrorBody>(
+      { error: "אינך משתתף במשחק הזה" },
+      { status: 403 },
+    );
   }
 
   try {
