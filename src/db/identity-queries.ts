@@ -11,7 +11,8 @@
 
 import "server-only";
 
-import { eq, isNotNull } from "drizzle-orm";
+import { and, eq, exists, isNotNull, isNull, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { people, players } from "@/db/schema";
 import { reservedAvatarForName } from "@/lib/avatar";
@@ -36,8 +37,21 @@ export async function getPersonForUser(
   return row ?? null;
 }
 
-/** Only registered accounts may be selected for a game roster. */
-export async function getAccountPeople(): Promise<PersonSummary[]> {
+/**
+ * The regulars this Person can pick from when starting a game: themselves, plus every
+ * account they have actually sat at a table with.
+ *
+ * Scoped rather than "every account in the database", which is the same list only for
+ * as long as the app has exactly one group of friends in it. Someone with nobody to
+ * pick yet gets only themselves and invites by room code, which is how a new face joins
+ * a table anyway -- and that is what puts them in this list next time.
+ */
+export async function getPeopleWhoPlayedWith(
+  personId: string,
+): Promise<PersonSummary[]> {
+  const theirSeat = alias(players, "their_seat");
+  const mySeat = alias(players, "my_seat");
+
   return db
     .select({
       id: people.id,
@@ -46,7 +60,33 @@ export async function getAccountPeople(): Promise<PersonSummary[]> {
       avatarKey: people.avatarKey,
     })
     .from(people)
-    .where(isNotNull(people.userId))
+    .where(
+      and(
+        isNotNull(people.userId),
+        or(
+          eq(people.id, personId),
+          exists(
+            db
+              .select({ seat: theirSeat.id })
+              .from(theirSeat)
+              .innerJoin(
+                mySeat,
+                and(
+                  eq(mySeat.gameId, theirSeat.gameId),
+                  eq(mySeat.personId, personId),
+                  isNull(mySeat.deletedAt),
+                ),
+              )
+              .where(
+                and(
+                  eq(theirSeat.personId, people.id),
+                  isNull(theirSeat.deletedAt),
+                ),
+              ),
+          ),
+        ),
+      ),
+    )
     .orderBy(people.name);
 }
 

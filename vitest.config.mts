@@ -1,7 +1,11 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // `server-only` is a marker that throws outside a Server Component graph.
+    alias: { "server-only": "/src/db/test-support/server-only-stub.ts" },
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],

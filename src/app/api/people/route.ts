@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getAccountPeople } from "@/db/identity-queries";
+import { getPeopleWhoPlayedWith } from "@/db/identity-queries";
 import { requireViewer } from "@/lib/auth/session";
 
-/** The account-backed regulars roster. */
+/** The signed-in viewer's own regulars roster. */
 export async function GET() {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
 
-  const people = await getAccountPeople();
+  const people = await getPeopleWhoPlayedWith(viewer.person.id);
   return NextResponse.json({ people });
 }
