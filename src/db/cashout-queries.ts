@@ -564,6 +564,14 @@ export async function beginSettling(
 /**
  * Closes only a complete, balanced settling game. All predicates are in the
  * conditional UPDATE so cash-out edits cannot make a closed ledger unbalanced.
+ *
+ * Both sides of the balance check exclude removed seats. A player who cashed out and
+ * was then taken off the table keeps their `cash_outs` row as an audit record, and
+ * counting it against a pot their buy-ins had already left made the sums disagree by
+ * exactly their count -- so the UPDATE matched nothing and the night could not be
+ * closed, while `getCashoutState` (live seats only, on both sides) went on reporting a
+ * difference of zero. Whatever a removed player took off the table now surfaces as an
+ * ordinary difference for the host to split or assign.
  */
 export async function closeSettlingGame(
   gameId: string,
@@ -590,7 +598,10 @@ export async function closeSettlingGame(
       )
       AND coalesce((
         SELECT sum(co.amount + co.adjustment)
-        FROM cash_outs co WHERE co.game_id = g.id
+        FROM cash_outs co
+        JOIN players p ON p.id = co.player_id
+        WHERE co.game_id = g.id
+          AND p.deleted_at IS NULL
       ), 0) = coalesce((
         SELECT sum(bi.amount)
         FROM buy_ins bi
