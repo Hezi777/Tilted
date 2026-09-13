@@ -1,11 +1,12 @@
 /** Queries and mutations for the account-backed room roster. */
 
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { buyIns, games, people, players } from "@/db/schema";
 import { AVATAR_KEYS, avatarKeyForPlayer } from "@/lib/avatar";
-import type { JoinGameDetail } from "@/lib/api";
+import type { JoinGameDetail, PendingInvite } from "@/lib/api";
 import {
   assertCanManageRoster,
   requireActor,
@@ -144,9 +145,10 @@ export async function claimPlayer(
  *
  * Self-service, so there is no host guard -- knowing the four-character code is the
  * whole entitlement, which is what makes a share link work. Everything else is the
- * same seat `addPlayerToGame` makes: a Player bound to this Person, its initial
- * buy-in, and the next seat around the felt. The claim is folded in, because someone
- * who just created their own seat has nothing to claim.
+ * same seat `addPlayerToGame` makes: a Player bound to this Person and the next seat
+ * around the felt, plus its initial buy-in, written immediately because there is
+ * nothing left to accept. A seat the host already made is a different story -- it
+ * still owes its initial buy-in, which `claimInvitedSeat` writes below.
  */
 export async function joinGameByCode(
   code: string,
@@ -166,18 +168,24 @@ export async function joinGameByCode(
   if (!person) throw new RosterConflictError("לא נמצא חשבון שחקן");
 
   const seated = await db
-    .select({ id: players.id, personId: players.personId, avatarKey: players.avatarKey })
+    .select({
+      id: players.id,
+      personId: players.personId,
+      avatarKey: players.avatarKey,
+      deviceId: players.deviceId,
+    })
     .from(players)
     .where(and(eq(players.gameId, game.id), isNull(players.deletedAt)));
 
   // Already at this table -- the host added them, or they tapped the link twice. Hand
-  // back the seat they have rather than making a second one.
+  // back the seat they have rather than making a second one. A seat the host made is
+  // still unclaimed (no device, no buy-in yet) -- claiming it here is what writes the
+  // initial buy-in the host's seat deferred (spec 5.3 + the seat-costs-nothing rule).
   const existing = seated.find((row) => row.personId === person.id);
   if (existing) {
-    await db
-      .update(players)
-      .set({ deviceId: actorPersonId })
-      .where(and(eq(players.id, existing.id), isNull(players.deviceId)));
+    if (existing.deviceId === null) {
+      await claimInvitedSeat(game.id, existing.id, actorPersonId);
+    }
     return { gameId: game.id, playerId: existing.id };
   }
 
@@ -232,6 +240,90 @@ export async function joinGameByCode(
   return { gameId: game.id, playerId };
 }
 
+/**
+ * Claims a seat the host already made and writes its deferred initial buy-in in the
+ * same statement -- the shared second half of `joinGameByCode`'s existing-seat branch
+ * and the notifications panel's accept action ("do not write a second path").
+ *
+ * A no-op if the seat is not this Person's, is already claimed, or its game is not
+ * active; the caller decides whether that is worth surfacing as an error.
+ */
+export async function claimInvitedSeat(
+  gameId: string,
+  playerId: string,
+  actorPersonId: string,
+): Promise<{ id: string }> {
+  const result = await db.execute<{ player_id: string }>(sql`
+    WITH active_game AS (
+      SELECT id, buy_in FROM ${games}
+      WHERE id = ${gameId}::uuid AND status = 'active'
+      FOR UPDATE
+    ), claimed AS (
+      UPDATE ${players} p
+      SET device_id = ${actorPersonId}
+      FROM active_game g
+      WHERE p.id = ${playerId}::uuid
+        AND p.game_id = g.id
+        AND p.person_id = ${actorPersonId}::uuid
+        AND p.deleted_at IS NULL
+        AND p.device_id IS NULL
+      RETURNING p.id, g.buy_in AS buy_in
+    ), inserted_buyin AS (
+      INSERT INTO ${buyIns}
+        (id, game_id, player_id, amount, kind, op_id, created_by_device)
+      SELECT ${randomUUID()}::uuid, ${gameId}::uuid, c.id, c.buy_in, 'initial',
+        ${randomUUID()}::uuid, ${actorPersonId}
+      FROM claimed c
+      RETURNING player_id
+    )
+    SELECT player_id FROM inserted_buyin
+  `);
+  if (!result.rows[0]) {
+    throw new RosterConflictError("ההזמנה לא נמצאה או שהמשחק כבר לא פעיל");
+  }
+  return { id: playerId };
+}
+
+/**
+ * Declines a seat the host made before it was ever claimed -- the invitee's own
+ * choice, not roster management, so it does not go through `assertCanManageRoster`.
+ * Only the Person the seat belongs to may decline it, and only while it is still
+ * unclaimed; a claimed seat is left alone (releasing or leaving a live seat is a
+ * different action).
+ */
+export async function declineInvite(
+  gameId: string,
+  playerId: string,
+  actorPersonId: string,
+): Promise<void> {
+  const result = await db.execute<{ id: string }>(sql`
+    WITH target AS (
+      SELECT p.id
+      FROM ${players} p
+      WHERE p.id = ${playerId}::uuid
+        AND p.game_id = ${gameId}::uuid
+        AND p.person_id = ${actorPersonId}::uuid
+        AND p.device_id IS NULL
+        AND p.deleted_at IS NULL
+    ), deleted_buyins AS (
+      UPDATE ${buyIns} bi
+      SET deleted_at = now()
+      FROM target
+      WHERE bi.player_id = target.id AND bi.deleted_at IS NULL
+    ), deleted_player AS (
+      UPDATE ${players} p
+      SET deleted_at = now()
+      FROM target
+      WHERE p.id = target.id
+      RETURNING p.id
+    )
+    SELECT id FROM deleted_player
+  `);
+  if (!result.rows[0]) {
+    throw new RosterConflictError("ההזמנה לא נמצאה");
+  }
+}
+
 export class RosterConflictError extends Error {
   constructor(message = "השחקן כבר נמצא במשחק") {
     super(message);
@@ -279,7 +371,11 @@ export interface AddPlayerInput {
   personId: string;
 }
 
-/** Adds a missing seat and its initial buy-in; roster management is host-only. */
+/**
+ * Adds a missing seat; roster management is host-only. The seat has no buy-in yet --
+ * it costs the table nothing until its owner accepts the invite (`claimInvitedSeat`),
+ * so a person who never shows up was never in the pot.
+ */
 export async function addPlayerToGame(
   gameId: string,
   actorPersonId: string,
@@ -320,11 +416,12 @@ export async function addPlayerToGame(
   if (duplicate) throw new RosterConflictError();
 
   const playerId = randomUUID();
-  const opId = randomUUID();
 
-  const result = await db.execute<{ player_id: string }>(sql`
+  // No buy-in yet: the seat costs nothing until its owner accepts it. `joinGameByCode`
+  // and `claimInvitedSeat` write the initial buy-in when the invite is claimed.
+  const result = await db.execute<{ id: string }>(sql`
         WITH active_game AS (
-          SELECT id, buy_in FROM ${games}
+          SELECT id FROM ${games}
           WHERE id = ${gameId}::uuid AND status = 'active'
           FOR UPDATE
         ), inserted_player AS (
@@ -341,17 +438,9 @@ export async function addPlayerToGame(
                 AND duplicate.person_id = ${person.id}::uuid
                 AND duplicate.deleted_at IS NULL
             )
-          RETURNING id, game_id
-        ), inserted_buyin AS (
-          INSERT INTO ${buyIns}
-            (id, game_id, player_id, amount, kind, op_id, created_by_device)
-          SELECT ${randomUUID()}::uuid, p.game_id, p.id, g.buy_in, 'initial',
-            ${opId}::uuid, ${actorPersonId}
-          FROM inserted_player p
-          INNER JOIN active_game g ON g.id = p.game_id
-          RETURNING player_id
+          RETURNING id
         )
-        SELECT player_id FROM inserted_buyin
+        SELECT id FROM inserted_player
       `);
 
   if (!result.rows[0]) {
@@ -393,4 +482,57 @@ export async function releasePlayerClaim(
   if (!result.rows[0]) {
     throw new RosterConflictError("המקום לא נמצא או שהמשחק כבר לא פעיל");
   }
+}
+
+/**
+ * Every active game where this Person holds a seat the host made that they have not
+ * opened yet -- the notifications panel's list. A separate function from
+ * `buildPendingInvitesQuery` only so the query itself can be inspected with
+ * `.toSQL()` in a test without a database (see `src/db/history-queries.ts`).
+ */
+export function buildPendingInvitesQuery(personId: string) {
+  const host = alias(players, "host");
+  const seated = alias(players, "seated");
+  return db
+    .select({
+      gameId: games.id,
+      playerId: players.id,
+      gameName: games.name,
+      createdAt: games.createdAt,
+      location: games.location,
+      hostName: host.name,
+      seatedCount: sql<number>`count(distinct ${seated.id})`,
+    })
+    .from(players)
+    .innerJoin(games, eq(games.id, players.gameId))
+    .innerJoin(
+      host,
+      and(eq(host.gameId, games.id), eq(host.isHost, true), isNull(host.deletedAt)),
+    )
+    .leftJoin(seated, and(eq(seated.gameId, games.id), isNull(seated.deletedAt)))
+    .where(
+      and(
+        eq(players.personId, personId),
+        isNull(players.deviceId),
+        isNull(players.deletedAt),
+        eq(games.status, "active"),
+      ),
+    )
+    .groupBy(games.id, players.id, host.name)
+    .orderBy(desc(games.createdAt));
+}
+
+export async function listPendingInvitesForPerson(
+  personId: string,
+): Promise<PendingInvite[]> {
+  const rows = await buildPendingInvitesQuery(personId);
+  return rows.map((row) => ({
+    gameId: row.gameId,
+    playerId: row.playerId,
+    gameName: row.gameName,
+    createdAt: row.createdAt.toISOString(),
+    location: row.location,
+    hostName: row.hostName,
+    seatedCount: Number(row.seatedCount),
+  }));
 }

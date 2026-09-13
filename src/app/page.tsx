@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Money } from "@/components/Money";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { useIdentity } from "@/lib/identity";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { apiFetch, ApiError, type GameSummary } from "@/lib/api";
@@ -101,18 +102,21 @@ export default function Home() {
             </p>
           </div>
           {viewer && (
-            <Link
-              href="/profile"
-              aria-label={`הפרופיל של ${viewer.name}`}
-              className="shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
-            >
-              <ChipAvatar
-                avatarKey={viewer.avatarKey}
-                personId={viewer.id}
-                name={viewer.name}
-                className="size-11"
-              />
-            </Link>
+            <div className="flex shrink-0 items-center gap-1">
+              <NotificationsBell />
+              <Link
+                href="/profile"
+                aria-label={`הפרופיל של ${viewer.name}`}
+                className="shrink-0 rounded-full transition-transform duration-[var(--dur-micro)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95"
+              >
+                <ChipAvatar
+                  avatarKey={viewer.avatarKey}
+                  personId={viewer.id}
+                  name={viewer.name}
+                  className="size-11"
+                />
+              </Link>
+            </div>
           )}
         </div>
       </header>

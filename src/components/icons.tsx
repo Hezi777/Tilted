@@ -27,6 +27,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   ArmchairIcon as HgArmchair,
   ArrowLeft02Icon as HgArrowLeft,
+  BellIcon as HgBell,
   BookMarkedIcon as HgBookMarked,
   CheckIcon as HgCheck,
   ChevronLeftIcon as HgChevronLeft,
@@ -92,6 +93,7 @@ export const ArmchairIcon = bind(HgArmchair, "ArmchairIcon");
    is drawn at the end of a rule in the settlement transfers ("from ——> to"), where
    a chevron reads as a caret rather than as direction. */
 export const ArrowLeftIcon = bind(HgArrowLeft, "ArrowLeftIcon");
+export const BellIcon = bind(HgBell, "BellIcon");
 export const BookMarkedIcon = bind(HgBookMarked, "BookMarkedIcon");
 export const CheckIcon = bind(HgCheck, "CheckIcon");
 export const ChevronLeftIcon = bind(HgChevronLeft, "ChevronLeftIcon");

@@ -47,6 +47,23 @@ export interface GameSummary {
   pot: number;
 }
 
+/**
+ * A seat the host already made that this Person has not opened yet -- an invite
+ * waiting in the notifications panel, not a game in progress.
+ */
+export interface PendingInvite {
+  gameId: string;
+  playerId: string;
+  gameName: string | null;
+  /** When the game (and this seat) was created; the panel's fallback label when the
+   * host never named the game. */
+  createdAt: string;
+  location: string | null;
+  hostName: string;
+  /** Live seats at the table already, this one included. */
+  seatedCount: number;
+}
+
 /** A regular from the roster. Spec section 5.2 / 5.7. */
 export interface PersonSummary {
   id: string;

@@ -11,6 +11,7 @@ import { motionSafe, rise, stagger } from "@/lib/motion";
 import { apiFetch, ApiError } from "@/lib/api";
 import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
+import { isEligibleSuccessor } from "@/lib/roster-status";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
@@ -104,7 +105,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   // server re-checks this against a live, signed-in seat before the handoff commits
   // -- this list is only for the picker, not the authorization.
   const eligibleSuccessors = useMemo(
-    () => seated.filter((player) => !player.isYou && !player.isSettled),
+    () => seated.filter(isEligibleSuccessor),
     [seated],
   );
 

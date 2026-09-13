@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronLeftIcon } from "@/components/icons";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { cn } from "@/lib/utils";
 
 export function AppHeader({
@@ -37,7 +38,10 @@ export function AppHeader({
             <div className="t-caption ink-3 mt-1">{subtitle}</div>
           ) : null}
         </div>
-        {action ? <div className="shrink-0 pb-1">{action}</div> : null}
+        <div className="flex shrink-0 items-center gap-1 pb-1">
+          <NotificationsBell />
+          {action}
+        </div>
       </div>
     </header>
   );

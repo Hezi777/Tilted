@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { CrownIcon } from "@/components/icons";
+import { Clock3Icon, CrownIcon } from "@/components/icons";
 import { motion, useAnimationControls, useReducedMotion, type Variants } from "framer-motion";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { AnimatedMoney, Money } from "@/components/Money";
@@ -27,6 +27,7 @@ import type { PlayerStreakMap } from "@/db/streak-queries";
 import { agorot, formatILS } from "@/lib/money";
 import { bump, DUR, EASE_OUT, motionSafe, SPRING, STAGGER } from "@/lib/motion";
 import { railGeometry, railPoints, railTier } from "@/lib/seat-layout";
+import { seatStatus } from "@/lib/roster-status";
 import { cn } from "@/lib/utils";
 
 const tableVariants: Variants = {
@@ -40,8 +41,18 @@ const tableVariants: Variants = {
 
 const seatVariants: Variants = {
   hidden: { opacity: 0, scale: 0.9 },
-  show: ({ settled, selected }: { settled: boolean; selected: boolean }) => ({
-    opacity: settled ? 0.55 : 1,
+  show: ({
+    settled,
+    waiting,
+    selected,
+  }: {
+    settled: boolean;
+    waiting: boolean;
+    selected: boolean;
+  }) => ({
+    // A waiting seat is more transparent than a settled one -- it is not gone, it
+    // has just never arrived.
+    opacity: waiting ? 0.35 : settled ? 0.55 : 1,
     scale: selected ? 1.05 : 1,
     transition: SPRING,
   }),
@@ -169,6 +180,7 @@ export function PokerTableArc({
       {opponents.map((player, index) => {
         const selected = selectedPlayerId === player.id;
         const streak = streaks?.[player.id];
+        const status = seatStatus(player);
 
         return (
           <motion.div
@@ -181,10 +193,10 @@ export function PokerTableArc({
             <motion.button
               type="button"
               onClick={onSeatSelect ? () => onSeatSelect(player) : undefined}
-              aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}`}
+              aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}${player.isWaiting ? ", ממתין" : ""}`}
               aria-pressed={onSeatSelect ? selected : undefined}
               variants={seatVariants}
-              custom={{ settled: player.isSettled, selected }}
+              custom={{ settled: player.isSettled, waiting: player.isWaiting, selected }}
               whileTap={
                 onSeatSelect && !reduceMotion
                   ? { scale: 0.94, transition: { duration: DUR.micro, ease: EASE_OUT } }
@@ -211,7 +223,12 @@ export function PokerTableArc({
               <span className="t-caption max-w-full truncate font-bold text-felt-foreground drop-shadow-[0_1px_4px_rgb(0_0_0/0.9)]">
                 {player.name}
               </span>
-              {player.isSettled ? (
+              {status === "waiting" ? (
+                <StatusBadge tone="muted">
+                  <Clock3Icon aria-hidden="true" className="size-3" />
+                  ממתין
+                </StatusBadge>
+              ) : status === "settled" ? (
                 <StatusBadge tone="muted">נסגר</StatusBadge>
               ) : (
                 <SeatTotal value={player.totalIn} count={player.buyInCount} reduceMotion={reduceMotion} />
@@ -229,7 +246,7 @@ export function PokerTableArc({
       {you && (
         <motion.div
           variants={seatVariants}
-          custom={{ settled: you.isSettled, selected: false }}
+          custom={{ settled: you.isSettled, waiting: false, selected: false }}
           className="absolute inset-x-0 bottom-[3%] z-20 flex items-end justify-center"
         >
           <div

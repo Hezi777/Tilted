@@ -26,6 +26,9 @@ export interface LivePlayer {
   isHost: boolean;
   isYou: boolean;
   isSettled: boolean;
+  /** True while this seat is the one the host made and its owner has not opened the
+   * game yet (`device_id IS NULL`) -- an invite, not an empty chair. */
+  isWaiting: boolean;
   totalIn: number;
   buyInCount: number;
   /** v2: the physical chair chosen around the table (plan item 10). Null until the
@@ -190,6 +193,7 @@ export async function getLiveGame(
     isHost: row.isHost,
     isYou: row.deviceId === deviceId,
     isSettled: row.settledAt !== null,
+    isWaiting: row.deviceId === null,
     totalIn: Number(row.totalIn),
     buyInCount: Number(row.buyInCount),
     tableSeat: row.tableSeat,

@@ -45,9 +45,15 @@ export function PlayerCard({
               {player.isHost && <span className="text-muted-foreground shrink-0 text-xs">מארח</span>}
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <Money value={player.totalIn} className="text-lg font-semibold" />
-              <span className="shrink-0 rounded-full bg-brand-500/14 px-2 py-0.5 text-xs font-bold text-brand-300">x{player.buyInCount}</span>
-              {player.isSettled && <span className="text-muted-foreground shrink-0 text-xs">נסגר</span>}
+              {player.isWaiting ? (
+                <span className="text-muted-foreground shrink-0 text-xs">ממתין</span>
+              ) : (
+                <>
+                  <Money value={player.totalIn} className="text-lg font-semibold" />
+                  <span className="shrink-0 rounded-full bg-brand-500/14 px-2 py-0.5 text-xs font-bold text-brand-300">x{player.buyInCount}</span>
+                  {player.isSettled && <span className="text-muted-foreground shrink-0 text-xs">נסגר</span>}
+                </>
+              )}
             </div>
           </div>
           {showMenu && !player.isSettled && (
@@ -56,10 +62,12 @@ export function PlayerCard({
                 <Button variant="ghost" size="icon-lg" className="size-12 shrink-0" aria-label={`פעולות עבור ${player.name}`}><MoreVerticalIcon /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuItem onSelect={() => onCustomRebuy(player)}>ריביי בסכום אחר</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onUndo(player)}><Undo2Icon /> ביטול ריביי אחרון</DropdownMenuItem>
+                {/* A waiting seat has no buy-ins to correct and no device to release --
+                    the host's only option here is to remove the seat. */}
+                {!player.isWaiting && <DropdownMenuItem onSelect={() => onCustomRebuy(player)}>ריביי בסכום אחר</DropdownMenuItem>}
+                {!player.isWaiting && <DropdownMenuItem onSelect={() => onUndo(player)}><Undo2Icon /> ביטול ריביי אחרון</DropdownMenuItem>}
                 {canManage && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onSelect={() => onDelete(player)}><Trash2Icon /> מחיקת שחקן</DropdownMenuItem></>}
-                {canManage && player.isHost === false && <DropdownMenuItem onSelect={() => onRelease(player)}><Link2OffIcon /> שחרור מכשיר</DropdownMenuItem>}
+                {canManage && player.isHost === false && !player.isWaiting && <DropdownMenuItem onSelect={() => onRelease(player)}><Link2OffIcon /> שחרור מכשיר</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
