@@ -643,7 +643,7 @@ export default function NewGamePage() {
                 }}
                 variant="outline"
                 aria-label="חבילת ז׳יטונים"
-                className="flex snap-x flex-nowrap items-stretch justify-start gap-3 overflow-x-auto overflow-y-visible py-1"
+                className="flex w-full snap-x flex-nowrap items-stretch justify-start gap-3 overflow-x-auto overflow-y-visible py-1"
               >
                 <ToggleGroupItem
                   value={NO_CHIP_SET}
