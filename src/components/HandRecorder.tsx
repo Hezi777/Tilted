@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { DUR, EASE_OUT } from "@/lib/motion";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookMarkedIcon, CrownIcon, PlusIcon, SpadeIcon, Trash2Icon } from "@/components/icons";
+import { CrownIcon, PlusIcon, SpadeIcon, Trash2Icon } from "@/components/icons";
 import { toast } from "sonner";
 import type { LivePlayer } from "@/db/live-queries";
 import type { MemorableHandRecord } from "@/db/music-hand-queries";
@@ -120,9 +120,18 @@ function initialDraft(players: LivePlayer[]): Record<string, PlayerDraft> {
   );
 }
 
-export function HandRecorder({ gameId, players, triggerClassName }: { gameId: string; players: LivePlayer[]; triggerClassName?: string }) {
+export function HandRecorder({
+  gameId,
+  players,
+  open,
+  onOpenChange,
+}: {
+  gameId: string;
+  players: LivePlayer[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const reduceMotion = useReducedMotion();
-  const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [records, setRecords] = useState<MemorableHandRecord[] | null>(null);
   const [title, setTitle] = useState("");
@@ -248,137 +257,132 @@ export function HandRecorder({ gameId, players, triggerClassName }: { gameId: st
   }
 
   return (
-    <>
-      <Button type="button" variant="secondary" className={triggerClassName ?? "flex-1 px-2"} onClick={() => setOpen(true)}>
-        <BookMarkedIcon aria-hidden="true" /> יד לזכור
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto" showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>יד שלא שוכחים</DialogTitle>
-            <DialogDescription>שומרים את הלוח, המשתתפים והתוצאה, בלי להשפיע על הקופה.</DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>יד שלא שוכחים</DialogTitle>
+          <DialogDescription>שומרים את הלוח, המשתתפים והתוצאה, בלי להשפיע על הקופה.</DialogDescription>
+        </DialogHeader>
 
-          {showForm ? (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="hand-title">שם היד</Label>
-                <Input id="hand-title" className="h-12" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="הריבר ששינה הכול" autoFocus />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>קלפי הקהילה</Label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <CardPicker label="פלופ" selected={flop} maxCards={3} unavailable={unavailableExcept(flop)} onChange={setFlop} />
-                  <CardPicker label="טרן" selected={turn} maxCards={1} unavailable={unavailableExcept(turn)} onChange={setTurn} />
-                  <CardPicker label="ריבר" selected={river} maxCards={1} unavailable={unavailableExcept(river)} onChange={setRiver} />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="hand-pot">גובה הקופה בשקלים (לא חובה)</Label>
-                <Input id="hand-pot" className="h-12" dir="ltr" type="number" min="0" inputMode="decimal" value={pot} onChange={(event) => setPot(event.target.value)} placeholder="150" />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>מי השתתף ומה הייתה התוצאה?</Label>
-                <div className="flex flex-col gap-2">
-                  {players.map((player) => {
-                    const playerDraft = draft[player.id] ?? { included: false, holeCards: [], delta: "" };
-                    return (
-                      <div key={player.id} className="surface-card rounded-[14px] p-3">
-                        <Label className="min-h-12 cursor-pointer gap-3">
-                          <Checkbox
-                            checked={playerDraft.included}
-                            onCheckedChange={(checked) => updatePlayer(player.id, {
-                              included: checked === true,
-                              holeCards: checked === true ? playerDraft.holeCards : [],
-                            })}
-                          />
-                          <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-8" />
-                          <span>{player.name}</span>
-                        </Label>
-                        {/* The two fields belong to the checkbox above them, so they
-                            open from it rather than making the list jump. `height: auto`
-                            is a layout animation and cannot be flattened by `motionSafe`,
-                            so reduced motion skips the travel outright. */}
-                        <AnimatePresence initial={false}>
-                          {playerDraft.included && (
-                            <motion.div
-                              key="hand-player-detail"
-                              initial={reduceMotion ? false : { height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                              transition={{ duration: reduceMotion ? 0 : DUR.base, ease: EASE_OUT }}
-                              className="overflow-hidden"
-                            >
-                              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <CardPicker
-                                  label={`הקלפים של ${player.name}`}
-                                  selected={playerDraft.holeCards}
-                                  maxCards={2}
-                                  unavailable={unavailableExcept(playerDraft.holeCards)}
-                                  onChange={(holeCards) => updatePlayer(player.id, { holeCards })}
-                                />
-                                <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="number" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              {includedPlayers.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <Label>מי לקח את היד?</Label>
-                  <ToggleGroup type="single" value={winnerPlayerId} onValueChange={setWinnerPlayerId} className="w-full flex-wrap justify-start">
-                    {includedPlayers.map((player) => (
-                      <ToggleGroupItem key={player.id} value={player.id} aria-label={`בחירת ${player.name} כזוכה`} className="min-h-12">
-                        <CrownIcon aria-hidden="true" /> {player.name}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                </div>
-              )}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="hand-note">מה קרה שם? (לא חובה)</Label>
-                <Input id="hand-note" className="h-12" maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="הסיפור שנרצה לזכור" />
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" className="flex-1" disabled={busy} onClick={() => void saveHand()}>{busy ? "שומרים…" : "שמירת היד"}</Button>
-                <Button type="button" variant="secondary" disabled={busy} onClick={resetForm}>ביטול</Button>
+        {showForm ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="hand-title">שם היד</Label>
+              <Input id="hand-title" className="h-12" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="הריבר ששינה הכול" autoFocus />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>קלפי הקהילה</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <CardPicker label="פלופ" selected={flop} maxCards={3} unavailable={unavailableExcept(flop)} onChange={setFlop} />
+                <CardPicker label="טרן" selected={turn} maxCards={1} unavailable={unavailableExcept(turn)} onChange={setTurn} />
+                <CardPicker label="ריבר" selected={river} maxCards={1} unavailable={unavailableExcept(river)} onChange={setRiver} />
               </div>
             </div>
-          ) : records === null ? (
-            <><Skeleton className="h-48 w-full" /><Skeleton className="h-12 w-full" /></>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {records.length === 0 ? (
-                <p className="empty-slot rounded-[20px] px-4 py-5 text-center t-caption ink-3">
-                  עוד לא נשמרה יד מהערב. כשהריבר עושה בלגן, זה המקום לתעד.
-                </p>
-              ) : records.map((record) => (
-                <MemorableHandCard key={record.id} record={record} onDelete={() => void removeHand(record)} />
-              ))}
-              {/* A hand needs someone to have won it off someone else. The guard was
-                  right, but it shipped as a dead button with no reason, which reads
-                  as broken rather than as not-yet. */}
-              {players.length < 2 ? (
-                <p className="t-caption text-center text-[var(--text-2)]">
-                  יד נשמרת כששניים לפחות בשולחן.
-                </p>
-              ) : (
-                <Button type="button" onClick={() => setShowForm(true)}>
-                  <PlusIcon aria-hidden="true" strokeWidth={1.75} /> שמירת יד חדשה
-                </Button>
-              )}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="hand-pot">גובה הקופה בשקלים (לא חובה)</Label>
+              <Input id="hand-pot" className="h-12" dir="ltr" type="number" min="0" inputMode="decimal" value={pot} onChange={(event) => setPot(event.target.value)} placeholder="150" />
             </div>
-          )}
+            <div className="flex flex-col gap-2">
+              <Label>מי השתתף ומה הייתה התוצאה?</Label>
+              <div className="flex flex-col gap-2">
+                {players.map((player) => {
+                  const playerDraft = draft[player.id] ?? { included: false, holeCards: [], delta: "" };
+                  return (
+                    <div key={player.id} className="surface-card rounded-[14px] p-3">
+                      <Label className="min-h-12 cursor-pointer gap-3">
+                        <Checkbox
+                          checked={playerDraft.included}
+                          onCheckedChange={(checked) => updatePlayer(player.id, {
+                            included: checked === true,
+                            holeCards: checked === true ? playerDraft.holeCards : [],
+                          })}
+                        />
+                        <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-8" />
+                        <span>{player.name}</span>
+                      </Label>
+                      {/* The two fields belong to the checkbox above them, so they
+                          open from it rather than making the list jump. `height: auto`
+                          is a layout animation and cannot be flattened by `motionSafe`,
+                          so reduced motion skips the travel outright. */}
+                      <AnimatePresence initial={false}>
+                        {playerDraft.included && (
+                          <motion.div
+                            key="hand-player-detail"
+                            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                            transition={{ duration: reduceMotion ? 0 : DUR.base, ease: EASE_OUT }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <CardPicker
+                                label={`הקלפים של ${player.name}`}
+                                selected={playerDraft.holeCards}
+                                maxCards={2}
+                                unavailable={unavailableExcept(playerDraft.holeCards)}
+                                onChange={(holeCards) => updatePlayer(player.id, { holeCards })}
+                              />
+                              <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="number" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {includedPlayers.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <Label>מי לקח את היד?</Label>
+                <ToggleGroup type="single" value={winnerPlayerId} onValueChange={setWinnerPlayerId} className="w-full flex-wrap justify-start">
+                  {includedPlayers.map((player) => (
+                    <ToggleGroupItem key={player.id} value={player.id} aria-label={`בחירת ${player.name} כזוכה`} className="min-h-12">
+                      <CrownIcon aria-hidden="true" /> {player.name}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="hand-note">מה קרה שם? (לא חובה)</Label>
+              <Input id="hand-note" className="h-12" maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} placeholder="הסיפור שנרצה לזכור" />
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" className="flex-1" disabled={busy} onClick={() => void saveHand()}>{busy ? "שומרים…" : "שמירת היד"}</Button>
+              <Button type="button" variant="secondary" disabled={busy} onClick={resetForm}>ביטול</Button>
+            </div>
+          </div>
+        ) : records === null ? (
+          <><Skeleton className="h-48 w-full" /><Skeleton className="h-12 w-full" /></>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {records.length === 0 ? (
+              <p className="empty-slot rounded-[20px] px-4 py-5 text-center t-caption ink-3">
+                עוד לא נשמרה יד מהערב. כשהריבר עושה בלגן, זה המקום לתעד.
+              </p>
+            ) : records.map((record) => (
+              <MemorableHandCard key={record.id} record={record} onDelete={() => void removeHand(record)} />
+            ))}
+            {/* A hand needs someone to have won it off someone else. The guard was
+                right, but it shipped as a dead button with no reason, which reads
+                as broken rather than as not-yet. */}
+            {players.length < 2 ? (
+              <p className="t-caption text-center text-[var(--text-2)]">
+                יד נשמרת כששניים לפחות בשולחן.
+              </p>
+            ) : (
+              <Button type="button" onClick={() => setShowForm(true)}>
+                <PlusIcon aria-hidden="true" strokeWidth={1.75} /> שמירת יד חדשה
+              </Button>
+            )}
+          </div>
+        )}
 
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>חזרה לשולחן</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>חזרה לשולחן</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

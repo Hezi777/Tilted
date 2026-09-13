@@ -4,14 +4,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArmchairIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon } from "@/components/icons";
+import { BookMarkedIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon } from "@/components/icons";
 import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
-import { apiFetch, ApiError, type SetTableSeatResponse } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
-import type { LivePlayer } from "@/db/live-queries";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
@@ -20,8 +19,8 @@ import { MusicButton } from "@/components/MusicButton";
 import { GameRulesDialog } from "@/components/GameRulesDialog";
 import { PlayerCard } from "@/components/PlayerCard";
 import { PokerTableArc } from "@/components/PokerTableArc";
+import { PokerTableArcSkeleton } from "@/components/PokerTableArcSkeleton";
 import { RebuyButton } from "@/components/RebuyButton";
-import { SeatPicker } from "@/components/SeatPicker";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,6 +51,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [earlyAmount, setEarlyAmount] = useState<number | null>(null);
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [handRecorderOpen, setHandRecorderOpen] = useState(false);
   const [streaks, setStreaks] = useState<PlayerStreakMap>({});
   const reduceMotion = useReducedMotion();
 
@@ -80,21 +80,11 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       .catch(() => {});
   }, [gameId]);
 
-  // Optimistic local overrides for a chosen chair (plan item 10), cleared once the
-  // server value catches up on the next refresh, or rolled back on failure.
-  const [seatOverrides, setSeatOverrides] = useState<Record<string, number | null>>({});
-  const [seatPickerPlayer, setSeatPickerPlayer] = useState<LivePlayer | null>(null);
-  const [savingSeat, setSavingSeat] = useState(false);
-
-  const playersWithSeats = useMemo<LivePlayer[]>(() => {
+  // The arc lays players out by their stable `seatOrder`, not a chosen chair.
+  const seated = useMemo(() => {
     if (!game) return [];
-    return game.players.map((player) =>
-      player.id in seatOverrides ? { ...player, tableSeat: seatOverrides[player.id] } : player,
-    );
-  }, [game, seatOverrides]);
-
-  // Seats keep table order for anyone who has not chosen a physical chair.
-  const seated = useMemo(() => [...playersWithSeats].sort((a, b) => a.seatOrder - b.seatOrder), [playersWithSeats]);
+    return [...game.players].sort((a, b) => a.seatOrder - b.seatOrder);
+  }, [game]);
   const you = useMemo(() => seated.find((player) => player.isYou) ?? null, [seated]);
 
   // A rebuy added by mistake, or one the table agreed to halve. Both are corrections
@@ -182,33 +172,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     }
   }
 
-  async function saveSeat(playerId: string, seat: number | null) {
-    setSeatOverrides((current) => ({ ...current, [playerId]: seat }));
-    setSavingSeat(true);
-    try {
-      await apiFetch<SetTableSeatResponse>(`/api/game/${gameId}/players/${playerId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ tableSeat: seat }),
-      });
-      setSeatPickerPlayer(null);
-      await refresh();
-      setSeatOverrides((current) => {
-        const next = { ...current };
-        delete next[playerId];
-        return next;
-      });
-    } catch (reason) {
-      setSeatOverrides((current) => {
-        const next = { ...current };
-        delete next[playerId];
-        return next;
-      });
-      toast.error(reason instanceof ApiError ? reason.message : "שמירת המקום נכשלה");
-    } finally {
-      setSavingSeat(false);
-    }
-  }
-
   async function extendTime() {
     try {
       await apiFetch(`/api/game/${gameId}/end-time`, {
@@ -273,7 +236,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       <main className="flex flex-1 flex-col">
         <AppHeader title="פותחים את השולחן…" backHref="/" backLabel="לדף הבית" />
         <div className="flex flex-1 flex-col gap-4 p-5">
-          <Skeleton className="mx-auto aspect-[4/5] w-full max-w-[360px] rounded-[50%]" />
+          <PokerTableArcSkeleton />
           <Skeleton className="h-16 w-full rounded-2xl" />
           <Skeleton className="h-28 w-full rounded-2xl" />
         </div>
@@ -366,11 +329,11 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           pot={game.pot}
           streaks={streaks}
           selectedPlayerId={focusedPlayerId}
-          // Tapping a face is the most obvious gesture on this screen and it used to do
-          // nothing unless you were the host. A guest may open their own seat; the
-          // single write rule is unchanged, and the sheet only offers what it allows.
+          // Your own actions already live in the dock, so tapping your own face opens
+          // nothing new -- it used to, and that was the same rebuy reachable twice.
+          // Only the host may act on someone else's row.
           onSeatSelect={(player) => {
-            if (!game.isHost && !player.isYou) return;
+            if (player.isYou || !game.isHost) return;
             setFocusedPlayerId((current) => (current === player.id ? null : player.id));
           }}
         />
@@ -447,11 +410,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <DialogContent showCloseButton={false}>
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
           {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage={game.isHost} onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />}
-          {focusedPlayer && (
-            <Button type="button" variant="secondary" onClick={() => setSeatPickerPlayer(focusedPlayer)}>
-              <ArmchairIcon /> קביעת מקום בשולחן
-            </Button>
-          )}
         </DialogContent>
       </Dialog>
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -581,23 +539,20 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
               <Share2Icon aria-hidden="true" strokeWidth={1.75} />
               הזמנה לשולחן
             </Button>
-            {you && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-start"
-                onClick={() => {
-                  setMoreOpen(false);
-                  setSeatPickerPlayer(you);
-                }}
-              >
-                <ArmchairIcon aria-hidden="true" strokeWidth={1.75} />
-                המקום שלי בשולחן
-              </Button>
-            )}
             {game.isHost && (
               <>
-                <HandRecorder gameId={gameId} players={seated} triggerClassName="w-full justify-start" />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setHandRecorderOpen(true);
+                  }}
+                >
+                  <BookMarkedIcon aria-hidden="true" strokeWidth={1.75} />
+                  יד לזכור
+                </Button>
                 <Button
                   type="button"
                   variant="secondary"
@@ -731,16 +686,8 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       <Dialog open={customPlayer !== null} onOpenChange={(open) => !open && setCustomPlayer(null)}><DialogContent><DialogHeader><DialogTitle>ריביי אחר</DialogTitle><DialogDescription>כמה להוסיף עבור {customPlayer?.name}?</DialogDescription></DialogHeader><Label htmlFor="custom-rebuy">סכום בשקלים</Label><Input id="custom-rebuy" type="number" min="1" inputMode="decimal" value={customAmount} onChange={(event) => setCustomAmount(event.target.value)} autoFocus /><DialogFooter><Button type="button" onClick={() => void submitCustom()}>הוסיפו לקופה</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={deletePlayer !== null} onOpenChange={(open) => !open && setDeletePlayer(null)}><DialogContent><DialogHeader><DialogTitle>להסיר מהשולחן?</DialogTitle><DialogDescription>כל הכניסות של {deletePlayer?.name} יוסרו יחד איתו.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="destructive" disabled={busy} onClick={() => void removePlayer()}>הסירו שחקן</Button><Button type="button" variant="outline" onClick={() => setDeletePlayer(null)}>השאירו</Button></DialogFooter></DialogContent></Dialog>
 
-      {seatPickerPlayer && (
-        <SeatPicker
-          open={seatPickerPlayer !== null}
-          onOpenChange={(open) => !open && setSeatPickerPlayer(null)}
-          players={seated}
-          targetPlayerId={seatPickerPlayer.id}
-          targetName={seatPickerPlayer.isYou ? "אתם" : seatPickerPlayer.name}
-          saving={savingSeat}
-          onSelect={(seat) => void saveSeat(seatPickerPlayer.id, seat)}
-        />
+      {game.isHost && (
+        <HandRecorder gameId={gameId} players={seated} open={handRecorderOpen} onOpenChange={setHandRecorderOpen} />
       )}
       {rulesOpen && (
         <GameRulesDialog
