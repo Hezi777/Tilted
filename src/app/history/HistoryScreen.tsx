@@ -23,13 +23,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-function date(value: string | null): string {
-  return value ? new Date(value).toLocaleDateString("he-IL") : "";
-}
+import { formatIsraelDate, ISRAEL_TIME_ZONE } from "@/lib/date";
 
 function time(value: string): string {
-  return new Date(value).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  return new Date(value).toLocaleTimeString("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: ISRAEL_TIME_ZONE,
+  });
 }
 
 export default function HistoryScreen({ gameId }: { gameId: string }) {
@@ -97,7 +98,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
 
   const title = ownership?.name ?? state?.name ?? "הערב במספרים";
   const subtitle = state
-    ? [date(state.closedAt), ownership?.location].filter(Boolean).join(" · ")
+    ? [formatIsraelDate(state.createdAt), ownership?.location].filter(Boolean).join(" · ")
     : "המאזן שנשמר מהערב";
 
   return (

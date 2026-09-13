@@ -81,10 +81,6 @@ interface GameChipSet {
   }>;
 }
 
-function defaultGameName(): string {
-  return new Date().toLocaleDateString("he-IL");
-}
-
 function defaultExitTime(): string {
   const date = new Date(Date.now() + 4 * 60 * 60 * 1000);
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -172,7 +168,7 @@ export default function NewGamePage() {
   const [step, setStep] = useState(0);
   const [customOpen, setCustomOpen] = useState(false);
 
-  const [name, setName] = useState(defaultGameName);
+  const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [exitTime, setExitTime] = useState(defaultExitTime);
   const [buyInChoice, setBuyInChoice] = useState<BuyInChoice>("50");
@@ -422,7 +418,7 @@ export default function NewGamePage() {
                   className={FIELD_CLASS}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={defaultGameName()}
+                  placeholder="לילה של פוקר (לא חובה)"
                 />
               </Field>
             </motion.div>

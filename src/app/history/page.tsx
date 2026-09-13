@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { UsersIcon } from "@/components/icons";
 import { AppHeader } from "@/components/AppHeader";
 import { Money } from "@/components/Money";
-import { getGamesForDevice } from "@/db/queries";
+import { getHistoryList, getHistoryLocations } from "@/db/history-queries";
 import { getViewer } from "@/lib/auth/session";
+import { formatIsraelDate } from "@/lib/date";
+import { HistoryFilters } from "./HistoryFilters";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +19,33 @@ export const dynamic = "force-dynamic";
  * be a section on the home screen, which left home doing two jobs at once.
  *
  * Rendered on the server, so the list arrives with the page instead of after a skeleton.
+ * Search and the date/location filters are read from the URL and applied in
+ * `getHistoryList` itself, not by fetching everything and filtering here.
  */
-export default async function HistoryPage() {
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; from?: string; to?: string; location?: string }>;
+}) {
   const viewer = await getViewer();
   if (!viewer) redirect("/auth/sign-in");
 
-  const games = await getGamesForDevice(viewer.person.id);
-  const closed = games.filter((game) => game.status === "closed");
+  const params = await searchParams;
+  const q = params.q?.trim() ?? "";
+  const from = params.from ?? "";
+  const to = params.to ?? "";
+  const location = params.location ?? "";
+  const hasFilters = Boolean(q || from || to || location);
+
+  const [closed, locations] = await Promise.all([
+    getHistoryList(viewer.person.id, {
+      search: q || undefined,
+      startDate: from || undefined,
+      endDate: to || undefined,
+      location: location || undefined,
+    }),
+    getHistoryLocations(viewer.person.id),
+  ]);
 
   return (
     <main className="flex flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
@@ -36,7 +58,11 @@ export default async function HistoryPage() {
         }
       />
 
-      <div className="flex flex-1 flex-col px-5">
+      <div className="flex flex-1 flex-col gap-4 px-5">
+        {(hasFilters || closed.length > 0) && (
+          <HistoryFilters locations={locations} initial={{ q, from, to, location }} />
+        )}
+
         {closed.length === 0 ? (
           <div className="empty-slot flex flex-1 items-center gap-4 rounded-[20px] p-5">
             <Image
@@ -47,9 +73,13 @@ export default async function HistoryPage() {
               className="size-20 shrink-0 object-contain"
             />
             <div className="text-start">
-              <p className="t-title">עוד לא נסגר אף ערב</p>
+              <p className="t-title">
+                {hasFilters ? "לא נמצאו ערבים מתאימים" : "עוד לא נסגר אף ערב"}
+              </p>
               <p className="t-caption ink-3 mt-1 leading-relaxed">
-                כשתסגרו קופה, הערב יופיע כאן עם החשבון המלא.
+                {hasFilters
+                  ? "אפשר לנסות חיפוש אחר או לנקות את הסינון."
+                  : "כשתסגרו קופה, הערב יופיע כאן עם החשבון המלא."}
               </p>
             </div>
           </div>
@@ -62,15 +92,18 @@ export default async function HistoryPage() {
                   className="flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-white/3"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate font-semibold">
-                      {game.name ?? "משחק"}
+                    <span
+                      className={
+                        game.name
+                          ? "block truncate font-semibold"
+                          : "ink-2 block truncate font-semibold"
+                      }
+                    >
+                      {game.name ?? formatIsraelDate(game.createdAt)}
                     </span>
                     <span className="t-caption ink-3 mt-1 flex items-center gap-3">
-                      <span>
-                        {new Date(game.closedAt ?? game.createdAt).toLocaleDateString(
-                          "he-IL",
-                        )}
-                      </span>
+                      {game.name && <span>{formatIsraelDate(game.createdAt)}</span>}
+                      {game.location && <span className="truncate">{game.location}</span>}
                       <span className="inline-flex items-center gap-1">
                         <UsersIcon aria-hidden="true" className="size-3.5" />
                         {game.playerCount}

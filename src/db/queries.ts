@@ -243,7 +243,9 @@ export async function createGame(
     input.hostPersonId,
     ...input.personIds.filter((personId) => personId !== input.hostPersonId),
   ];
-  const name = input.name?.trim() || new Date().toLocaleDateString("he-IL");
+  // A blank name persists as NULL, not a date-shaped placeholder -- the date already
+  // lives in `created_at` and every display surface reads it from there instead.
+  const name = input.name?.trim() || null;
 
   for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
     const gameId = randomUUID();
