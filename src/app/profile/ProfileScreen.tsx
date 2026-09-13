@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Money } from "@/components/Money";
 import { ChipAvatar } from "@/components/ChipAvatar";
+import { PushNotificationsControl } from "@/components/PushNotificationsControl";
 import {
   avatarKeyForPerson,
   isAvatarKey,
@@ -414,6 +415,12 @@ export function ProfileScreen({
               </Button>
             </Section>
           </form>
+        </motion.div>
+
+        <motion.div variants={motionSafe(rise, reduceMotion)}>
+          <Section title="התראות" description="הזמנה חדשה לשולחן, גם כשהאפליקציה סגורה.">
+            <PushNotificationsControl />
+          </Section>
         </motion.div>
 
         <motion.div variants={motionSafe(rise, reduceMotion)}>

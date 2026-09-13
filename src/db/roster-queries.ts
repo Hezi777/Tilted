@@ -13,6 +13,7 @@ import {
   type ActorPlayer,
   type GameStatus,
 } from "@/lib/authz";
+import { buildInviteNotificationPayload } from "@/lib/push-payload";
 
 /** Returns only games whose room code is still in circulation. */
 export async function getGameByRoomCode(
@@ -446,6 +447,27 @@ export async function addPlayerToGame(
   if (!result.rows[0]) {
     throw new RosterConflictError("המשחק כבר לא פעיל או שהשחקן כבר נמצא במשחק");
   }
+
+  // Push comes after the seat is committed, and never fails this request --
+  // `sendPushToPerson` catches and logs internally. The host's own name (not their
+  // per-game snapshot) is what the invitee sees.
+  const [host] = await db
+    .select({ name: people.name })
+    .from(people)
+    .where(eq(people.id, actorPersonId));
+  const [game] = await db
+    .select({ name: games.name })
+    .from(games)
+    .where(eq(games.id, gameId));
+  const { sendPushToPerson } = await import("@/lib/push");
+  await sendPushToPerson(
+    person.id,
+    buildInviteNotificationPayload({
+      hostName: host?.name ?? "מארח",
+      gameName: game?.name ?? null,
+      gameId,
+    }),
+  );
 
   return { id: playerId };
 }

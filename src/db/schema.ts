@@ -515,3 +515,29 @@ export const handPlayers = pgTable(
     ),
   ],
 );
+
+/**
+ * A browser's web push registration for one Person. One Person may hold several
+ * (phone, laptop) -- each endpoint is its own row, upserted on reconnect rather than
+ * replacing the others.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => people.id),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
+    index("push_subscriptions_person_id_idx").on(table.personId),
+  ],
+);

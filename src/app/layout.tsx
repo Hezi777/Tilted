@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Assistant, Rubik } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { MotionPreferences } from "@/components/MotionPreferences";
+import { PushServiceWorker } from "@/components/PushServiceWorker";
 import { ViewerProvider } from "@/components/ViewerProvider";
 import { LiveSessionBar } from "@/components/shell/LiveSessionBar";
 import { TabBar } from "@/components/shell/TabBar";
@@ -113,6 +114,7 @@ export default async function RootLayout({
                 hapticsEnabled={viewer?.person.hapticsEnabled ?? true}
                 reduceMotion={viewer?.person.reduceMotion ?? false}
               >
+                <PushServiceWorker />
                 <LiveSessionBar game={activeGame} />
                 {children}
                 <TabBar />
