@@ -272,7 +272,10 @@ export function HandRecorder({
             </div>
             <div className="flex flex-col gap-2">
               <Label>קלפי הקהילה</Label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {/* One street per row, always. Three across put a fixed-width card row
+                  and a label in a column too narrow for either, and the cards -- which
+                  cannot shrink -- spilled over the street beside them. */}
+              <div className="flex flex-col gap-2">
                 <CardPicker label="פלופ" selected={flop} maxCards={3} unavailable={unavailableExcept(flop)} onChange={setFlop} />
                 <CardPicker label="טרן" selected={turn} maxCards={1} unavailable={unavailableExcept(turn)} onChange={setTurn} />
                 <CardPicker label="ריבר" selected={river} maxCards={1} unavailable={unavailableExcept(river)} onChange={setRiver} />

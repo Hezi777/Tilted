@@ -68,17 +68,17 @@ export function CardPicker({
         <Button
           type="button"
           variant="secondary"
-          className={cn("h-auto min-h-16 w-full justify-between rounded-[14px] px-3 py-2 text-start", className)}
+          className={cn("h-auto min-h-16 w-full justify-between gap-3 rounded-[14px] px-3 py-2 text-start", className)}
           aria-label={`${label}: ${selected.length ? selected.map((code) => {
             const card = playingCard(code);
             return `${card.rank} ${card.suitName}`;
           }).join(", ") : "לא נבחרו קלפים"}`}
         >
-          <span className="flex flex-col items-start gap-1">
+          <span className="flex min-w-0 flex-col items-start gap-1">
             <span className="t-caption text-[var(--text-1)]">{label}</span>
             {selected.length === 0 && <span className="text-sm">בחירת קלפים</span>}
           </span>
-          <PlayingCardRow cards={selected} emptySlots={maxCards} />
+          <PlayingCardRow cards={selected} emptySlots={maxCards} className="shrink-0" />
         </Button>
       </DrawerTrigger>
       <DrawerContent>
