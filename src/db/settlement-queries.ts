@@ -1,7 +1,6 @@
 /** Read model for the UUID-based settlement screen (spec sections 5.6 and 7). */
 
 import { agorot } from "@/lib/money";
-import { formatWhatsAppSummary } from "@/lib/export";
 import {
   computeNets,
   settle,
@@ -44,7 +43,6 @@ export interface SettlementState {
   transfers: SettlementTransfer[];
   /** Only split/assign are exportable resolution lines; recount means the count was fixed. */
   resolution: MismatchResolution | null;
-  exportText: string;
 }
 
 export class SettlementUnavailableError extends Error {
@@ -117,11 +115,6 @@ export async function getSettlementState(
     amount: Number(transfer.amount),
   }));
   const resolution = resolutionFromState(state);
-  const exportPlayers = players.map((player) => ({
-    playerId: player.id,
-    name: player.name,
-  }));
-
   return {
     id: state.id,
     name: state.name,
@@ -132,11 +125,5 @@ export async function getSettlementState(
     players,
     transfers: displayTransfers,
     resolution,
-    exportText: formatWhatsAppSummary({
-      gameName: state.name ?? "משחק",
-      players: exportPlayers,
-      ledgers,
-      resolution: resolution ?? undefined,
-    }),
   };
 }

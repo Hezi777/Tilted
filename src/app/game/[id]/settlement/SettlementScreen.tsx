@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon, CheckIcon, CopyIcon, CrownIcon, HomeIcon, Share2Icon } from "@/components/icons";
 import confetti from "canvas-confetti";
@@ -14,7 +14,6 @@ function readToken(name: string, fallback: string): string {
   return value || fallback;
 }
 import { motion, useReducedMotion, type Transition, type Variants } from "framer-motion";
-import { toBlob } from "html-to-image";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
@@ -27,7 +26,10 @@ import type { SettlementPlayer, SettlementState } from "@/db/settlement-queries"
 import type { TransferRecord } from "@/db/transfer-queries";
 import { apiFetch, ApiError } from "@/lib/api";
 import { normalizeIsraeliPhone, whatsappPaymentLink } from "@/lib/bit";
-import { agorot, formatILS } from "@/lib/money";
+import { agorot, formatILS, formatSignedILS } from "@/lib/money";
+import { avatarSrc } from "@/lib/avatar";
+import { deterministicChipKey } from "@/components/ChipAvatar";
+import { shareCardBlob, type ShareCardData } from "@/lib/share-card";
 import { DUR, EASE_OUT, haptic, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -163,71 +165,9 @@ function outcomeClass(player: SettlementPlayer): string {
   return "text-even";
 }
 
-function ShareCard({ state, winner }: { state: SettlementState; winner?: SettlementPlayer }) {
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-surface-0 p-12 text-foreground">
-      <div className="felt-panel relative flex min-h-[260px] flex-col items-center justify-center overflow-hidden rounded-[40px] px-12 text-center">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,transparent,rgb(6_37_27/0.45))]" />
-        <p className="relative text-[28px] font-semibold text-felt-foreground-muted">{state.name ?? "ערב פוקר"}</p>
-        <Money value={state.pot} className="relative mt-2 text-[84px] font-semibold leading-none text-felt-foreground" />
-        <p className="relative mt-3 text-[22px] text-felt-foreground-muted">הקופה של הערב</p>
-      </div>
-
-      {winner && (
-        <div className="mt-6 flex items-center gap-6 rounded-[34px] border-[3px] border-brand-500/55 bg-surface-2 p-6">
-          <div className="relative">
-            <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-24 ring-[4px] ring-brand-500/65" />
-            <CrownIcon
-              className="absolute -top-6 size-11 -translate-x-1/2 fill-brand-500 text-brand-300"
-              style={{ left: "50%" }}
-            />
-          </div>
-          <div>
-            <p className="text-[22px] text-muted-foreground">בראש הערימה</p>
-            <p className="mt-1 font-heading text-[46px] leading-none">{winner.name}</p>
-            <Money value={winner.net} signed className="mt-2 text-[32px] font-bold text-profit" />
-          </div>
-        </div>
-      )}
-
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        {state.players.map((player) => (
-          <div key={player.id} className="flex min-h-[68px] items-center gap-3 rounded-[22px] bg-surface-2 px-4">
-            <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-12" />
-            <span className="truncate text-[22px] font-semibold">{player.name}</span>
-            <Money value={player.net} signed className={cn("ms-auto text-[23px] font-bold", outcomeClass(player))} />
-          </div>
-        ))}
-      </div>
-
-      {state.transfers.length > 0 && (
-        <div className="mt-5">
-          <p className="mb-2 text-[20px] font-semibold text-muted-foreground">מי מעביר למי</p>
-          <div className="grid grid-cols-2 gap-2">
-            {state.transfers.map((transfer) => (
-              <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-[52px] items-center gap-2 rounded-[18px] bg-surface-1 px-4 text-[18px]">
-                <span className="truncate">{transfer.fromName}</span>
-                <ArrowLeftIcon className="size-5 shrink-0 text-brand-300" />
-                <span className="truncate">{transfer.toName}</span>
-                <Money value={transfer.amount} className="ms-auto text-[19px] font-bold" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-auto flex items-end justify-between pt-8">
-        <p dir="ltr" className="font-heading text-[30px] text-brand-300">Tilted Poker</p>
-        <p className="text-[20px] text-muted-foreground">{new Date(state.closedAt ?? state.createdAt).toLocaleDateString("he-IL")}</p>
-      </div>
-    </div>
-  );
-}
-
 /** Read-only settlement result with a once-per-device staged celebration. */
 export default function SettlementScreen({ gameId }: { gameId: string }) {
   const reduceMotion = useReducedMotion();
-  const shareCardRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<SettlementState | null>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -372,30 +312,54 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   );
   const staged = stage === "playing";
 
-  async function copySummary() {
-    if (!state) return;
-    try {
-      await navigator.clipboard.writeText(state.exportText);
-      toast.success("הסיכום הועתק, אפשר להדביק בווצאפ");
-    } catch {
-      toast.error("לא הצלחנו להעתיק את הסיכום");
-    }
+  /**
+   * The whole summary, as one image. There is deliberately no text payload beside
+   * it: a Hebrew line carrying `➜` and `₪180` is reordered by WhatsApp's bidi pass,
+   * which pointed the transfer arrows at the wrong person -- the one line on the
+   * card nobody can afford to misread.
+   */
+  function shareCardData(): ShareCardData {
+    if (!state) throw new Error("no settlement to share");
+    const avatarFor = (player: { id: string; avatarKey?: string | null }) =>
+      avatarSrc(deterministicChipKey(player.avatarKey, player.id));
+    return {
+      title: state.name ?? "ערב פוקר",
+      dateLabel: new Date(state.closedAt ?? state.createdAt).toLocaleDateString("he-IL"),
+      pot: formatILS(agorot(state.pot)),
+      playerCountLabel: `${state.players.length} שחקנים`,
+      winner: winner
+        ? {
+            name: winner.name,
+            net: formatSignedILS(agorot(winner.net)),
+            avatarSrc: avatarFor(winner),
+          }
+        : null,
+      players: state.players.map((player) => ({
+        name: player.name,
+        net: formatSignedILS(agorot(player.net)),
+        outcome: player.outcome === "winner" ? "winner" : player.outcome === "loser" ? "loser" : "even",
+        avatarSrc: avatarFor(player),
+      })),
+      transfers: state.transfers.map((transfer) => ({
+        fromName: transfer.fromName,
+        toName: transfer.toName,
+        amount: formatILS(agorot(transfer.amount)),
+      })),
+      note: state.resolution
+        ? state.resolution.kind === "split"
+          ? "ההפרש בספירה פוצל בין המנצחים"
+          : "ההפרש בספירה הוקצה לשחקן"
+        : null,
+    };
   }
 
   async function shareImage() {
-    if (!state || !shareCardRef.current) return;
+    if (!state) return;
     setSharing(true);
     try {
-      const blob = await toBlob(shareCardRef.current, {
-        canvasWidth: 1080,
-        canvasHeight: 1350,
-        pixelRatio: 1,
-        cacheBust: true,
-        backgroundColor: "#14100E",
-      });
-      if (!blob) throw new Error("image generation failed");
+      const blob = await shareCardBlob(shareCardData());
       const file = new File([blob], `tilted-${state.id}.png`, { type: "image/png" });
-      const shareData = { files: [file], text: state.exportText };
+      const shareData = { files: [file] };
       if (typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare(shareData))) {
         await navigator.share(shareData);
         return;
@@ -614,20 +578,12 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
               )}
             >
               <Button className="h-14 text-base" disabled={sharing} onClick={() => void shareImage()}><Share2Icon />{sharing ? "מכינים תמונה..." : "שתפו את הסיכום"}</Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" className="h-12" onClick={() => void copySummary()}><CopyIcon />העתיקו טקסט</Button>
-                <Button asChild variant="secondary" className="h-12"><Link href="/"><HomeIcon />חזרה לבית</Link></Button>
-              </div>
+              <Button asChild variant="secondary" className="h-12"><Link href="/"><HomeIcon />חזרה לבית</Link></Button>
             </motion.div>
           </>
         )}
       </div>
 
-      {state && (
-        <div ref={shareCardRef} aria-hidden="true" className="fixed top-0 z-[-1] h-[1350px] w-[1080px]" style={{ left: "-12000px" }}>
-          <ShareCard state={state} winner={winner} />
-        </div>
-      )}
     </main>
   );
 }
