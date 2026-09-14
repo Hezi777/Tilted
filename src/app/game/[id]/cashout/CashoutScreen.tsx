@@ -497,7 +497,14 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 // never an incidental edit while the host is entering everyone else's.
                 const frozen = player.settledAt !== null && state.status === "settling";
                 const overridable = frozen && state.viewerIsHost;
-                const locked = frozen && !overriddenIds.has(player.id);
+                // The one authorization rule, made visible. The server already refuses
+                // a write to someone else's row (authz.assertCanEnterResult), but a
+                // refusal that arrives as a toast *after* the tap reads as a broken
+                // app -- and around a real table, everyone's phone is open on this
+                // screen while the host reads the counts aloud.
+                const yours = player.id === state.viewerPlayerId;
+                const readOnly = !state.viewerIsHost && !yours;
+                const locked = readOnly || (frozen && !overriddenIds.has(player.id));
                 return (
                   <div
                     key={player.id}
@@ -516,6 +523,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                         <Badge variant="secondary">{frozen ? "תוצאה קפואה" : "סגר חשבון"}</Badge>
                       )}
                     </div>
+
+                    {readOnly && (
+                      <p className="t-caption ink-3">
+                        רק {player.name} או המארח יכולים לעדכן את הספירה הזאת.
+                      </p>
+                    )}
 
                     {locked && overridable && (
                       <Button
@@ -591,7 +604,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                       </AnimatePresence>
                     </div>
 
-                    {state.status === "active" && (
+                    {state.status === "active" && !readOnly && (
                       <Button
                         className="w-full"
                         disabled={isSaving || player.cashOut === null}
