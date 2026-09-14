@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { buyIns, games, people, players } from "@/db/schema";
+import { buyIns, cashOuts, games, people, players } from "@/db/schema";
 import {
   assertCanDeleteBuyIn,
   assertCanInsertBuyIn,
@@ -602,6 +602,16 @@ export async function deleteLivePlayer(
       FROM ${players} p
       INNER JOIN active_game g ON g.id = p.game_id
       WHERE p.id = ${playerId}::uuid AND p.deleted_at IS NULL
+        -- Never a seat that has already counted out. Removing one soft-deleted its
+        -- buy-ins and left its cash_outs row behind, so the money that player won or
+        -- lost simply left the books: the night still closed and told the host he had
+        -- broken even while he was actually down by their net. The predicate is in the
+        -- statement, not around it, so a cash-out committing in the same moment cannot
+        -- slip between a check and a write.
+        AND NOT EXISTS (
+          SELECT 1 FROM ${cashOuts} co
+          WHERE co.player_id = p.id AND co.game_id = g.id
+        )
     ), deleted_buyins AS (
       UPDATE ${buyIns} bi
       SET deleted_at = now()
@@ -616,7 +626,17 @@ export async function deleteLivePlayer(
     )
     SELECT id FROM deleted_player
   `);
-  if (result.rows.length === 0) throw new Error("game_not_active");
+  if (result.rows.length === 0) {
+    // Nothing matched. Say which of the two reasons it was, because "remove" failing
+    // silently on a seat the host can see is worse than either answer.
+    const [settled] = await db
+      .select({ id: cashOuts.id })
+      .from(cashOuts)
+      .where(and(eq(cashOuts.playerId, playerId), eq(cashOuts.gameId, gameId)))
+      .limit(1);
+    if (settled) throw new AuthzError("player_settled");
+    throw new Error("game_not_active");
+  }
 }
 
 /**
