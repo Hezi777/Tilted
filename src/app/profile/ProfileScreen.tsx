@@ -31,6 +31,7 @@ import {
   avatarKeyForPerson,
   isAvatarKey,
   selectableAvatarKeys,
+  RESERVED_AVATAR_CLAIMS,
   type AvatarKey,
 } from "@/lib/avatar";
 import { signOutAction } from "@/lib/auth/actions";
@@ -657,8 +658,37 @@ function AdminAvatarsSection({ avatars }: { avatars: CustomAvatarView[] }) {
         </Button>
       </form>
 
-      {avatars.length > 0 && (
+      {/* The ten that ship with the app, shown so the admin can see the whole cast and
+          the names that claim each one -- not just what has been added since. They live
+          in src/lib/avatar.ts as committed art, so there is nothing to delete here; the
+          list is a readout, and the form above is what adds to it. */}
+      <div className="flex flex-col gap-2">
+        <p className="t-label text-[var(--text-1)]">דמויות קבועות</p>
         <ul className="flex flex-col gap-2">
+          {RESERVED_AVATAR_CLAIMS.map(([key, spellings]) => (
+            <li
+              key={key}
+              className="flex items-center gap-3 rounded-2xl bg-ink-700 p-2.5"
+            >
+              <ChipAvatar avatarKey={key} name={key} className="size-10" />
+              <div className="min-w-0 flex-1">
+                <p className="t-label truncate text-[var(--text-1)]">
+                  {spellings[0]}
+                </p>
+                <p className="t-caption truncate text-[var(--text-2)]">
+                  שמורה · {spellings.join(", ")}
+                </p>
+              </div>
+              <span className="t-caption shrink-0 text-[var(--text-2)]">מובנית</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {avatars.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="t-label text-[var(--text-1)]">דמויות שהוספתם</p>
+          <ul className="flex flex-col gap-2">
           {avatars.map((avatar) => (
             <li
               key={avatar.id}
@@ -690,7 +720,8 @@ function AdminAvatarsSection({ avatars }: { avatars: CustomAvatarView[] }) {
               </Button>
             </li>
           ))}
-        </ul>
+          </ul>
+        </div>
       )}
     </Section>
   );

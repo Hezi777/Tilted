@@ -165,7 +165,9 @@ export function isReservedAvatarKey(value: string): value is ReservedAvatarKey {
  * walk off with someone's face. ענר was carrying אנר -- ayin misspelled as alef -- which
  * is both a real word and the reason he signed up under his own name and got nothing.
  */
-const CLAIMS: ReadonlyArray<readonly [ReservedAvatarKey, readonly string[]]> = [
+export const RESERVED_AVATAR_CLAIMS: ReadonlyArray<
+  readonly [ReservedAvatarKey, readonly string[]]
+> = [
   ["aner", ["ענר", "aner"]],
   ["nir", ["ניר", "nir"]],
   ["ido", ["עידו", "ido"]],
@@ -200,7 +202,7 @@ export function normalizeName(name: string): string {
 export function reservedAvatarForName(name: string): ReservedAvatarKey | null {
   const normalized = normalizeName(name);
   if (!normalized) return null;
-  for (const [key, spellings] of CLAIMS) {
+  for (const [key, spellings] of RESERVED_AVATAR_CLAIMS) {
     if (spellings.some((spelling) => normalizeName(spelling) === normalized)) {
       return key;
     }
