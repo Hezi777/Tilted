@@ -9,10 +9,23 @@ export const dynamic = "force-dynamic";
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; unavailable?: string }>;
 }) {
-  const { data: session } = await auth.getSession();
-  const nextPath = safeNextPath((await searchParams).next ?? null);
-  if (session?.user) redirect(nextPath);
-  return <AuthScreen nextPath={nextPath} />;
+  const params = await searchParams;
+  const nextPath = safeNextPath(params.next ?? null);
+
+  // A throw here used to fall through to the generic error screen, whose "try again"
+  // just re-ran the same failing call. An unreadable session is not the same as no
+  // session: the form still works once the service is back, so show it and say so.
+  let signedIn = false;
+  let unavailable = params.unavailable === "1";
+  try {
+    const { data: session } = await auth.getSession();
+    signedIn = Boolean(session?.user);
+  } catch {
+    unavailable = true;
+  }
+  if (signedIn) redirect(nextPath);
+
+  return <AuthScreen nextPath={nextPath} unavailable={unavailable} />;
 }

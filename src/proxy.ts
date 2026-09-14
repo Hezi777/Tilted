@@ -6,16 +6,44 @@
  * auth API the sign-in form posts to, and static assets.
  */
 
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/server";
 
-export default function proxy(request: NextRequest) {
+/**
+ * How long to wait for the session check before giving up on it.
+ *
+ * This runs ahead of every request in the app, so a hosted auth service having a bad
+ * minute used to mean the whole app hung rather than answered. Five seconds is longer
+ * than a healthy check and shorter than a person's patience.
+ */
+const SESSION_CHECK_TIMEOUT_MS = 5_000;
+
+export default async function proxy(request: NextRequest) {
   const loginUrl = new URL("/auth/sign-in", request.url);
   loginUrl.searchParams.set(
     "next",
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
-  return auth.middleware({ loginUrl: loginUrl.toString() })(request);
+
+  try {
+    // Fails closed, but says why. An unreachable session check cannot prove anybody is
+    // signed in, so letting the request through would be a hole -- but redirecting to a
+    // sign-in form that is equally unable to reach the service just loops someone
+    // through a screen that cannot work. The flag lets that screen say so instead.
+    return await Promise.race([
+      auth.middleware({ loginUrl: loginUrl.toString() })(request),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("session check timed out")),
+          SESSION_CHECK_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+  } catch {
+    if (request.nextUrl.pathname.startsWith("/auth/")) return NextResponse.next();
+    loginUrl.searchParams.set("unavailable", "1");
+    return NextResponse.redirect(loginUrl);
+  }
 }
 
 export const config = {
@@ -32,6 +60,11 @@ export const config = {
     // -precomposed and -180x180 spellings) at the site root when adding to the home
     // screen, ahead of the <link> tag. A 307 to the sign-in page hands it HTML where it
     // expected a PNG, so it gave up and drew a blank tile instead of the mark.
-    "/((?!auth/sign-in|api/auth|api/avatar|_next/static|_next/image|favicon.ico|apple-touch-icon|art|sw.js|manifest.webmanifest).*)",
+    // `auth/reset` is as public as `auth/sign-in` and for the same reason: somebody who
+    // cannot sign in is exactly who needs to reach it.
+    // `offline.html` joins `sw.js` for the same reason: it is what the worker serves
+    // when the network is gone, so a redirect to a sign-in page it also cannot reach
+    // would replace the one screen that still works with a spinner.
+    "/((?!auth/sign-in|auth/reset|api/auth|api/avatar|_next/static|_next/image|favicon.ico|apple-touch-icon|art|sw.js|offline.html|manifest.webmanifest).*)",
   ],
 };

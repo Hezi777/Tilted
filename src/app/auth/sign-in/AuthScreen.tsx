@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GoogleIcon } from "@/components/icons";
 import {
   signInAction,
+  signInWithGoogleAction,
   signUpAction,
   type AuthActionState,
 } from "@/lib/auth/actions";
@@ -20,9 +23,16 @@ const INITIAL: AuthActionState = { error: null };
  * new player sees — built from our own shadcn primitives rather than the vendor auth
  * UI, so it looks like the rest of the app and reads correctly in Hebrew.
  */
-export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
+export function AuthScreen({
+  nextPath = "/",
+  unavailable = false,
+}: {
+  nextPath?: string;
+  unavailable?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<Mode>("sign-in");
+  const [showPassword, setShowPassword] = useState(false);
   const [signInState, runSignIn, signingIn] = useActionState(
     signInAction,
     INITIAL,
@@ -48,6 +58,17 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
             : "ברוכים השבים לשולחן."}
         </p>
       </header>
+
+      {unavailable && (
+        // Not an error the person made, and not one retrying the form will clear --
+        // so it says what happened rather than showing a red field validation.
+        <p
+          role="status"
+          className="surface-card t-body rounded-[20px] px-4 py-3 text-[var(--text-1)]"
+        >
+          לא הצלחנו להגיע לשירות ההתחברות כרגע. נסו שוב בעוד רגע.
+        </p>
+      )}
 
       <motion.form
         key={mode}
@@ -94,21 +115,49 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
           <Label className="t-label" htmlFor="password">
             סיסמה
           </Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-            required
-            minLength={8}
-            dir="ltr"
-            className="text-start"
-            aria-describedby={isSignUp ? "password-hint" : undefined}
-          />
+          {/* dir="ltr" on the wrapper, not just on the input. The field's text is LTR and
+                starts at the left, so the reveal button belongs at the right -- but the
+                page is RTL, where `end-*` resolves to the left and would put the button
+                exactly where the password begins. Matching the wrapper's direction to
+                the input's makes both logical properties resolve against the same axis.
+                This is the AGENTS.md rule about mixing direction contexts, one level up
+                from the transform case it names. */}
+            <div dir="ltr" className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
+              required
+              minLength={8}
+              dir="ltr"
+              className="pe-24 text-start"
+              aria-describedby={isSignUp ? "password-hint" : undefined}
+            />
+            {/* Typed one-handed in a dim room. Checking it beats a failed sign-in and
+                a generic "the email or password is wrong". */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="absolute inset-y-1 end-1"
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? "הסתרה" : "הצגה"}
+            </Button>
+          </div>
           {isSignUp && (
             <p id="password-hint" className="t-caption ink-3">
               לפחות 8 תווים.
             </p>
+          )}
+          {!isSignUp && (
+            <Button asChild variant="ghost" size="sm" className="self-start">
+              <Link href={`/auth/reset?next=${encodeURIComponent(nextPath)}`}>
+                שכחתם סיסמה?
+              </Link>
+            </Button>
           )}
         </div>
 
@@ -128,6 +177,22 @@ export function AuthScreen({ nextPath = "/" }: { nextPath?: string }) {
               : "התחברו"}
         </Button>
       </motion.form>
+
+      {/* One tap, no password to forget, and the same account whichever button was
+          used last time -- the address is what identifies a person, not the method. */}
+      <div className="flex items-center gap-3" aria-hidden>
+        <span className="h-px flex-1 bg-[var(--glass-1)]" />
+        <span className="t-caption ink-3">או</span>
+        <span className="h-px flex-1 bg-[var(--glass-1)]" />
+      </div>
+
+      <form action={signInWithGoogleAction}>
+        <input type="hidden" name="next" value={nextPath} />
+        <Button type="submit" variant="secondary" size="lg" className="w-full">
+          <GoogleIcon aria-hidden="true" />
+          המשך עם Google
+        </Button>
+      </form>
 
       <Button
         type="button"
