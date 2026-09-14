@@ -4,12 +4,14 @@ import {
   beginSettling,
   closeSettlingGame,
   getActorForGame,
+  reopenSettlingGame,
 } from "@/db/cashout-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
 
+// "active" is the way back from a mis-tapped "סיום לכולם"; host-only like the rest.
 const statusSchema = z.object({
-  status: z.enum(["settling", "closed"]),
+  status: z.enum(["settling", "closed", "active"]),
 });
 const idSchema = z.string().uuid();
 
@@ -51,9 +53,12 @@ export async function POST(
   }
 
   try {
-    const state = parsed.data.status === "settling"
-      ? await beginSettling(parsedId.data, viewer.person.id)
-      : await closeSettlingGame(parsedId.data, viewer.person.id);
+    const state =
+      parsed.data.status === "settling"
+        ? await beginSettling(parsedId.data, viewer.person.id)
+        : parsed.data.status === "active"
+          ? await reopenSettlingGame(parsedId.data, viewer.person.id)
+          : await closeSettlingGame(parsedId.data, viewer.person.id);
     // Only the host may reach this route (assertCanSettle), so viewerIsHost is
     // always true here -- but the fields stay present so the screen's state shape
     // does not lose them on this response.

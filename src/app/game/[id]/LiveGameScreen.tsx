@@ -15,6 +15,8 @@ import { isEligibleSuccessor } from "@/lib/roster-status";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
+import { ChipCounter } from "@/components/ChipCounter";
+import { type ChipCounts } from "@/lib/chips";
 import { HandRecorder } from "@/components/HandRecorder";
 import { MusicButton } from "@/components/MusicButton";
 import { GameRulesDialog } from "@/components/GameRulesDialog";
@@ -59,10 +61,18 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   // Host choice ("סיום לכולם" / "יציאה רק שלי") and the successor picker that
   // follows the second option. `successor` is also read by `saveEarlyExit` below to
   // decide which endpoint an exit actually submits to.
+  // Counted chips for an early exit, when the table counts in chips. Kept beside
+  // `earlyAmount` rather than derived into it, because the server takes either a
+  // total or the counts themselves and stores the counts when it gets them.
+  const [earlyChipCounts, setEarlyChipCounts] = useState<ChipCounts>({});
+  // Whose early exit this is. Null means the viewer's own; a player means the host is
+  // counting for someone who is leaving without the app open (spec 11.2).
+  const [earlyExitFor, setEarlyExitFor] = useState<{ id: string; name: string } | null>(null);
   const [exitChoiceOpen, setExitChoiceOpen] = useState(false);
   const [successorPickerOpen, setSuccessorPickerOpen] = useState(false);
   const [successor, setSuccessor] = useState<{ id: string; name: string } | null>(null);
   const [endingForAll, setEndingForAll] = useState(false);
+  const [confirmEndForAll, setConfirmEndForAll] = useState(false);
 
   // Every client's poll has to follow the game through its lifecycle (the bug this
   // fixes: a guest whose phone never learned the host had moved the table to
@@ -92,12 +102,23 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   // to your own row, which the rule has always allowed -- until 2026-09-13 it just
   // expired after a minute, and the only door to it was the host's seat dialog.
   const [rebuysOpen, setRebuysOpen] = useState(false);
+  // Whose rebuys the correction drawer is showing. Null is your own seat; a player is
+  // the host correcting somebody else's row.
+  const [rebuysFor, setRebuysFor] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<{ opId: string; playerId: string; amount: number } | null>(null);
   const [editAmount, setEditAmount] = useState<number | null>(null);
   const yourRebuys = useMemo(
     () => (game?.yourBuyIns ?? []).filter((item) => item.kind === "rebuy"),
     [game?.yourBuyIns],
   );
+  // The host reads another seat's rebuys off the full list, which is not capped the
+  // way the shared feed is.
+  const shownRebuys = useMemo(() => {
+    if (!rebuysFor) return yourRebuys;
+    return (game?.allBuyIns ?? []).filter(
+      (item) => item.playerId === rebuysFor.id && item.kind === "rebuy",
+    );
+  }, [rebuysFor, yourRebuys, game?.allBuyIns]);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const focusedPlayer = useMemo(() => seated.find((player) => player.id === focusedPlayerId) ?? null, [seated, focusedPlayerId]);
 
@@ -109,10 +130,21 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     [seated],
   );
 
+  // A chip table is always ready to submit: counting nothing is a real answer -- it
+  // is what busting out looks like -- and the cash-out screen accepts a zero count
+  // for the same reason. A shekel table has to have had a number typed into it.
+  const earlyExitReady = game?.chipSet ? true : earlyAmount !== null;
+
   async function submitCustom() {
-    if (!customPlayer) return;
+    if (!customPlayer || !game) return;
     try {
       const amount = shekelsToAgorot(Number(customAmount));
+      // The night's rebuy is the ceiling. Said here as well as enforced on the server,
+      // so a typo is caught before it becomes a round trip and a toast.
+      if (amount > game.rebuyAmount) {
+        toast.error("הסכום גדול מהריביי של הערב");
+        return;
+      }
       addRebuy(customPlayer.id, amount);
       setCustomPlayer(null);
       setCustomAmount("");
@@ -187,26 +219,37 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   }
 
   async function saveEarlyExit() {
-    if (!you || earlyAmount === null) return;
+    const subject = earlyExitFor ?? (you ? { id: you.id, name: you.name } : null);
+    if (!subject || !earlyExitReady) return;
     setSavingEarlyExit(true);
     try {
-      if (successor) {
+      // Both endpoints take a total or the counts, never both, and store the counts
+      // when they get them -- so a stack counted here reads back chip by chip at
+      // settlement instead of collapsing to one number.
+      const result = game?.chipSet
+        ? { chipCounts: earlyChipCounts }
+        : { amount: earlyAmount };
+      if (successor && !earlyExitFor) {
         // The host leaves alone: their own result and the handoff of operational
         // host land in one transaction on the server, so this can never half-apply.
         await apiFetch(`/api/game/${gameId}/exit`, {
           method: "POST",
-          body: JSON.stringify({ successorPlayerId: successor.id, amount: earlyAmount }),
+          body: JSON.stringify({ successorPlayerId: successor.id, ...result }),
         });
         toast.success(`היציאה נשמרה. ${successor.name} מנהלים את השולחן מעכשיו`);
       } else {
         await apiFetch(`/api/game/${gameId}/cashout`, {
           method: "POST",
-          body: JSON.stringify({ playerId: you.id, amount: earlyAmount, early: true }),
+          body: JSON.stringify({ playerId: subject.id, early: true, ...result }),
         });
-        toast.success("היציאה והתוצאה נשמרו");
+        toast.success(
+          earlyExitFor ? `${subject.name} סיימו את הערב` : "היציאה והתוצאה נשמרו",
+        );
       }
       setEarlyExitOpen(false);
       setEarlyAmount(null);
+      setEarlyChipCounts({});
+      setEarlyExitFor(null);
       setSuccessor(null);
       await refresh();
     } catch (reason) {
@@ -224,6 +267,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         body: JSON.stringify({ status: "settling" }),
       });
       setExitChoiceOpen(false);
+      setConfirmEndForAll(false);
       router.push(`/game/${gameId}/cashout`);
     } catch (reason) {
       toast.error(reason instanceof ApiError ? reason.message : "סיום הערב נכשל");
@@ -410,7 +454,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       <Dialog open={focusedPlayer !== null} onOpenChange={(open) => !open && setFocusedPlayerId(null)}>
         <DialogContent showCloseButton={false}>
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
-          {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage={game.isHost} onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { const latest = game.feed.find((feedItem) => feedItem.playerId === item.id && feedItem.kind === "rebuy"); if (latest) void undo(latest.opId); else toast("אין ריביי לביטול"); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} />}
+          {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage={game.isHost} onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { setFocusedPlayerId(null); setRebuysFor({ id: item.id, name: item.name }); setRebuysOpen(true); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} onEarlyExit={(item) => { setFocusedPlayerId(null); setEarlyExitFor({ id: item.id, name: item.name }); setEarlyChipCounts({}); setEarlyAmount(null); setEarlyExitOpen(true); }} />}
         </DialogContent>
       </Dialog>
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -422,13 +466,26 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       </Dialog>
       {/* Your own money, the whole evening -- the shared feed keeps twelve rows and a
           rebuy from two hands ago has long since fallen off it. */}
-      <Drawer open={rebuysOpen} onOpenChange={setRebuysOpen}>
+      <Drawer
+        open={rebuysOpen}
+        onOpenChange={(open) => {
+          setRebuysOpen(open);
+          if (!open) setRebuysFor(null);
+        }}
+      >
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>הריביים שלי הערב</DrawerTitle>
+            <DrawerTitle>
+              {rebuysFor ? `הריביים של ${rebuysFor.name}` : "הריביים שלי הערב"}
+            </DrawerTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-2 px-4">
-            {yourRebuys.map((item) => (
+            {shownRebuys.length === 0 && (
+              <p className="t-body text-[var(--text-2)] px-1">
+                אין ריביים לתקן — רק הכניסה הראשונה.
+              </p>
+            )}
+            {shownRebuys.map((item) => (
               <div
                 key={item.opId}
                 className="surface-card flex items-center justify-between gap-3 rounded-[20px] px-4 py-3"
@@ -593,31 +650,85 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         open={earlyExitOpen}
         onOpenChange={(open) => {
           setEarlyExitOpen(open);
-          if (!open) setSuccessor(null);
+          if (!open) {
+            setSuccessor(null);
+            setEarlyChipCounts({});
+            setEarlyExitFor(null);
+          }
         }}
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>{successor ? `יוצאים ומעבירים ל${successor.name}?` : "יוצאים לפני כולם?"}</DialogTitle>
+            <DialogTitle>
+              {earlyExitFor
+                ? `${earlyExitFor.name} יוצאים מהשולחן?`
+                : successor
+                  ? `יוצאים ומעבירים ל${successor.name}?`
+                  : "יוצאים לפני כולם?"}
+            </DialogTitle>
             <DialogDescription>
-              {successor
-                ? `ספרו את הז׳יטונים שנשארו לכם. ${successor.name} ינהלו את השולחן מכאן.`
-                : "ספרו את הז׳יטונים שנשארו לכם. הסכום ושעת היציאה יישמרו, והשולחן ימשיך בלעדיכם."}
+              {earlyExitFor
+                ? `ספרו את הז׳יטונים שנשארו ל${earlyExitFor.name}. הסכום יינעל והשולחן ימשיך בלי ${earlyExitFor.name}.`
+                : successor
+                  ? `ספרו את הז׳יטונים שנשארו לכם. ${successor.name} ינהלו את השולחן מכאן.`
+                  : "ספרו את הז׳יטונים שנשארו לכם. הסכום ושעת היציאה יישמרו, והשולחן ימשיך בלעדיכם."}
             </DialogDescription>
           </DialogHeader>
-          <Label>כמה נשאר לכם?</Label>
-          <AmountInput
-            aria-label="סכום ביציאה מוקדמת"
-            initialAmount={null}
-            disabled={savingEarlyExit}
-            onChange={setEarlyAmount}
-            onCommit={setEarlyAmount}
-          />
+          {/* The same stack, counted the same way as at settlement. A table that
+              counts in chips gets the chips here too -- the player leaving early is
+              counting alone, so if either screen deserves the easier job it is this
+              one. A table entering shekels directly still gets the plain field. */}
+          {game.chipSet ? (
+            <div className="flex flex-col gap-2">
+              <p className="t-caption text-[var(--text-2)]">{game.chipSet.name}</p>
+              <ChipCounter
+                denominations={game.chipSet.denominations}
+                counts={earlyChipCounts}
+                onChange={setEarlyChipCounts}
+                disabled={savingEarlyExit}
+              />
+            </div>
+          ) : (
+            <>
+              <Label>{earlyExitFor ? `כמה נשאר ל${earlyExitFor.name}?` : "כמה נשאר לכם?"}</Label>
+              <AmountInput
+                aria-label="סכום ביציאה מוקדמת"
+                initialAmount={null}
+                disabled={savingEarlyExit}
+                onChange={setEarlyAmount}
+                onCommit={setEarlyAmount}
+              />
+            </>
+          )}
           <DialogFooter>
-            <Button type="button" disabled={earlyAmount === null || savingEarlyExit} onClick={() => void saveEarlyExit()}>
-              {savingEarlyExit ? "שומרים..." : "שמרו וסיימו את הערב"}
+            <Button type="button" disabled={!earlyExitReady || savingEarlyExit} onClick={() => void saveEarlyExit()}>
+              {savingEarlyExit
+                ? "שומרים..."
+                : earlyExitFor
+                  ? "שמרו וסיימו להם את הערב"
+                  : "שמרו וסיימו את הערב"}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => { setEarlyExitOpen(false); setSuccessor(null); }}>נשארים בשולחן</Button>
+            <Button type="button" variant="secondary" onClick={() => { setEarlyExitOpen(false); setSuccessor(null); setEarlyChipCounts({}); setEarlyExitFor(null); }}>נשארים בשולחן</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmEndForAll} onOpenChange={setConfirmEndForAll}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>לסיים את הערב לכולם?</DialogTitle>
+            <DialogDescription>
+              מכאן עוברים לספירת הז׳יטונים ואי אפשר להוסיף עוד ריביי לאף אחד. אם
+              המשחק בעצם ממשיך, אפשר לחזור מהמסך הבא כל עוד אף אחד לא נספר.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" disabled={endingForAll} onClick={() => void endForAll()}>
+              {endingForAll ? "מסיימים..." : "כן, לספירה"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setConfirmEndForAll(false)}>
+              עוד משחקים
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -629,8 +740,11 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             <DialogDescription>כמארחים אפשר לסיים את הערב לכולם, או לצאת בעצמכם ולהעביר את הניהול.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            <Button type="button" disabled={endingForAll} onClick={() => void endForAll()}>
-              {endingForAll ? "מסיימים..." : "סיום לכולם"}
+            {/* Sits a thumb's width from "יציאה רק שלי" and ends the playable phase for
+                everybody: once the game is settling nobody can add a rebuy. Worth one
+                confirmation, which is also where the way back is explained. */}
+            <Button type="button" onClick={() => { setExitChoiceOpen(false); setConfirmEndForAll(true); }}>
+              סיום לכולם
             </Button>
             <Button
               type="button"
@@ -644,8 +758,13 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
               יציאה רק שלי
             </Button>
             {eligibleSuccessors.length === 0 && (
+              /* Why, not just "no". Handing the table to someone who has not signed
+                 in would leave nobody able to close the night, so the way out is to
+                 get someone in with the room code -- or to end it for everyone. */
               <p className="t-caption text-[var(--text-2)]">
-                אין עוד שחקנים פעילים שאפשר להעביר להם את הניהול.
+                אף אחד עוד לא נכנס לשולחן מהטלפון שלו, אז אין למי להעביר את הניהול.
+                שלחו את הקוד <span dir="ltr" className="money font-bold">{game.code}</span>{" "}
+                למי שממשיך, או סיימו את הערב לכולם.
               </p>
             )}
           </div>

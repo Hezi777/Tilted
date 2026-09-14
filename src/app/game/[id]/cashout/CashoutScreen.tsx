@@ -339,7 +339,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     void persistChipCounts(player.id, player.chipCounts, version);
   }
 
-  async function changeStatus(status: "settling" | "closed") {
+  async function changeStatus(status: "settling" | "closed" | "active") {
     try {
       const next = await apiFetch<CashoutState>(`/api/game/${gameId}/status`, {
         method: "POST",
@@ -351,6 +351,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
       if (status === "closed") {
         router.refresh();
         router.push(`/game/${gameId}/settlement`);
+      }
+      // Back to the table. The live screen is where rebuys live, and it is what the
+      // host tapped past by accident to get here.
+      if (status === "active") {
+        router.refresh();
+        router.push(`/game/${gameId}`);
       }
     } catch (error) {
       toast.error(errorText(error));
@@ -437,6 +443,27 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 <p className="t-body">המשחק כבר נסגר וסוכם. אפשר לצפות בסיכום ולשתף אותו.</p>
                 <Button asChild className="w-full">
                   <Link href={`/game/${gameId}/settlement`}>למסך הסיכום</Link>
+                </Button>
+              </div>
+            )}
+
+            {state.status === "settling" && state.viewerIsHost && (
+              /* The way back from a mis-tapped "סיום לכולם". Quiet and secondary --
+                 counting is the expected path from here; this is the undo. Anyone
+                 already counted keeps their frozen number, so it is safe mid-count. */
+              <div className="surface-card flex flex-col gap-2 rounded-3xl p-4">
+                <p className="t-caption ink-3">
+                  עוד לא סיימתם לשחק? אפשר לחזור לשולחן. מי שכבר נספר נשאר סגור.
+                </p>
+                {/* Not "חזרה למשחק" -- the header's back arrow already says that and
+                    only navigates. This one changes the game's state, so it has to be
+                    unmistakably a different action. */}
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => void changeStatus("active")}
+                >
+                  ממשיכים לשחק
                 </Button>
               </div>
             )}

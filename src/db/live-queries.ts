@@ -15,6 +15,7 @@ import {
   type BuyInRow,
 } from "@/lib/authz";
 import { firstAvailableAvatarKey } from "@/lib/avatar";
+import { getChipSet, type ChipSetDetail } from "@/db/chip-queries";
 import { agorot, sumAgorot } from "@/lib/money";
 
 export interface LivePlayer {
@@ -72,8 +73,26 @@ export interface LiveGame {
    * ago has to be able to see it, and the feed had long since scrolled past it.
    */
   yourBuyIns: LiveFeedItem[];
+  /**
+   * Every live buy-in at the table, newest first -- host only, empty for everyone else.
+   *
+   * The host is the one person who can correct anybody's row, and `feed` is capped at
+   * twelve, so "ביטול ריביי אחרון" reported "אין ריביי לביטול" for any rebuy that had
+   * scrolled off. Correcting a number has to be able to reach the whole evening, which
+   * is the same reason `yourBuyIns` exists for your own seat.
+   */
+  allBuyIns: LiveFeedItem[];
   youId: string | null;
   isHost: boolean;
+  /**
+   * The chip set this table counts with, or null when it enters shekels directly.
+   *
+   * Read here and not only at settlement because an early exit counts a stack too --
+   * the same stack, with the same chips on the same table. Without it the live screen
+   * could only offer a bare number field while the cash-out screen showed the chips,
+   * so the one player counting alone at 1am got the harder version of the job.
+   */
+  chipSet: ChipSetDetail | null;
 }
 
 export interface RebuyInput {
@@ -200,6 +219,23 @@ export async function getLiveGame(
   }));
 
   const youRow = playersOut.find((player) => player.isYou) ?? null;
+  const viewerIsHost = playersOut.some((player) => player.isYou && player.isHost);
+  const allRows = viewerIsHost
+    ? await db
+        .select({
+          id: buyIns.id,
+          opId: buyIns.opId,
+          playerId: buyIns.playerId,
+          playerName: players.name,
+          amount: buyIns.amount,
+          kind: buyIns.kind,
+          createdAt: buyIns.createdAt,
+        })
+        .from(buyIns)
+        .innerJoin(players, eq(players.id, buyIns.playerId))
+        .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
+        .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
+    : [];
   const yourRows = youRow
     ? await db
         .select({
@@ -250,8 +286,18 @@ export async function getLiveGame(
       kind: row.kind,
       createdAt: row.createdAt.toISOString(),
     })),
+    allBuyIns: allRows.map((row) => ({
+      id: row.id,
+      opId: row.opId,
+      playerId: row.playerId,
+      playerName: row.playerName,
+      amount: row.amount,
+      kind: row.kind,
+      createdAt: row.createdAt.toISOString(),
+    })),
     youId: youRow?.id ?? null,
-    isHost: playersOut.some((player) => player.isYou && player.isHost),
+    isHost: viewerIsHost,
+    chipSet: game.chipSetId ? await getChipSet(game.chipSetId) : null,
   };
 }
 
@@ -287,6 +333,20 @@ export async function insertRebuy(input: RebuyInput): Promise<RebuyResult> {
     .limit(1);
   if (!target) throw new Error("player_not_found");
   assertCanInsertBuyIn(actorRow.status, actor, target);
+
+  // A rebuy is the table's agreed stake, so it is also the ceiling. "ריביי בסכום אחר"
+  // exists for the halves and the odd smaller top-up, not for entering more than the
+  // night's rebuy -- nobody buys in double because they feel like it. Enforced here
+  // rather than only in the form, because the amount arrives from a client. A typo of
+  // ₪5,000 for ₪50 used to land in the pot and move everybody's settlement.
+  const [gameRow] = await db
+    .select({ rebuyAmount: games.rebuyAmount })
+    .from(games)
+    .where(eq(games.id, input.gameId))
+    .limit(1);
+  if (gameRow && input.amount > gameRow.rebuyAmount) {
+    throw new AuthzError("rebuy_above_limit");
+  }
 
   // Keep this as one statement: a rebuy racing an active -> settling transition must
   // be rejected, rather than being committed after the pot was counted.

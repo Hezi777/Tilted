@@ -5,10 +5,11 @@ import type { LiveGame } from "@/db/live-queries";
 const game: LiveGame = {
   id: "game", code: "ABCD", name: null, status: "active", buyIn: 5_000, rebuyAmount: 5_000,
   startedAt: "2026-09-03T20:00:00.000Z", plannedEndAt: "2026-09-04T00:00:00.000Z",
-  pot: 10_000, youId: "p1", isHost: false,
+  pot: 10_000, youId: "p1", isHost: false, chipSet: null,
   players: [{ id: "p1", personId: "person-1", name: "א", avatarKey: null, seatOrder: 0, isHost: false, isYou: true, isSettled: false, isWaiting: false, totalIn: 10_000, buyInCount: 2, tableSeat: null }],
   feed: [],
   yourBuyIns: [],
+  allBuyIns: [],
 };
 
 const pending: PendingRebuy = { opId: "op1", playerId: "p1", amount: 5_000, playerName: "א", createdAt: "2026-09-03T20:01:00.000Z" };

@@ -49,7 +49,8 @@ export type AuthzCode =
   | "player_deleted"
   | "initial_buy_in"
   | "already_deleted"
-  | "invalid_successor";
+  | "invalid_successor"
+  | "rebuy_above_limit";
 
 const STATUS: Record<AuthzCode, number> = {
   no_device: 401,
@@ -62,6 +63,7 @@ const STATUS: Record<AuthzCode, number> = {
   initial_buy_in: 409,
   already_deleted: 409,
   invalid_successor: 409,
+  rebuy_above_limit: 400,
 };
 
 /** Hebrew because these surface directly in a toast. */
@@ -76,6 +78,7 @@ const MESSAGE: Record<AuthzCode, string> = {
   initial_buy_in: "אי אפשר להסיר את הכניסה הראשונה",
   already_deleted: "השורה כבר נמחקה",
   invalid_successor: "אי אפשר להעביר את הניהול לשחקן הזה",
+  rebuy_above_limit: "הסכום גדול מהריביי של הערב",
 };
 
 export class AuthzError extends Error {

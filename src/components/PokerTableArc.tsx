@@ -50,9 +50,12 @@ const seatVariants: Variants = {
     waiting: boolean;
     selected: boolean;
   }) => ({
-    // A waiting seat is more transparent than a settled one -- it is not gone, it
-    // has just never arrived.
-    opacity: waiting ? 0.35 : settled ? 0.55 : 1,
+    // A waiting seat is dimmed, not ghosted. On the ordinary night the host seats
+    // everybody and nobody else opens the app, so *every* other seat is waiting --
+    // at 0.35 the whole table read as switched off, and the seats carrying most of
+    // the pot were the faintest things on the screen. A settled seat is the one that
+    // is genuinely finished with.
+    opacity: waiting ? 0.75 : settled ? 0.55 : 1,
     scale: selected ? 1.05 : 1,
     transition: SPRING,
   }),
@@ -223,15 +226,23 @@ export function PokerTableArc({
               <span className="t-caption max-w-full truncate font-bold text-felt-foreground drop-shadow-[0_1px_4px_rgb(0_0_0/0.9)]">
                 {player.name}
               </span>
-              {status === "waiting" ? (
-                <StatusBadge tone="muted">
-                  <Clock3Icon aria-hidden="true" className="size-3" />
-                  ממתין
-                </StatusBadge>
-              ) : status === "settled" ? (
+              {/* A settled seat is done and its total has moved to the cash-out screen,
+                  so the badge replaces it. A waiting seat is not done -- it is in the pot
+                  for its initial buy-in from the moment the host seats it -- so it keeps
+                  its total and wears the badge alongside. Hiding it made the pot in the
+                  header true and every seat under it blank. */}
+              {status === "settled" ? (
                 <StatusBadge tone="muted">נסגר</StatusBadge>
               ) : (
-                <SeatTotal value={player.totalIn} count={player.buyInCount} reduceMotion={reduceMotion} />
+                <div className="flex flex-col items-center gap-0.5">
+                  <SeatTotal value={player.totalIn} count={player.buyInCount} reduceMotion={reduceMotion} />
+                  {status === "waiting" && (
+                    <StatusBadge tone="muted">
+                      <Clock3Icon aria-hidden="true" className="size-3" />
+                      ממתין
+                    </StatusBadge>
+                  )}
+                </div>
               )}
             </motion.button>
           </motion.div>

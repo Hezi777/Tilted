@@ -30,11 +30,13 @@ describe("isEligibleSuccessor", () => {
     expect(isEligibleSuccessor({ isYou: false, isSettled: true, isWaiting: false })).toBe(false);
   });
 
-  it("excludes a seat nobody has opened yet", () => {
+  // Handing the table to a phone that is not in the room strands the night: the
+  // ex-host's seat settles and loses is_host, and nobody left can close or cancel.
+  it("excludes a seat nobody has signed in to", () => {
     expect(isEligibleSuccessor({ isYou: false, isSettled: false, isWaiting: true })).toBe(false);
   });
 
-  it("accepts any other live, claimed, signed-in seat", () => {
+  it("accepts another live seat whose owner has signed in", () => {
     expect(isEligibleSuccessor({ isYou: false, isSettled: false, isWaiting: false })).toBe(true);
   });
 });

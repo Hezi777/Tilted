@@ -25,9 +25,17 @@ export function seatStatus({ isWaiting, isSettled }: SeatStatusInput): SeatStatu
 }
 
 /**
- * Who the host may hand the table to: another live seat, still at the table, whose
- * owner has actually opened the game. Handing it to a seat nobody has claimed yet
- * strands the table with no one able to act as host.
+ * Who the host may hand the table to: another seat that is still playing **and whose
+ * owner has actually signed in to it**.
+ *
+ * The claimed-seat condition is a deliberate product rule, not a mirror of the server
+ * (`assertCanHandoffHost` is looser and would accept an unclaimed seat). Handing the
+ * table to a phone that is not in the room strands the night: the ex-host's own seat
+ * settles and loses `is_host`, so nobody left in the room can move the game to
+ * settling, close it, or even cancel it.
+ *
+ * A host with nobody signed in is not stuck -- that is what "סיום לכולם" is for. The
+ * picker says so rather than presenting an empty list.
  */
 export function isEligibleSuccessor(player: {
   isYou: boolean;

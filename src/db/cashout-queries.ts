@@ -562,6 +562,42 @@ export async function beginSettling(
 }
 
 /**
+ * Puts a settling game back on the table.
+ *
+ * "סיום לכולם" sits a thumb's width from "יציאה רק שלי" and ends the playable phase
+ * for everybody, so a mis-tap used to cost the rest of the night: `requireActiveGame`
+ * then refuses every rebuy, and nothing anywhere moved a game back to active.
+ *
+ * Seats already counted are left exactly as they are. They keep `settled_at`, so
+ * `assertCanInsertBuyIn` goes on refusing rebuys for them and their frozen number
+ * cannot move; only the seats still playing become writable again. That is why this
+ * needs no "nobody has been counted yet" condition -- reopening a half-counted night
+ * is the honest description of a table where three people cashed out and the rest
+ * kept playing.
+ */
+export async function reopenSettlingGame(
+  gameId: string,
+  deviceId: string,
+): Promise<CashoutState> {
+  const access = await getActorForGame(gameId, deviceId);
+  if (!access) throw new Error("המשחק לא נמצא");
+  assertCanSettle(access.game.status, access.actor);
+
+  // The status predicate is in the UPDATE so two phones racing cannot both reopen,
+  // and so a game someone just closed is refused rather than silently reopened.
+  const [changed] = await db
+    .update(games)
+    .set({ status: "active" })
+    .where(and(eq(games.id, gameId), eq(games.status, "settling")))
+    .returning({ id: games.id });
+  if (!changed) throw new Error("המשחק כבר לא בספירה");
+
+  const state = await getCashoutState(gameId);
+  if (!state) throw new Error("המשחק לא נמצא");
+  return state;
+}
+
+/**
  * Closes only a complete, balanced settling game. All predicates are in the
  * conditional UPDATE so cash-out edits cannot make a closed ledger unbalanced.
  *
