@@ -1,9 +1,9 @@
 /**
  * Who a person looks like at the table.
  *
- * Twelve characters. Six belong to the regulars and are **reserved**: they are claimed
- * automatically when someone signs up under that name, and nobody else may select them.
- * The other six are open to anyone.
+ * Sixteen current characters. Ten belong to the regulars and are **reserved**: they are
+ * claimed automatically when someone signs up under that name, and nobody else may select
+ * them. The other six are open to anyone.
  *
  * Reserving by name is deliberately simple, because the alternative is asking six friends
  * to redeem an invite code for a cartoon. The rules that keep it honest are:
@@ -16,7 +16,7 @@
  *     client can post whatever it likes.
  */
 
-/** The six that belong to specific people. */
+/** The ten that belong to specific people. */
 export const RESERVED_AVATAR_KEYS = [
   "aner",
   "nir",
@@ -24,6 +24,10 @@ export const RESERVED_AVATAR_KEYS = [
   "hen",
   "itay",
   "matan",
+  "roey",
+  "saar",
+  "dor",
+  "yaniv",
 ] as const;
 
 /** The six anyone may pick. */
@@ -79,13 +83,68 @@ export const AVATAR_KEYS = [
   ...LEGACY_AVATAR_KEYS,
 ] as const;
 
-export type AvatarKey = (typeof AVATAR_KEYS)[number];
+/** A character that ships with the app, as a literal union. */
+export type BuiltInAvatarKey = (typeof AVATAR_KEYS)[number];
+
+/**
+ * A character the admin added. Open-ended by nature: the set lives in the database, so
+ * the type can only describe the shape the key must have.
+ */
+export type CustomAvatarKey = `custom-${string}`;
+
+/**
+ * Any character. The custom arm is what lets `people.avatar_key` stay one text column
+ * -- widening it here rather than casting at each call site is what makes the compiler
+ * able to tell a built-in key from a custom one at the places that must branch.
+ */
+export type AvatarKey = BuiltInAvatarKey | CustomAvatarKey;
+
 export type ReservedAvatarKey = (typeof RESERVED_AVATAR_KEYS)[number];
 
 const AVATAR_KEY_SET: ReadonlySet<string> = new Set(AVATAR_KEYS);
 
+/**
+ * The prefix every admin-added character carries.
+ *
+ * It is what keeps `people.avatar_key` a plain text column: the prefix alone tells
+ * `avatarSrc` to serve the row from `/api/avatar/[key]` instead of a committed file, so
+ * nothing downstream needs a join or an await to render a face.
+ */
+export const CUSTOM_AVATAR_PREFIX = "custom-";
+
+/** The slug rule for a new character, enforced at the API and in the database CHECK. */
+const CUSTOM_KEY_PATTERN = /^custom-[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])$/;
+
+/**
+ * True for a well-formed custom key.
+ *
+ * Shape only. Whether the row actually exists is a database question, answered by the
+ * server on save; a key that passes here and matches nothing renders as the default.
+ */
+export function isCustomAvatarKey(value: unknown): value is CustomAvatarKey {
+  return typeof value === "string" && CUSTOM_KEY_PATTERN.test(value);
+}
+
+/** Folds an admin-typed label into a `custom-` slug. Empty when nothing survives. */
+export function toCustomAvatarKey(label: string): string | null {
+  const slug = label
+    .normalize("NFKD")
+    .replace(/[\u0591-\u05c7\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
+    .replace(/-+$/, "");
+  if (!slug) return null;
+  const key = `${CUSTOM_AVATAR_PREFIX}${slug}`;
+  return CUSTOM_KEY_PATTERN.test(key) ? key : null;
+}
+
 export function isAvatarKey(value: unknown): value is AvatarKey {
-  return typeof value === "string" && AVATAR_KEY_SET.has(value);
+  return (
+    (typeof value === "string" && AVATAR_KEY_SET.has(value)) ||
+    isCustomAvatarKey(value)
+  );
 }
 
 const RESERVED_SET: ReadonlySet<string> = new Set(RESERVED_AVATAR_KEYS);
@@ -100,7 +159,7 @@ export function isReservedAvatarKey(value: string): value is ReservedAvatarKey {
  * Hebrew is what they will actually type; the transliterations are here so that someone
  * signing up on an English keyboard still gets their own face.
  *
- * The six Hebrew spellings are the ones these six people actually write, confirmed by
+ * The ten Hebrew spellings are the ones these ten people actually write, confirmed by
  * name. Do not add a near-miss spelling "just in case": a claim is first come, first
  * served, so an extra spelling is a way for a stranger who happens to be called that to
  * walk off with someone's face. ענר was carrying אנר -- ayin misspelled as alef -- which
@@ -113,6 +172,10 @@ const CLAIMS: ReadonlyArray<readonly [ReservedAvatarKey, readonly string[]]> = [
   ["hen", ["חן", "hen"]],
   ["itay", ["איתי", "itay", "itai"]],
   ["matan", ["מתן", "matan"]],
+  ["roey", ["רועי", "roey"]],
+  ["saar", ["סער", "saar"]],
+  ["dor", ["דור", "dor"]],
+  ["yaniv", ["יניב", "yaniv"]],
 ];
 
 /**
@@ -122,7 +185,7 @@ const CLAIMS: ReadonlyArray<readonly [ReservedAvatarKey, readonly string[]]> = [
  * Only the first word counts: "חן זריהן" and "חן" are the same person signing up, and a
  * surname must not cost someone their character.
  */
-function normalizeName(name: string): string {
+export function normalizeName(name: string): string {
   const firstWord = name
     .normalize("NFKD")
     // Combining marks: Hebrew niqqud and Latin accents alike.
@@ -152,10 +215,29 @@ export function reservedAvatarForName(name: string): ReservedAvatarKey | null {
  * character someone else holds never appears, and `saveChipAction` refuses it even if a
  * client posts it anyway.
  */
-export function selectableAvatarKeys(currentKey: string | null): AvatarKey[] {
-  const own =
-    currentKey && isReservedAvatarKey(currentKey) ? [currentKey] : [];
-  return [...own, ...SELECTABLE_AVATAR_KEYS];
+export function selectableAvatarKeys(
+  currentKey: string | null,
+  /**
+   * The open characters the admin has added since the app shipped, keys only. They are
+   * passed in rather than imported because they live in the database and this module
+   * stays pure and synchronous -- the screen that renders the picker does the reading.
+   */
+  customOpenKeys: readonly string[] = [],
+): AvatarKey[] {
+  // Someone holding a custom *reserved* character keeps it in their own picker for the
+  // same reason a committed reserved one stays: otherwise saving any other field would
+  // silently offer to take their face away.
+  const own: AvatarKey[] =
+    currentKey && isReservedAvatarKey(currentKey)
+      ? [currentKey]
+      : currentKey && isCustomAvatarKey(currentKey)
+        ? [currentKey]
+        : [];
+  const custom = customOpenKeys.filter(
+    (key): key is CustomAvatarKey =>
+      isCustomAvatarKey(key) && key !== currentKey,
+  );
+  return [...own, ...custom, ...SELECTABLE_AVATAR_KEYS];
 }
 
 /**
@@ -166,6 +248,11 @@ export function selectableAvatarKeys(currentKey: string | null): AvatarKey[] {
  * `people.avatar_key` already in the database.
  */
 export function avatarSrc(key: string): string {
+  // Admin-added characters have no committed file -- their bytes live in the database
+  // and are served, immutably cached, by /api/avatar/[key].
+  if (key.startsWith(CUSTOM_AVATAR_PREFIX)) {
+    return `/api/avatar/${key}`;
+  }
   if (key.startsWith("legacy-")) {
     return `/art/legacy/chip-${key.slice("legacy-".length)}.webp`;
   }

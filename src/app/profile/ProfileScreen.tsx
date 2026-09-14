@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   CheckIcon,
@@ -141,14 +142,31 @@ function Stat({
   );
 }
 
+export interface CustomAvatarView {
+  id: string;
+  key: string;
+  label: string;
+  reserved: boolean;
+  claimNames: string[];
+  createdAt: string;
+}
+
 export function ProfileScreen({
   profile,
   email,
   stats,
+  customOpenKeys,
+  isAdmin,
+  customAvatars,
 }: {
   profile: ProfileRecordView;
   email: string;
   stats: ProfileStats;
+  /** Admin-added characters anyone may pick, appended to the built-in picker. */
+  customOpenKeys: string[];
+  isAdmin: boolean;
+  /** Every custom character, for the admin list. Empty for everybody else. */
+  customAvatars: CustomAvatarView[];
 }) {
   const reduceMotion = useReducedMotion();
 
@@ -330,7 +348,7 @@ export function ProfileScreen({
                 aria-label="בחירת דמות"
                 className="grid max-h-[46vh] grid-cols-5 gap-2 overflow-y-auto"
               >
-                {selectableAvatarKeys(profile.avatarKey).map((key) => {
+                {selectableAvatarKeys(profile.avatarKey, customOpenKeys).map((key) => {
                   const selected = key === draftKey;
                   return (
                     <button
@@ -454,6 +472,12 @@ export function ProfileScreen({
           </form>
         </motion.div>
 
+        {isAdmin && (
+          <motion.div variants={motionSafe(rise, reduceMotion)}>
+            <AdminAvatarsSection avatars={customAvatars} />
+          </motion.div>
+        )}
+
         <motion.div variants={motionSafe(rise, reduceMotion)}>
           <Section title="החשבון">
             <form action={signOutAction}>
@@ -488,5 +512,186 @@ export function ProfileScreen({
         </motion.div>
       </motion.div>
     </main>
+  );
+}
+
+/**
+ * Adding a character without a deploy.
+ *
+ * Visible only to the admin, and the surface behind it answers 404 to everyone else --
+ * hiding a section is a presentation choice, not a permission.
+ *
+ * Uploads post straight to the route with `FormData` rather than through a server
+ * action, because the file has to arrive as bytes and a server action would have it
+ * base64'd in the client first. `router.refresh()` is what re-reads the list, so the
+ * picker and the admin table can never disagree about what exists.
+ */
+function AdminAvatarsSection({ avatars }: { avatars: CustomAvatarView[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [reserved, setReserved] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  async function upload(formData: FormData) {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/admin/avatars", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error ?? "ההעלאה נכשלה");
+        return;
+      }
+      toast.success("הדמות נוספה");
+      setReserved(false);
+      setFileName(null);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(avatar: CustomAvatarView) {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/admin/avatars/${avatar.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        toast.error("המחיקה נכשלה");
+        return;
+      }
+      toast.success("הדמות נמחקה");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section
+      title="דמויות"
+      description="הוספת דמות חדשה בלי לגעת בקוד. רק אתם רואים את זה."
+    >
+      <form
+        action={upload}
+        className="flex flex-col gap-4"
+        key={avatars.length}
+      >
+        <Field label="שם הדמות" hint="איך תזהו אותה ברשימה הזאת.">
+          <Input name="label" required maxLength={60} placeholder="למשל: אלון" />
+        </Field>
+
+        <Field
+          label="מזהה באנגלית"
+          hint="אותיות קטנות ומקפים. נשאר קבוע — אל תשנו אותו אחרי שמישהו לובש את הדמות."
+        >
+          <Input
+            name="slug"
+            required
+            dir="ltr"
+            className="text-start"
+            maxLength={30}
+            pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"
+            placeholder="alon"
+          />
+        </Field>
+
+        <Field label="התמונה" hint="WebP, PNG או JPEG. עד 256KB, ריבועית.">
+          {/* The native control is hidden rather than styled: its "Choose File / No
+              file chosen" text is the browser's, in English, and cannot be translated
+              from CSS. The label is the button, which keeps the file picker reachable
+              by keyboard and by screen reader. */}
+          <label
+            className={cn(
+              "flex cursor-pointer items-center justify-between gap-3 rounded-full bg-ink-700 px-4 py-2.5",
+              "focus-within:ring-2 focus-within:ring-ring",
+            )}
+          >
+            <span className="t-label text-[var(--text-1)]">בחירת קובץ</span>
+            <span className="t-caption truncate text-[var(--text-2)]">
+              {fileName ?? "לא נבחר קובץ"}
+            </span>
+            <input
+              name="image"
+              type="file"
+              required
+              accept="image/webp,image/png,image/jpeg"
+              className="sr-only"
+              onChange={(event) =>
+                setFileName(event.target.files?.[0]?.name ?? null)
+              }
+            />
+          </label>
+        </Field>
+
+        <div className="flex items-center justify-between gap-3">
+          <Label className="t-label text-[var(--text-1)]" htmlFor="reserved">
+            דמות שמורה
+          </Label>
+          <Switch
+            id="reserved"
+            name="reserved"
+            checked={reserved}
+            onCheckedChange={setReserved}
+          />
+        </div>
+        <p className="t-caption -mt-2 text-[var(--text-2)]">
+          שמורה = אף אחד לא יכול לבחור אותה, והיא נתפסת אוטומטית למי שנרשם בשם
+          הזה. פתוחה = מופיעה לכולם בבוחר הדמויות.
+        </p>
+
+        {reserved && (
+          <Field
+            label="שמות שתופסים אותה"
+            hint="מופרדים בפסיק, בשתי השפות. למשל: אלון, alon"
+          >
+            <Input name="claimNames" placeholder="אלון, alon" />
+          </Field>
+        )}
+
+        <Button type="submit" disabled={busy} className="w-full">
+          {busy ? "מעלים…" : "הוספת דמות"}
+        </Button>
+      </form>
+
+      {avatars.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {avatars.map((avatar) => (
+            <li
+              key={avatar.id}
+              className="flex items-center gap-3 rounded-2xl bg-ink-700 p-2.5"
+            >
+              <ChipAvatar
+                avatarKey={avatar.key}
+                name={avatar.label}
+                className="size-10"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="t-label truncate text-[var(--text-1)]">
+                  {avatar.label}
+                </p>
+                <p className="t-caption truncate text-[var(--text-2)]">
+                  {avatar.reserved
+                    ? `שמורה · ${avatar.claimNames.join(", ")}`
+                    : "פתוחה לכולם"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => remove(avatar)}
+              >
+                מחיקה
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

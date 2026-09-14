@@ -3,6 +3,11 @@ import { auth } from "@/lib/auth/server";
 import { getViewer } from "@/lib/auth/session";
 import { getProfile } from "@/db/identity-queries";
 import { loadProfileStats } from "@/db/profile-stats";
+import {
+  listCustomAvatars,
+  listOpenCustomAvatarKeys,
+} from "@/db/custom-avatar-queries";
+import { viewerIsAdmin } from "@/lib/admin";
 import { ProfileScreen } from "./ProfileScreen";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +17,13 @@ export default async function ProfilePage() {
   if (!viewer) redirect("/auth/sign-in");
 
   const { data: session } = await auth.getSession();
-  const [profile, stats] = await Promise.all([
+  const isAdmin = await viewerIsAdmin();
+  const [profile, stats, customOpenKeys, customAvatars] = await Promise.all([
     getProfile(viewer.userId),
     loadProfileStats(viewer.person.id),
+    listOpenCustomAvatarKeys(),
+    // Only the admin sees the management list, so only the admin pays for the read.
+    isAdmin ? listCustomAvatars() : Promise.resolve([]),
   ]);
   // getViewer() creates the Person if it is missing, so this only fails if the row
   // vanished between the two reads.
@@ -24,6 +33,12 @@ export default async function ProfilePage() {
     <ProfileScreen
       profile={profile}
       email={session?.user?.email ?? ""}
+      customOpenKeys={customOpenKeys}
+      isAdmin={isAdmin}
+      customAvatars={customAvatars.map((avatar) => ({
+        ...avatar,
+        createdAt: avatar.createdAt.toISOString(),
+      }))}
       stats={{
         gamesPlayed: stats.gamesPlayed,
         net: stats.net,

@@ -8,7 +8,12 @@ import {
   getProfile,
   updateProfile,
 } from "@/db/identity-queries";
-import { AVATAR_KEYS, isReservedAvatarKey } from "@/lib/avatar";
+import {
+  AVATAR_KEYS,
+  isCustomAvatarKey,
+  isReservedAvatarKey,
+} from "@/lib/avatar";
+import { isOpenCustomAvatar } from "@/db/custom-avatar-queries";
 import { auth } from "@/lib/auth/server";
 import { getViewer } from "@/lib/auth/session";
 
@@ -32,12 +37,21 @@ const identityInput = z.object({
 /**
  * The character a person is at every table.
  *
- * Only one of the twelve, and never a reserved one that belongs to somebody else. The
- * picker already hides those, but a hidden option is not a rule -- the client posts this
- * form and can post whatever it likes, so the entitlement is checked here.
+ * One of the committed keys, or a well-formed `custom-` one. Never a reserved character
+ * that belongs to somebody else. The picker already hides those, but a hidden option is
+ * not a rule -- the client posts this form and can post whatever it likes, so the
+ * entitlement is checked here. Custom keys cannot be an enum because the set lives in
+ * the database; shape is validated here and existence below.
  */
 const avatarInput = z.object({
-  avatarKey: z.enum(AVATAR_KEYS),
+  avatarKey: z
+    .string()
+    .refine(
+      (value) =>
+        (AVATAR_KEYS as readonly string[]).includes(value) ||
+        isCustomAvatarKey(value),
+      "דמות לא מוכרת",
+    ),
 });
 
 const preferencesInput = z.object({
@@ -95,6 +109,17 @@ export async function saveChipAction(
   const current = await getProfile(viewer.userId);
   // A reserved character is only yours if it was already handed to you at sign-up.
   if (isReservedAvatarKey(next) && current?.avatarKey !== next) {
+    return { error: "הדמות הזאת שמורה לשחקן אחר", saved: false };
+  }
+  // The same rule for admin-added characters, except that "reserved" is a column rather
+  // than a constant: anything not open, and not already yours, is refused. This also
+  // rejects a `custom-` key that passed the shape check but matches no row, which would
+  // otherwise store a face that 404s on every screen.
+  if (
+    isCustomAvatarKey(next) &&
+    current?.avatarKey !== next &&
+    !(await isOpenCustomAvatar(next))
+  ) {
     return { error: "הדמות הזאת שמורה לשחקן אחר", saved: false };
   }
 

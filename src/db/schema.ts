@@ -541,3 +541,50 @@ export const pushSubscriptions = pgTable(
     index("push_subscriptions_person_id_idx").on(table.personId),
   ],
 );
+
+/**
+ * A character the admin added after the app shipped, so a new face never needs a deploy.
+ *
+ * The picture lives here as base64 rather than in `public/art/` because Vercel's
+ * filesystem is read-only at runtime -- a committed .webp can only arrive through git.
+ * Base64 text rather than `bytea` because the neon-http driver hands `bytea` back as a
+ * `\x`-prefixed hex string, and paying 33% on a 15 KB image is cheaper than a decode
+ * step on every read. A 0.5 GB Neon branch holds thousands of them.
+ *
+ * `key` carries the `custom-` prefix the whole app routes on: `avatarSrc` sends those to
+ * `/api/avatar/[key]` and every other key to a committed file. The prefix is what lets
+ * `people.avatar_key` stay a plain text column with no join.
+ */
+export const customAvatars = pgTable(
+  "custom_avatars",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** `custom-<slug>`. Unique across the table and disjoint from the built-in keys. */
+    key: text("key").notNull(),
+    /** What the admin calls it. Hebrew, shown only in the admin list. */
+    label: text("label").notNull(),
+    /** The image itself, base64 with no data: prefix. */
+    imageBase64: text("image_base64").notNull(),
+    contentType: text("content_type").notNull().default("image/webp"),
+    /**
+     * Reserved characters behave like the ten committed ones: nobody may select them,
+     * and they are handed out automatically to whoever signs up under a claiming name.
+     * An open character appears in everybody's picker.
+     */
+    reserved: boolean("reserved").notNull().default(false),
+    /**
+     * The names that claim a reserved character, stored the way `CLAIMS` spells them in
+     * `src/lib/avatar.ts` -- both scripts, normalised at comparison time, never here.
+     * Empty for an open character.
+     */
+    claimNames: text("claim_names").array().notNull().default(sql`'{}'::text[]`),
+    createdByPersonId: uuid("created_by_person_id").references(() => people.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("custom_avatars_key_unique").on(table.key),
+    check("custom_avatars_key_prefixed", sql`${table.key} LIKE 'custom-%'`),
+  ],
+);
