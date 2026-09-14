@@ -156,52 +156,60 @@ async function getActor(gameId: string, deviceId: string): Promise<ActorRow> {
   return row;
 }
 
-/** Reads a live game by UUID, with the requesting device's seat marked as `isYou`. */
+/**
+ * Reads a live game by UUID, with the requesting device's seat marked as `isYou`.
+ *
+ * Every phone at the table polls this, so its cost is the poll interval's floor.
+ * Neon-over-HTTP bills a full round trip per statement, and these used to run one
+ * after another -- seven waits for queries that do not depend on each other. They
+ * now go out in two waves: everything that only needs the game id, then the three
+ * that need to know which seat is the viewer's. Nothing about the data changed.
+ */
 export async function getLiveGame(
   gameId: string,
   deviceId: string,
 ): Promise<LiveGame | null> {
-  const [game] = await db.select().from(games).where(eq(games.id, gameId));
+  const [[game], playerRows, feedRows] = await Promise.all([
+    db.select().from(games).where(eq(games.id, gameId)),
+    db
+      .select({
+        id: players.id,
+        personId: players.personId,
+        name: players.name,
+        avatarKey: players.avatarKey,
+        seatOrder: players.seatOrder,
+        isHost: players.isHost,
+        deviceId: players.deviceId,
+        settledAt: players.settledAt,
+        tableSeat: players.tableSeat,
+        totalIn: sql<number>`coalesce(sum(${buyIns.amount}), 0)`,
+        buyInCount: sql<number>`count(${buyIns.id})`,
+      })
+      .from(players)
+      .leftJoin(
+        buyIns,
+        and(eq(buyIns.playerId, players.id), isNull(buyIns.deletedAt)),
+      )
+      .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)))
+      .groupBy(players.id)
+      .orderBy(asc(players.seatOrder)),
+    db
+      .select({
+        id: buyIns.id,
+        opId: buyIns.opId,
+        playerId: buyIns.playerId,
+        playerName: players.name,
+        amount: buyIns.amount,
+        kind: buyIns.kind,
+        createdAt: buyIns.createdAt,
+      })
+      .from(buyIns)
+      .innerJoin(players, eq(players.id, buyIns.playerId))
+      .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
+      .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
+      .limit(12),
+  ]);
   if (!game) return null;
-
-  const playerRows = await db
-    .select({
-      id: players.id,
-      personId: players.personId,
-      name: players.name,
-      avatarKey: players.avatarKey,
-      seatOrder: players.seatOrder,
-      isHost: players.isHost,
-      deviceId: players.deviceId,
-      settledAt: players.settledAt,
-      tableSeat: players.tableSeat,
-      totalIn: sql<number>`coalesce(sum(${buyIns.amount}), 0)`,
-      buyInCount: sql<number>`count(${buyIns.id})`,
-    })
-    .from(players)
-    .leftJoin(
-      buyIns,
-      and(eq(buyIns.playerId, players.id), isNull(buyIns.deletedAt)),
-    )
-    .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)))
-    .groupBy(players.id)
-    .orderBy(asc(players.seatOrder));
-
-  const feedRows = await db
-    .select({
-      id: buyIns.id,
-      opId: buyIns.opId,
-      playerId: buyIns.playerId,
-      playerName: players.name,
-      amount: buyIns.amount,
-      kind: buyIns.kind,
-      createdAt: buyIns.createdAt,
-    })
-    .from(buyIns)
-    .innerJoin(players, eq(players.id, buyIns.playerId))
-    .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
-    .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
-    .limit(12);
 
   const playersOut = playerRows.map((row) => ({
     id: row.id,
@@ -220,42 +228,45 @@ export async function getLiveGame(
 
   const youRow = playersOut.find((player) => player.isYou) ?? null;
   const viewerIsHost = playersOut.some((player) => player.isYou && player.isHost);
-  const allRows = viewerIsHost
-    ? await db
-        .select({
-          id: buyIns.id,
-          opId: buyIns.opId,
-          playerId: buyIns.playerId,
-          playerName: players.name,
-          amount: buyIns.amount,
-          kind: buyIns.kind,
-          createdAt: buyIns.createdAt,
-        })
-        .from(buyIns)
-        .innerJoin(players, eq(players.id, buyIns.playerId))
-        .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
-        .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
-    : [];
-  const yourRows = youRow
-    ? await db
-        .select({
-          id: buyIns.id,
-          opId: buyIns.opId,
-          playerId: buyIns.playerId,
-          amount: buyIns.amount,
-          kind: buyIns.kind,
-          createdAt: buyIns.createdAt,
-        })
-        .from(buyIns)
-        .where(
-          and(
-            eq(buyIns.gameId, gameId),
-            eq(buyIns.playerId, youRow.id),
-            isNull(buyIns.deletedAt),
-          ),
-        )
-        .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
-    : [];
+  const [allRows, yourRows, chipSet] = await Promise.all([
+    viewerIsHost
+      ? db
+          .select({
+            id: buyIns.id,
+            opId: buyIns.opId,
+            playerId: buyIns.playerId,
+            playerName: players.name,
+            amount: buyIns.amount,
+            kind: buyIns.kind,
+            createdAt: buyIns.createdAt,
+          })
+          .from(buyIns)
+          .innerJoin(players, eq(players.id, buyIns.playerId))
+          .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
+          .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
+      : [],
+    youRow
+      ? db
+          .select({
+            id: buyIns.id,
+            opId: buyIns.opId,
+            playerId: buyIns.playerId,
+            amount: buyIns.amount,
+            kind: buyIns.kind,
+            createdAt: buyIns.createdAt,
+          })
+          .from(buyIns)
+          .where(
+            and(
+              eq(buyIns.gameId, gameId),
+              eq(buyIns.playerId, youRow.id),
+              isNull(buyIns.deletedAt),
+            ),
+          )
+          .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
+      : [],
+    game.chipSetId ? getChipSet(game.chipSetId) : null,
+  ]);
 
   return {
     id: game.id,
@@ -297,7 +308,7 @@ export async function getLiveGame(
     })),
     youId: youRow?.id ?? null,
     isHost: viewerIsHost,
-    chipSet: game.chipSetId ? await getChipSet(game.chipSetId) : null,
+    chipSet,
   };
 }
 

@@ -134,7 +134,7 @@ export function useLiveGame(gameId: string) {
 
   useEffect(() => {
     void poll(true);
-    const interval = window.setInterval(() => void poll(), 3_000);
+    const interval = window.setInterval(() => void poll(), 1_200);
     const onVisibility = () => {
       if (document.visibilityState === "visible") void poll();
       else controllerRef.current?.abort();

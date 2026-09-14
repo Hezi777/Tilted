@@ -155,52 +155,55 @@ export async function getActorForGame(
 export async function getCashoutState(
   gameId: string,
 ): Promise<CashoutState | null> {
-  const game = await getGameRow(gameId);
+  // Four reads with no dependency between them, on a screen every phone polls while
+  // the host counts chips out loud. One round trip instead of four.
+  const [game, playerRows, buyInRows, chipCountRows] = await Promise.all([
+    getGameRow(gameId),
+    db
+      .select({
+        id: players.id,
+        name: players.name,
+        avatarKey: players.avatarKey,
+        seatOrder: players.seatOrder,
+        settledAt: players.settledAt,
+        cashOut: cashOuts.amount,
+        adjustment: cashOuts.adjustment,
+      })
+      .from(players)
+      .leftJoin(
+        cashOuts,
+        and(
+          eq(cashOuts.playerId, players.id),
+          eq(cashOuts.gameId, gameId),
+        ),
+      )
+      .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)))
+      .orderBy(asc(players.seatOrder)),
+    db
+      .select({
+        playerId: buyIns.playerId,
+        totalIn: sql<number>`coalesce(sum(${buyIns.amount}), 0)`,
+        buyInCount: sql<number>`count(${buyIns.id})`,
+      })
+      .from(buyIns)
+      .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
+      .groupBy(buyIns.playerId),
+    db
+      .select({
+        playerId: cashOuts.playerId,
+        denominationId: cashOutChips.denominationId,
+        count: cashOutChips.count,
+      })
+      .from(cashOutChips)
+      .innerJoin(cashOuts, eq(cashOutChips.cashOutId, cashOuts.id))
+      .where(eq(cashOuts.gameId, gameId)),
+  ]);
   if (!game) return null;
 
-  const playerRows = await db
-    .select({
-      id: players.id,
-      name: players.name,
-      avatarKey: players.avatarKey,
-      seatOrder: players.seatOrder,
-      settledAt: players.settledAt,
-      cashOut: cashOuts.amount,
-      adjustment: cashOuts.adjustment,
-    })
-    .from(players)
-    .leftJoin(
-      cashOuts,
-      and(
-        eq(cashOuts.playerId, players.id),
-        eq(cashOuts.gameId, gameId),
-      ),
-    )
-    .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)))
-    .orderBy(asc(players.seatOrder));
-
-  const buyInRows = await db
-    .select({
-      playerId: buyIns.playerId,
-      totalIn: sql<number>`coalesce(sum(${buyIns.amount}), 0)`,
-      buyInCount: sql<number>`count(${buyIns.id})`,
-    })
-    .from(buyIns)
-    .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
-    .groupBy(buyIns.playerId);
   const totals = new Map(
     buyInRows.map((row) => [row.playerId, { totalIn: Number(row.totalIn), buyInCount: Number(row.buyInCount) }]),
   );
 
-  const chipCountRows = await db
-    .select({
-      playerId: cashOuts.playerId,
-      denominationId: cashOutChips.denominationId,
-      count: cashOutChips.count,
-    })
-    .from(cashOutChips)
-    .innerJoin(cashOuts, eq(cashOutChips.cashOutId, cashOuts.id))
-    .where(eq(cashOuts.gameId, gameId));
   const countsByPlayer = new Map<string, ChipCounts>();
   for (const row of chipCountRows) {
     const counts = countsByPlayer.get(row.playerId) ?? {};

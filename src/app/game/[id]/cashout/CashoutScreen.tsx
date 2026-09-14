@@ -168,7 +168,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   }, [gameId, router, savingIds]);
 
   React.useEffect(() => {
-    const interval = window.setInterval(() => void poll(), 3_000);
+    const interval = window.setInterval(() => void poll(), 1_200);
     const onVisibility = () => {
       if (document.visibilityState === "visible") void poll();
     };

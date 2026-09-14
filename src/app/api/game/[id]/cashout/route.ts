@@ -51,14 +51,18 @@ export async function GET(
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
   }
   const gameId = parsedId.data;
-  const access = await getActorForGame(gameId, viewer.person.id);
+  // Independent reads, and this route is polled once a second by every phone in the
+  // room -- the seat check still gates the response, it just no longer gates the read.
+  const [access, state] = await Promise.all([
+    getActorForGame(gameId, viewer.person.id),
+    getCashoutState(gameId),
+  ]);
   if (!access) {
     return NextResponse.json<ApiErrorBody>(
       { error: "אינך משתתף במשחק הזה" },
       { status: 403 },
     );
   }
-  const state = await getCashoutState(gameId);
   if (!state) {
     return NextResponse.json<ApiErrorBody>({ error: "המשחק לא נמצא" }, { status: 404 });
   }
