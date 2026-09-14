@@ -25,6 +25,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
+import { ArcPill } from "@/components/ui/arc-pill";
 import type { GameSummary, JoinGameDetail, JoinRosterPlayer } from "@/lib/api";
 import { selectableAvatarKeys } from "@/lib/avatar";
 import { useIdentity } from "@/lib/identity";
@@ -49,6 +50,8 @@ export default function JoinPage() {
   const [avatarPlayer, setAvatarPlayer] = useState<JoinRosterPlayer | null>(null);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [takingSeat, setTakingSeat] = useState(false);
+  // True from the moment we knock until the host answers one way or the other.
+  const [pending, setPending] = useState(false);
 
   // No route code -> the code prompt itself may be unnecessary. This account may
   // already have an open seat.
@@ -109,8 +112,13 @@ export default function JoinPage() {
     if (autoJoinStarted.current) return;
     if (!routeCode) return;
     autoJoinStarted.current = true;
-    const timeoutId = window.setTimeout(() => void findGame(routeCode), 0);
-    return () => window.clearTimeout(timeoutId);
+    // Deferred out of the effect body because `findGame` sets state, and deliberately
+    // NOT cancelled on cleanup. React double-invokes effects in development: the first
+    // pass set the ref and scheduled this, a cleanup cancelled it, and the second pass
+    // returned early on the ref it had just set -- so the lookup never ran and a shared
+    // link showed the manual code form instead of the table it names. The ref is the
+    // guard against running twice; there is nothing left to cancel.
+    window.setTimeout(() => void findGame(routeCode), 0);
   }, [findGame, routeCode]);
 
   // The roster only ever carries this viewer's own seat, so the characters the rest
@@ -129,6 +137,34 @@ export default function JoinPage() {
       ),
     [game],
   );
+
+  // While the host has not answered yet. Polls its own standing rather than the game,
+  // because until the seat exists there is no game payload this person may read.
+  useEffect(() => {
+    if (!pending || !game) return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      try {
+        const standing = await apiFetch<{ state: string; gameId: string }>(
+          `/api/games/${game.code}/join`,
+        );
+        if (cancelled) return;
+        if (standing.state === "seated") router.replace(`/game/${standing.gameId}`);
+        if (standing.state === "none") {
+          // The host said no, or the table closed. Either way the knock is gone.
+          setPending(false);
+          setTakingSeat(false);
+          setError("הבקשה לא אושרה. אפשר לנסות שוב או לבקש מהמארח");
+        }
+      } catch {
+        /* A dropped poll is not news -- the next one is three seconds away. */
+      }
+    }, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [pending, game, router]);
 
   async function claim(player: JoinRosterPlayer, avatarKey: string) {
     if (!game) return;
@@ -153,17 +189,27 @@ export default function JoinPage() {
     }
   }
 
-  // Spec 5.3: a guest picks their name from the roster, or adds it if the host has
-  // not. The code is the invitation, so a share link works for anyone who has it.
+  /**
+   * Knocks, then waits for the host to open the door.
+   *
+   * The link used to seat you outright. It now asks, and this screen polls its own
+   * standing until the host answers -- the alternative is telling someone "you are in"
+   * and having the table disagree.
+   */
   async function takeSeat() {
     if (!game) return;
     setTakingSeat(true);
     setError(null);
     try {
-      const seat = await apiFetch<{ gameId: string }>(`/api/games/${game.code}/join`, {
-        method: "POST",
-      });
-      router.replace(`/game/${seat.gameId}`);
+      const standing = await apiFetch<{ state: string; gameId: string }>(
+        `/api/games/${game.code}/join`,
+        { method: "POST" },
+      );
+      if (standing.state === "seated") {
+        router.replace(`/game/${standing.gameId}`);
+        return;
+      }
+      setPending(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ההצטרפות נכשלה");
       setTakingSeat(false);
@@ -307,25 +353,40 @@ export default function JoinPage() {
                 החשבון שלכם מזוהה אוטומטית
               </p>
             </div>
-            {game.players.length === 0 && (
+            {pending ? (
+              /* Knocked, waiting. The poll above moves this screen on by itself the
+                 moment the host answers, so there is nothing to tap and nothing to
+                 refresh -- which is the honest state, not a disabled button. */
               <Card className="surface-card shadow-none">
-                <CardContent className="flex flex-col gap-3">
+                <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
+                  <ArcPill progress="indeterminate">ממתינים</ArcPill>
+                  <p className="t-title">שלחנו בקשה למארח</p>
                   <p className="t-body text-[var(--text-2)]">
-                    {game.status === "active"
-                      ? "המקום שלכם עדיין לא נפתח בשולחן הזה. אפשר לשבת עכשיו, עם הכניסה הראשונה של הערב."
-                      : "השולחן כבר לא מקבל שחקנים חדשים."}
+                    ברגע שיאשרו, השולחן ייפתח כאן מעצמו.
                   </p>
-                  {game.status === "active" && (
-                    <Button
-                      className="w-full"
-                      disabled={takingSeat}
-                      onClick={() => void takeSeat()}
-                    >
-                      {takingSeat ? "מתיישבים..." : "תופסים מקום בשולחן"}
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
+            ) : (
+              game.players.length === 0 && (
+                <Card className="surface-card shadow-none">
+                  <CardContent className="flex flex-col gap-3">
+                    <p className="t-body text-[var(--text-2)]">
+                      {game.status === "active"
+                        ? "השולחן פתוח. שולחים בקשה למארח, והוא מאשר אתכם פנימה."
+                        : "השולחן כבר לא מקבל שחקנים חדשים."}
+                    </p>
+                    {game.status === "active" && (
+                      <Button
+                        className="w-full"
+                        disabled={takingSeat}
+                        onClick={() => void takeSeat()}
+                      >
+                        {takingSeat ? "שולחים בקשה..." : "בקשו להצטרף"}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )
             )}
             {/* The moment the code spoken across the room resolves into the faces of
                 the people in it. It used to arrive with no bridge at all. */}

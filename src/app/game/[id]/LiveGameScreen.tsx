@@ -15,6 +15,7 @@ import { isEligibleSuccessor } from "@/lib/roster-status";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
+import { ChipAvatar } from "@/components/ChipAvatar";
 import { ChipCounter } from "@/components/ChipCounter";
 import { type ChipCounts } from "@/lib/chips";
 import { HandRecorder } from "@/components/HandRecorder";
@@ -56,6 +57,11 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [handRecorderOpen, setHandRecorderOpen] = useState(false);
   const [streaks, setStreaks] = useState<PlayerStreakMap>({});
+  // Who is knocking. Host only -- the route answers everyone else with an empty list.
+  const [joinRequests, setJoinRequests] = useState<
+    { personId: string; name: string; avatarKey: string | null }[]
+  >([]);
+  const [answering, setAnswering] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   // Host choice ("סיום לכולם" / "יציאה רק שלי") and the successor picker that
@@ -90,6 +96,44 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       .then((data) => setStreaks(data.badges))
       .catch(() => {});
   }, [gameId]);
+
+  // The door. Polled rather than pushed: someone knocking is not worth a socket, and
+  // five seconds is faster than the person can walk over and ask.
+  const isHost = game?.isHost ?? false;
+  useEffect(() => {
+    if (!isHost) return;
+    let cancelled = false;
+    const read = () =>
+      apiFetch<{ requests: typeof joinRequests }>(
+        `/api/game/${gameId}/join-requests`,
+      )
+        .then((data) => !cancelled && setJoinRequests(data.requests))
+        .catch(() => {});
+    void read();
+    const timer = window.setInterval(read, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [gameId, isHost]);
+
+  async function answerDoor(personId: string, name: string, allow: boolean) {
+    setAnswering(personId);
+    try {
+      await apiFetch(`/api/game/${gameId}/join-requests/${personId}`, {
+        method: allow ? "POST" : "DELETE",
+      });
+      setJoinRequests((current) =>
+        current.filter((request) => request.personId !== personId),
+      );
+      toast.success(allow ? `${name} הצטרפו לשולחן` : `${name} לא אושרו`);
+      if (allow) await refresh();
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "הפעולה נכשלה");
+    } finally {
+      setAnswering(null);
+    }
+  }
 
   // The arc lays players out by their stable `seatOrder`, not a chosen chair.
   const seated = useMemo(() => {
@@ -356,6 +400,50 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           {copied ? <CheckIcon /> : <CopyIcon />} <span dir="ltr" className="money font-bold">{game.code}</span>
         </Button>
       </motion.div>
+
+      {joinRequests.length > 0 && (
+        /* Directly under the header, above the table: someone is standing at the door
+           and the host is the only person who can open it. Not a toast -- a toast is
+           gone by the time you look up from dealing. */
+        <motion.div
+          variants={motionSafe(rise, reduceMotion)}
+          className="surface-card mx-5 flex flex-col gap-3 rounded-2xl p-4"
+        >
+          <p className="t-label text-[var(--text-1)]">
+            {joinRequests.length === 1
+              ? "מישהו מבקש להצטרף"
+              : `${joinRequests.length} מבקשים להצטרף`}
+          </p>
+          {joinRequests.map((request) => (
+            <div key={request.personId} className="flex items-center gap-3">
+              <ChipAvatar
+                avatarKey={request.avatarKey}
+                personId={request.personId}
+                name={request.name}
+                className="size-10"
+              />
+              <span className="min-w-0 flex-1 truncate font-bold">{request.name}</span>
+              <Button
+                type="button"
+                size="sm"
+                disabled={answering === request.personId}
+                onClick={() => void answerDoor(request.personId, request.name, true)}
+              >
+                אישור
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={answering === request.personId}
+                onClick={() => void answerDoor(request.personId, request.name, false)}
+              >
+                דחייה
+              </Button>
+            </div>
+          ))}
+        </motion.div>
+      )}
 
       {error && (
         <div className="surface-card mx-5 flex items-center justify-between gap-3 rounded-2xl px-4 py-3 t-body text-destructive">

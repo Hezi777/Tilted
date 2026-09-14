@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckIcon, PencilIcon, PlusIcon } from "@/components/icons";
+import { PencilIcon, PlusIcon } from "@/components/icons";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
-import { ChipAvatar } from "@/components/ChipAvatar";
 import { PokerChip } from "@/components/PokerChip";
 import { deriveEdgeColor } from "@/lib/chip-art";
 import {
@@ -58,7 +57,7 @@ const CUSTOM_CHIP = { body: "#5B2C83", edge: "#F4F1E8" } as const;
 type BuyInChoice = (typeof BUY_IN_CHIPS)[number]["amount"] | "custom";
 
 /** The three-step disclosure of the setup form. */
-const STEPS = ["הערב", "הכסף", "מי משחק"] as const;
+const STEPS = ["הערב", "הכסף", "הזמנה"] as const;
 
 /** The system's field height, on a surface a step above the page. */
 const FIELD_CLASS = "h-12 rounded-xl bg-ink-800 px-4";
@@ -180,9 +179,8 @@ export default function NewGamePage() {
   const [customRebuy, setCustomRebuy] = useState("");
 
   const [people, setPeople] = useState<PersonSummary[] | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [peopleRetryCount, setPeopleRetryCount] = useState(0);
+  const [peopleRetryCount] = useState(0);
 
   const [chipSets, setChipSets] = useState<GameChipSet[] | null>(null);
   const [selectedChipSetId, setSelectedChipSetId] = useState<string | null>(null);
@@ -249,33 +247,14 @@ export default function NewGamePage() {
     Number.isFinite(buyInShekels) && buyInShekels > 0 &&
     Number.isFinite(rebuyShekels) && rebuyShekels > 0;
 
-  // The host holds seat 0 and cannot sit this one out — they are the device writing —
-  // so they are added on top of the checklist's own state rather than stored in it.
-  const seated = useMemo(() => {
-    if (hostPersonId == null) return selected;
-    const next = new Set(selected);
-    next.add(hostPersonId);
-    return next;
-  }, [selected, hostPersonId]);
+  // The host, and only the host. Everyone else arrives through the link and is let in
+  // at the door, so a new table starts as one seat rather than a guest list.
+  const seated = useMemo(
+    () => (hostPersonId == null ? new Set<string>() : new Set([hostPersonId])),
+    [hostPersonId],
+  );
 
   const hostInRoster = people?.some((person) => person.id === hostPersonId) ?? false;
-
-  const orderedPeople = useMemo(() => {
-    if (people === null) return null;
-    return [...people].sort((a, b) =>
-      a.id === hostPersonId ? -1 : b.id === hostPersonId ? 1 : 0,
-    );
-  }, [people, hostPersonId]);
-
-  function toggleSelected(personId: string, checked: boolean) {
-    if (personId === hostPersonId) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(personId);
-      else next.delete(personId);
-      return next;
-    });
-  }
 
   function openNewChipSet() {
     setEditingChipSetId(null);
@@ -397,7 +376,7 @@ export default function NewGamePage() {
     <main className="flex flex-1 flex-col">
       <AppHeader
         title="מסדרים את השולחן"
-        subtitle="בוחרים סכומים ומי משחק הערב"
+        subtitle="בוחרים סכומים ופותחים את השולחן"
         backHref="/"
       />
       <StepProgress step={step} onSelect={setStep} />
@@ -703,83 +682,32 @@ export default function NewGamePage() {
 
         {step === 2 && (
           <motion.div variants={motionSafe(rise, reduceMotion)} className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <Label className="t-label text-[var(--text-1)]">מי סביב השולחן?</Label>
-              <span className="t-caption text-[var(--text-2)]">רק שחקנים עם חשבון</span>
-            </div>
-
-            {people === null && !loadError && (
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-18 w-full" />
-                <Skeleton className="h-18 w-full" />
-                <Skeleton className="h-18 w-full" />
-              </div>
-            )}
-
-            {loadError && (
-              <div className="flex flex-col items-start gap-3 rounded-[20px] bg-ink-800 px-4 py-4">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setLoadError(null);
-                    setPeopleRetryCount((count) => count + 1);
-                  }}
-                >
-                  נסה שוב
-                </Button>
-              </div>
-            )}
-
-            {people !== null && people.length === 0 && !loadError && (
-              <div className="empty-slot flex items-center gap-3 rounded-[20px] p-4">
-                <p className="t-body text-[var(--text-2)]">
-                  אין עדיין שחקנים נוספים עם חשבון.
-                </p>
-              </div>
-            )}
-
-            <ul className="flex flex-col gap-3">
-              {orderedPeople?.map((person) => (
-                <li key={person.id}>
-                  <motion.button
-                    type="button"
-                    aria-pressed={seated.has(person.id)}
-                    disabled={person.id === hostPersonId}
-                    whileTap={reduceMotion ? undefined : { scale: 0.985 }}
-                    transition={{ duration: 0.12 }}
-                    onClick={() => toggleSelected(person.id, !seated.has(person.id))}
-                    className={cn(
-                      "relative flex min-h-18 w-full items-center gap-3 rounded-[20px] bg-ink-800 px-4 text-start transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-                      seated.has(person.id) && "bg-ink-700",
-                    )}
-                  >
-                    <ChipAvatar
-                      avatarKey={person.avatarKey}
-                      personId={person.id}
-                      name={person.name}
-                      className={cn("size-12 transition-opacity duration-[var(--dur-base)] ease-[var(--ease-out)]", seated.has(person.id) ? "opacity-100" : "opacity-[0.45]")}
-                    />
-                    <span className="min-w-0 font-semibold">
-                      {person.name}
-                      {person.nickname && <span className="text-muted-foreground font-normal"> ({person.nickname})</span>}
-                      {person.id === hostPersonId && (
-                        <span className="text-[var(--text-1)] font-normal"> · אתה</span>
-                      )}
-                    </span>
-                    {seated.has(person.id) && (
-                      <span className="ms-auto grid size-6 shrink-0 place-items-center rounded-full bg-light text-light-ink">
-                        <CheckIcon aria-hidden="true" className="size-3.5" />
-                      </span>
-                    )}
-                  </motion.button>
+            <Label className="t-label text-[var(--text-1)]">איך נכנסים לשולחן</Label>
+            {/* The roster checklist used to live here. It made the host type everybody
+                in before the night began, and every seat it created sat unclaimed all
+                evening because nobody else had a reason to open the app. Now the link
+                is the way in and the host approves at the door, so a seat only exists
+                once its owner is actually holding their phone. */}
+            <ol className="flex flex-col gap-3">
+              {[
+                "פותחים את השולחן — אתם יושבים ראשונים.",
+                "שולחים את קוד החדר בוואטסאפ לכל מי שמשחק.",
+                "כל מי שנכנס מהקישור מבקש להצטרף, ואתם מאשרים מהשולחן.",
+              ].map((line, index) => (
+                <li key={line} className="flex items-start gap-3">
+                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-ink-700 text-xs font-bold">
+                    {index + 1}
+                  </span>
+                  <span className="t-body text-[var(--text-2)]">{line}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
+            <p className="t-caption text-[var(--text-2)]">
+              אפשר גם להוסיף מישהו ידנית מהשולחן, אם הטלפון שלו לא איתו.
+            </p>
           </motion.div>
         )}
       </motion.div>
-
       {/* The sticky primary action. Only the final step submits. */}
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] flex-col gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
         {step === 2 && !canSubmit && disabledReason && !submitting && (

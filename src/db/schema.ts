@@ -601,3 +601,39 @@ export const customAvatars = pgTable(
     check("custom_avatars_key_prefixed", sql`${table.key} LIKE 'custom-%'`),
   ],
 );
+
+/**
+ * Somebody knocking at a table they have the link to.
+ *
+ * A separate table rather than a `pending` flag on `players`, deliberately. Every pot,
+ * settlement and history query in this app counts `players` rows, and half of them
+ * compare two aggregates that must share one row filter. Adding a state that some of
+ * those queries had to start excluding is exactly the shape of bug that has already
+ * shipped twice here. A knock that lives outside `players` cannot be counted by
+ * accident: approving one is what creates the seat, and until then no query can see it.
+ *
+ * The row is deleted on approval or rejection -- it is a doorbell, not a ledger.
+ */
+export const joinRequests = pgTable(
+  "join_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Knocking twice is the same knock -- the join screen retries on a flaky phone.
+    uniqueIndex("join_requests_game_person_unique").on(
+      table.gameId,
+      table.personId,
+    ),
+    index("join_requests_game_id_idx").on(table.gameId),
+  ],
+);

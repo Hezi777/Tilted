@@ -354,7 +354,13 @@ interface RosterActorRow {
   deletedAt: Date | null;
 }
 
-async function getRosterContext(gameId: string, actorPersonId: string) {
+/**
+ * The caller's seat plus the game's status, for the roster rules to judge.
+ *
+ * Exported so the join-request queries can enforce the same host rule against the same
+ * row rather than inventing a second lookup that could drift from this one.
+ */
+export async function getRosterContext(gameId: string, actorPersonId: string) {
   const [game] = await db
     .select({ id: games.id, status: games.status, buyIn: games.buyIn })
     .from(games)
