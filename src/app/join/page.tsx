@@ -149,12 +149,24 @@ export default function JoinPage() {
           `/api/games/${game.code}/join`,
         );
         if (cancelled) return;
-        if (standing.state === "seated") router.replace(`/game/${standing.gameId}`);
-        if (standing.state === "none") {
-          // The host said no, or the table closed. Either way the knock is gone.
+        if (standing.state === "seated") {
+          router.replace(`/game/${standing.gameId}`);
+          return;
+        }
+        // Three endings that used to look identical from out here, and each one wants
+        // a different next move from the person waiting.
+        if (standing.state === "rejected") {
           setPending(false);
           setTakingSeat(false);
-          setError("הבקשה לא אושרה. אפשר לנסות שוב או לבקש מהמארח");
+          setError("המארח לא אישר את הבקשה. דברו איתו לפני שתנסו שוב");
+        } else if (standing.state === "gone") {
+          setPending(false);
+          setTakingSeat(false);
+          setError("השולחן נסגר בזמן שחיכיתם. הערב הזה כבר הסתיים");
+        } else if (standing.state === "none") {
+          setPending(false);
+          setTakingSeat(false);
+          setError("הבקשה לא נמצאה. אפשר לבקש שוב");
         }
       } catch {
         /* A dropped poll is not news -- the next one is three seconds away. */

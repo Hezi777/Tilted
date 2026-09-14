@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getGameByRoomCode } from "@/db/roster-queries";
+import { findRoomCodeOutcome, getGameByRoomCode } from "@/db/roster-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { isValidRoomCode, normalizeRoomCode } from "@/lib/codes";
 import { requireViewer } from "@/lib/auth/session";
@@ -26,8 +26,16 @@ export async function GET(
 
   const game = await getGameByRoomCode(parsedCode.data, viewer.person.id);
   if (!game) {
+    // A misheard digit and a night that has ended both landed here with the same
+    // sentence, so the person holding the phone could not tell whether to try again.
+    const outcome = await findRoomCodeOutcome(parsedCode.data);
     return NextResponse.json<ApiErrorBody>(
-      { error: "המשחק לא נמצא או שכבר נסגר" },
+      {
+        error:
+          outcome === "closed"
+            ? "השולחן הזה כבר נסגר"
+            : "לא מצאנו שולחן עם הקוד הזה. בדקו את הקוד ונסו שוב",
+      },
       { status: 404 },
     );
   }

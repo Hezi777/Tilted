@@ -13,7 +13,7 @@
 
 import "server-only";
 
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { games, joinRequests, people, players } from "@/db/schema";
 import {
@@ -56,13 +56,25 @@ export interface JoinRequestRecord {
 export type JoinStanding =
   | { state: "seated"; gameId: string }
   | { state: "pending"; gameId: string }
-  | { state: "none"; gameId: string };
+  | { state: "rejected"; gameId: string }
+  | { state: "none"; gameId: string }
+  // The table moved on while this person was still waiting outside it. Distinct from
+  // `none`, which is "you may knock": there is nothing left to knock at.
+  | { state: "gone"; gameId: string; status: GameStatus };
 
-async function activeGameByCode(code: string) {
+/**
+ * The game behind a code, whatever state it is in.
+ *
+ * Deliberately not filtered to `active`: a person waiting for the host to answer needs
+ * to be told when the night moved to settling or closed without them, and a query that
+ * only matches active games answers that with silence.
+ */
+async function gameByCode(code: string) {
   const [game] = await db
-    .select({ id: games.id })
+    .select({ id: games.id, status: games.status })
     .from(games)
-    .where(and(eq(games.code, code), eq(games.status, "active")))
+    .where(eq(games.code, code))
+    .orderBy(desc(games.createdAt))
     .limit(1);
   return game ?? null;
 }
@@ -77,8 +89,15 @@ export async function requestToJoin(
   code: string,
   personId: string,
 ): Promise<JoinStanding> {
-  const game = await activeGameByCode(code);
-  if (!game) throw new RosterConflictError("המשחק לא נמצא או שכבר נסגר");
+  const game = await gameByCode(code);
+  if (!game) {
+    throw new RosterConflictError(
+      "לא מצאנו שולחן עם הקוד הזה. בדקו את הקוד ונסו שוב",
+    );
+  }
+  if (game.status !== "active") {
+    throw new RosterConflictError("השולחן הזה כבר נסגר");
+  }
 
   const [seat] = await db
     .select({ id: players.id })
@@ -93,10 +112,15 @@ export async function requestToJoin(
     .limit(1);
   if (seat) return { state: "seated", gameId: game.id };
 
+  // Knocking again after a refusal clears the refusal -- that is what makes this "not
+  // now" rather than a ban, and it puts the row back in front of the host.
   await db
     .insert(joinRequests)
     .values({ gameId: game.id, personId })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [joinRequests.gameId, joinRequests.personId],
+      set: { rejectedAt: null },
+    });
   return { state: "pending", gameId: game.id };
 }
 
@@ -105,7 +129,7 @@ export async function getJoinStanding(
   code: string,
   personId: string,
 ): Promise<JoinStanding | null> {
-  const game = await activeGameByCode(code);
+  const game = await gameByCode(code);
   if (!game) return null;
 
   const [seat] = await db
@@ -121,16 +145,24 @@ export async function getJoinStanding(
     .limit(1);
   if (seat) return { state: "seated", gameId: game.id };
 
+  // The seat check runs first on purpose: someone already seated stays seated even
+  // after the night moves to settling, and should be let through to the table rather
+  // than told it is gone.
+  if (game.status !== "active") {
+    return { state: "gone", gameId: game.id, status: game.status };
+  }
+
   const [pending] = await db
-    .select({ id: joinRequests.id })
+    .select({ id: joinRequests.id, rejectedAt: joinRequests.rejectedAt })
     .from(joinRequests)
     .where(
       and(eq(joinRequests.gameId, game.id), eq(joinRequests.personId, personId)),
     )
     .limit(1);
-  return pending
-    ? { state: "pending", gameId: game.id }
-    : { state: "none", gameId: game.id };
+  if (!pending) return { state: "none", gameId: game.id };
+  return pending.rejectedAt
+    ? { state: "rejected", gameId: game.id }
+    : { state: "pending", gameId: game.id };
 }
 
 /** Who is waiting at the door. Host only -- the live screen polls this. */
@@ -149,7 +181,9 @@ export async function listJoinRequests(
     })
     .from(joinRequests)
     .innerJoin(people, eq(people.id, joinRequests.personId))
-    .where(eq(joinRequests.gameId, gameId))
+    // A refused knock stays on the table as a record, but it is not someone standing
+    // at the door any more -- the host already answered it.
+    .where(and(eq(joinRequests.gameId, gameId), isNull(joinRequests.rejectedAt)))
     .orderBy(asc(joinRequests.createdAt));
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
 }
@@ -214,11 +248,19 @@ export async function rejectJoinRequest(
   personId: string,
 ): Promise<void> {
   await requireActiveHost(gameId, actorPersonId);
-  const removed = await db
-    .delete(joinRequests)
+  // Marked, not deleted: the person outside polls for their standing, and a deleted
+  // row reads back as "you have not knocked yet", which sent them straight back to
+  // knocking at a host who had just said no.
+  const refused = await db
+    .update(joinRequests)
+    .set({ rejectedAt: new Date() })
     .where(
-      and(eq(joinRequests.gameId, gameId), eq(joinRequests.personId, personId)),
+      and(
+        eq(joinRequests.gameId, gameId),
+        eq(joinRequests.personId, personId),
+        isNull(joinRequests.rejectedAt),
+      ),
     )
     .returning({ id: joinRequests.id });
-  if (removed.length === 0) throw new RosterConflictError("הבקשה לא נמצאה");
+  if (refused.length === 0) throw new RosterConflictError("הבקשה לא נמצאה");
 }

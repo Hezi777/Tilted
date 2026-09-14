@@ -339,6 +339,27 @@ export async function declineInvite(
   }
 }
 
+/**
+ * Why a room code did not resolve, for the screens that have to tell a player whether
+ * to try again or stop trying.
+ *
+ * `getGameByRoomCode` answers null for a code nobody ever had and for a code whose
+ * night is over, and those need opposite reactions from the person holding the phone:
+ * one is a misheard digit at a loud table, the other is a table that has gone home.
+ * This runs only on the failure path, so the happy path costs nothing extra.
+ */
+export async function findRoomCodeOutcome(
+  code: string,
+): Promise<"unknown" | "closed"> {
+  const [game] = await db
+    .select({ status: games.status })
+    .from(games)
+    .where(eq(games.code, code))
+    .orderBy(desc(games.createdAt))
+    .limit(1);
+  return game ? "closed" : "unknown";
+}
+
 export class RosterConflictError extends Error {
   constructor(message = "השחקן כבר נמצא במשחק") {
     super(message);

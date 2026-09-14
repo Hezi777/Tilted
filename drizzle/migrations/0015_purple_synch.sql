@@ -1,0 +1,1 @@
+ALTER TABLE "join_requests" ADD COLUMN "rejected_at" timestamp with time zone;

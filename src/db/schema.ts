@@ -627,6 +627,11 @@ export const joinRequests = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // A turned-away knock is kept rather than deleted, because deleting it made "the
+    // host said no" and "the host has not looked yet" the same empty answer, and the
+    // person outside re-knocked at someone who had just refused. Knocking again clears
+    // it, so this stays "not now" rather than becoming a ban.
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
   },
   (table) => [
     // Knocking twice is the same knock -- the join screen retries on a flaky phone.
