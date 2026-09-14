@@ -82,21 +82,26 @@ export default function Home() {
           className="pointer-events-none absolute inset-x-0 top-0 h-64 focal-glow"
         />
         <div className="relative flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            {/* Vector, so it scales with the type rather than against it, and already
-                drawn in --light with an --ink-950 clock face -- no tinting needed. */}
-            <Image
-              src="/art/logo.svg"
-              alt=""
-              width={40}
-              height={96}
-              priority
-              className="h-[3.25rem] w-auto shrink-0"
-            />
-            <h1 className="t-display leading-[0.92]">
-              TILTED
-              <span className="block text-[var(--text-2)]">POKER</span>
-            </h1>
+          <div className="min-w-0">
+            {/* The mark and the wordmark share a row; the tagline is a block beneath
+                them. Keeping all three in one flex row made the paragraph a third
+                flex item and crushed it into a one-word-per-line ribbon. */}
+            <div className="flex items-center gap-3">
+              {/* Vector, so it scales with the type rather than against it, and already
+                  drawn in --light with an --ink-950 clock face -- no tinting needed. */}
+              <Image
+                src="/art/logo.svg"
+                alt=""
+                width={40}
+                height={96}
+                priority
+                className="h-[3.25rem] w-auto shrink-0"
+              />
+              <h1 className="t-display leading-[0.92]">
+                TILTED
+                <span className="block text-[var(--text-2)]">POKER</span>
+              </h1>
+            </div>
             <p className="mt-3 max-w-[28ch] text-sm leading-relaxed text-[var(--text-1)]">
               הכניסות, הריביים והחשבון מסתדרים בזמן שהמשחק ממשיך.
             </p>
