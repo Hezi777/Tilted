@@ -26,6 +26,12 @@ export const config = {
     // `api/avatar` serves admin-added character art. It belongs with `art` rather than
     // with the rest of `api`: it is a static asset that happens to live in Postgres, and
     // `next/image` fetches it without a session the way it fetches a committed file.
-    "/((?!auth/sign-in|api/auth|api/avatar|_next/static|_next/image|favicon.ico|art|sw.js|manifest.webmanifest).*)",
+    //
+    // `apple-touch-icon` has to be here for the same reason `sw.js` does -- protecting it
+    // breaks the feature silently. iOS probes /apple-touch-icon.png (and the
+    // -precomposed and -180x180 spellings) at the site root when adding to the home
+    // screen, ahead of the <link> tag. A 307 to the sign-in page hands it HTML where it
+    // expected a PNG, so it gave up and drew a blank tile instead of the mark.
+    "/((?!auth/sign-in|api/auth|api/avatar|_next/static|_next/image|favicon.ico|apple-touch-icon|art|sw.js|manifest.webmanifest).*)",
   ],
 };

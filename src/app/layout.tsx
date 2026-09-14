@@ -52,11 +52,23 @@ export const metadata: Metadata = {
   title: "Tilted Poker",
   description: "ניהול כניסות, ריבאיים וסגירת חשבון בערב פוקר ביתי",
   manifest: "/manifest.webmanifest",
-  // iOS reads none of the manifest. Without an apple-touch-icon it puts a screenshot of
-  // the page on the home screen, and it will not composite a background behind a
-  // transparent icon -- it renders one as a black slab -- so this file is opaque.
+  // iOS reads none of the manifest -- not its icons, not background_color, not
+  // purpose:"maskable". The apple-touch-icon is the whole of it, and it must be opaque:
+  // without one iOS puts a screenshot of the page on the home screen, and iOS 18 paints
+  // a transparent icon onto white rather than compositing it onto the app's own ground.
+  //
+  // The same file is also served from the site root (public/apple-touch-icon.png),
+  // because iOS probes /apple-touch-icon.png directly before it reads this tag.
+  //
+  // `icon` is declared explicitly as PNG so a light browser tab gets an opaque icon on
+  // the app's ground rather than the .ico. Next already injects a link for
+  // src/app/favicon.ico, so listing it here too would only duplicate the tag.
   icons: {
     apple: [{ url: "/art/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    icon: [
+      { url: "/art/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/art/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
   },
   appleWebApp: {
     capable: true,
