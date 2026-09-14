@@ -26,7 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { SettlementPlayer, SettlementState } from "@/db/settlement-queries";
 import type { TransferRecord } from "@/db/transfer-queries";
 import { apiFetch, ApiError } from "@/lib/api";
-import { normalizeIsraeliPhone } from "@/lib/bit";
+import { normalizeIsraeliPhone, whatsappPaymentLink } from "@/lib/bit";
+import { agorot, formatILS } from "@/lib/money";
 import { DUR, EASE_OUT, haptic, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -522,6 +523,13 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                     const paymentPhone = record
                       ? normalizeIsraeliPhone(record.to.phone)
                       : null;
+                    // Bit has no P2P deep link to hand the amount to, so the one tap
+                    // that *is* possible is telling them it is coming, with the number
+                    // already in the message for them to check against.
+                    const whatsapp = whatsappPaymentLink(
+                      record?.to.phone,
+                      `היי ${transfer.toName}, מעביר לך ${formatILS(agorot(transfer.amount))} מהפוקר 🃏`,
+                    );
                     return (
                       <motion.div
                         key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`}
@@ -557,6 +565,18 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                                 onClick={() => void copyPaymentPhone(paymentPhone)}
                               >
                                 <CopyIcon /> העתיקו מספר ל-Bit
+                              </Button>
+                            )}
+                            {whatsapp && (
+                              <Button
+                                asChild
+                                type="button"
+                                variant="outline"
+                                className="h-12 flex-1 text-sm"
+                              >
+                                <a href={whatsapp} target="_blank" rel="noopener noreferrer">
+                                  וואטסאפ
+                                </a>
                               </Button>
                             )}
                             <Button
