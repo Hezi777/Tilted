@@ -255,6 +255,11 @@
     @apply bg-background text-foreground;
     min-height: 100dvh;
     background: var(--ink-950);
+    /* `contain`, not `none`: this stops a downward drag at the top of the page from
+       becoming the browser's pull-to-refresh -- which, mid-hand, threw away the live
+       screen and reloaded it -- while leaving the rubber-band bounce, which is the
+       feedback that tells a thumb it has reached the end of a list. */
+    overscroll-behavior-y: contain;
   }
 
   ::selection {
