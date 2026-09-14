@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getLiveGame } from "@/db/live-queries";
+import { getLiveGame, getLiveGameVersion } from "@/db/live-queries";
 import {
   deleteGame,
   getGameOwnership,
@@ -26,12 +26,16 @@ export async function GET(
   // Three reads that do not depend on each other, on the route every phone at the
   // table polls. Awaiting them in turn spent three Neon round trips where one does;
   // the seat check still gates the response, it just no longer gates the fetch.
-  const [seated, game, ownership] = await Promise.all([
+  const [seated, game, ownership, version] = await Promise.all([
     isSeatedInGame(id.data, viewer.person.id),
     getLiveGame(id.data, viewer.person.id),
     // v2: location, notes and who may delete this game layer onto the live-game
     // read model without touching src/db/live-queries.ts (plan item 7).
     getGameOwnership(id.data),
+    // The fingerprint this payload was read at, so the cheap poll has something to
+    // compare against without a second request. One more statement on a read that now
+    // happens rarely, which buys six fewer on the reads that happen constantly.
+    getLiveGameVersion(id.data),
   ]);
   if (!seated) {
     return NextResponse.json<ApiErrorBody>(
@@ -41,7 +45,7 @@ export async function GET(
   }
   if (!game) return NextResponse.json<ApiErrorBody>({ error: "המשחק לא נמצא" }, { status: 404 });
   return NextResponse.json(
-    { ...game, ...ownership },
+    { ...game, ...ownership, version },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -8,7 +8,6 @@ import {
   assertCanDeleteBuyIn,
   assertCanInsertBuyIn,
   assertCanManageRoster,
-  requireActiveGame,
   requireActor,
   AuthzError,
   type ActorPlayer,
@@ -37,9 +36,6 @@ export interface LivePlayer {
    * and must never be reshuffled to match the room. */
   tableSeat: number | null;
 }
-
-/** Physical chairs available around the table (design system's nine-seat layout). */
-export const MAX_TABLE_SEATS = 9;
 
 export interface LiveFeedItem {
   id: string;
@@ -157,6 +153,69 @@ async function getActor(gameId: string, deviceId: string): Promise<ActorRow> {
 }
 
 /**
+ * A fingerprint of everything the live screen draws, in one statement.
+ *
+ * The full read costs eight round trips, and the table spends most of an evening not
+ * changing -- between two hands nothing moves for minutes, and every phone was paying
+ * the full price twice a second to be told so. This is what the phones ask instead;
+ * they only pay for the full read when the answer differs from the one they hold.
+ *
+ * It is a hash of state rather than a timestamp because `games` has no `updated_at`
+ * and adding one would mean touching every write path to remember to bump it -- a rule
+ * that silently rots the first time someone forgets. Counts and extremes over indexed
+ * columns cannot be forgotten: a row written, soft-deleted, settled or claimed moves
+ * one of them by construction. The caller still refreshes in full on a slow timer, so
+ * a field this misses costs a few seconds of staleness, never a wrong number.
+ *
+ * The two subqueries take the game id directly rather than correlating against `g`.
+ * A correlated aggregate inside a LATERAL here resolves to the outer query level and
+ * Postgres rejects it ("aggregate functions are not allowed in FROM clause of their
+ * own query level"); the integration test is what caught that, and this shape is why
+ * it stays uncorrelated.
+ */
+export async function getLiveGameVersion(gameId: string): Promise<string | null> {
+  const result = await db.execute<{ version: string }>(sql`
+    WITH b AS (
+      SELECT count(*)::text || '/' || coalesce(max(created_at)::text, '')
+        || '/' || count(deleted_at)::text
+        || '/' || coalesce(max(deleted_at)::text, '') AS f
+      FROM buy_ins WHERE game_id = ${gameId}::uuid
+    ), p AS (
+      -- No max(created_at) here: the players table has no created_at column, and
+      -- count(*) already moves when a seat is added.
+      SELECT count(*)::text
+        || '/' || count(deleted_at)::text
+        || '/' || coalesce(max(deleted_at)::text, '')
+        || '/' || count(settled_at)::text
+        || '/' || coalesce(max(settled_at)::text, '')
+        -- A seat being claimed sets device_id and changes nothing else, so the count
+        -- of claimed seats has to be in here or "someone just took their seat" is the
+        -- one change the table would not see.
+        || '/' || count(device_id)::text AS f
+      FROM players WHERE game_id = ${gameId}::uuid
+    )
+    SELECT md5(
+      g.status::text
+      || coalesce(g.name, '')
+      || g.buy_in::text
+      || g.rebuy_amount::text
+      || coalesce(g.planned_end_at::text, '')
+      || coalesce(g.location, '')
+      || coalesce(g.notes, '')
+      || g.mismatch_kind::text
+      || coalesce(g.mismatch_amount::text, '')
+      || coalesce(g.chip_set_id::text, '')
+      || g.result_entry::text
+      || b.f
+      || p.f
+    ) AS version
+    FROM ${games} g, b, p
+    WHERE g.id = ${gameId}::uuid
+  `);
+  return result.rows[0]?.version ?? null;
+}
+
+/**
  * Reads a live game by UUID, with the requesting device's seat marked as `isYou`.
  *
  * Every phone at the table polls this, so its cost is the poll interval's floor.
@@ -244,6 +303,12 @@ export async function getLiveGame(
           .innerJoin(players, eq(players.id, buyIns.playerId))
           .where(and(eq(buyIns.gameId, gameId), isNull(buyIns.deletedAt)))
           .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
+          // The one query here with no ceiling: it returned every buy-in of the night,
+          // to the host, on every poll, growing all evening. It feeds the correction
+          // drawer, which shows one player's rebuys -- 200 is far past what a home
+          // table reaches (eight seats would need twenty-five rebuys each) and turns
+          // an unbounded scan into a bounded one.
+          .limit(200)
       : [],
     youRow
       ? db
@@ -648,62 +713,4 @@ export async function deleteLivePlayer(
     if (settled) throw new AuthzError("player_settled");
     throw new Error("game_not_active");
   }
-}
-
-/**
- * v2: pick or clear a physical chair (plan item 10). A device may set only its own
- * seat; the host may set anyone's. Two live players in the same game may not hold
- * the same chair — enforced in the UPDATE statement itself so a race between two
- * phones tapping the same empty chair cannot seat them both.
- */
-export async function setTableSeat(
-  gameId: string,
-  playerId: string,
-  deviceId: string,
-  tableSeat: number | null,
-): Promise<void> {
-  const actorRow = await getActor(gameId, deviceId);
-  const actor = requireActor(toActor(actorRow));
-  requireActiveGame(actorRow.status);
-  const [target] = await db
-    .select({ id: players.id, deletedAt: players.deletedAt })
-    .from(players)
-    .where(and(eq(players.id, playerId), eq(players.gameId, gameId)))
-    .limit(1);
-  if (!target) throw new Error("player_not_found");
-  if (target.deletedAt !== null) throw new AuthzError("player_deleted");
-  if (!actor.isHost && actor.id !== playerId) throw new AuthzError("not_your_seat");
-
-  const result = await db.execute<{ id: string }>(sql`
-    WITH conflict AS (
-      SELECT id FROM ${players}
-      WHERE game_id = ${gameId}::uuid
-        AND deleted_at IS NULL
-        AND id <> ${playerId}::uuid
-        AND ${tableSeat}::integer IS NOT NULL
-        AND table_seat = ${tableSeat}::integer
-    )
-    UPDATE ${players}
-    SET table_seat = ${tableSeat}
-    WHERE id = ${playerId}::uuid
-      AND game_id = ${gameId}::uuid
-      AND deleted_at IS NULL
-      AND NOT EXISTS (SELECT 1 FROM conflict)
-    RETURNING id
-  `);
-  if (result.rows.length > 0) return;
-
-  const [conflict] = await db
-    .select({ id: players.id })
-    .from(players)
-    .where(
-      and(
-        eq(players.gameId, gameId),
-        isNull(players.deletedAt),
-        tableSeat === null ? sql`false` : eq(players.tableSeat, tableSeat),
-      ),
-    )
-    .limit(1);
-  if (conflict) throw new Error("seat_taken");
-  throw new Error("game_not_active");
 }

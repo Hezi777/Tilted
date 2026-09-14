@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afterCreateSettles, mergePendingGame, removePendingGame, shouldApplyPoll, type PendingRebuy } from "@/hooks/useLiveGame";
+import { afterCreateSettles, mergePendingGame, nextPollDelay, POLL_MAX_MS, POLL_MIN_MS, removePendingGame, shouldApplyPoll, type PendingRebuy } from "@/hooks/useLiveGame";
 import type { LiveGame } from "@/db/live-queries";
 
 const game: LiveGame = {
@@ -45,5 +45,31 @@ describe("live game optimistic ordering", () => {
     release();
     await expect(deletion).resolves.toBe("deleted");
     expect(deleteStarted).toBe(true);
+  });
+});
+
+describe("poll pacing", () => {
+  it("stretches the gap while the table is quiet", () => {
+    let delay = POLL_MIN_MS;
+    const seen = [delay];
+    for (let step = 0; step < 8; step += 1) {
+      delay = nextPollDelay(delay);
+      seen.push(delay);
+    }
+    // Strictly growing until it reaches the ceiling, then flat.
+    expect(seen[1]).toBeGreaterThan(seen[0]);
+    expect(Math.max(...seen)).toBe(POLL_MAX_MS);
+    expect(seen.at(-1)).toBe(POLL_MAX_MS);
+  });
+
+  it("never waits longer than the ceiling, however long it has been quiet", () => {
+    expect(nextPollDelay(POLL_MAX_MS)).toBe(POLL_MAX_MS);
+    expect(nextPollDelay(POLL_MAX_MS * 10)).toBe(POLL_MAX_MS);
+  });
+
+  it("reaches the ceiling slowly enough to stay responsive early on", () => {
+    // Two quiet polls must still be well under a second and a half apart, so a rebuy
+    // by somebody else lands on the others' screens while they are still looking.
+    expect(nextPollDelay(POLL_MIN_MS)).toBeLessThan(2_500);
   });
 });

@@ -19,6 +19,42 @@ export function shouldApplyPoll(sequence: number, newestAppliedSequence: number)
   return sequence >= newestAppliedSequence;
 }
 
+/**
+ * How close two taps on one seat have to be before the second is read as an echo of
+ * the first rather than a second rebuy. Long enough to catch a bouncing thumb, short
+ * enough that somebody deliberately buying in twice is never blocked.
+ */
+export const DOUBLE_TAP_WINDOW_MS = 400;
+
+/**
+ * How often to ask whether anything moved, and how that stretches when nothing has.
+ *
+ * A poker table is busy in bursts and still in between. Asking twice a second all
+ * evening kept the database awake for hours to be told nothing had happened -- and an
+ * always-awake database is what actually spends the free tier, not the queries.
+ *
+ * So the interval walks outward while the table is quiet and snaps back to `min` the
+ * moment something changes. Ten seconds is the ceiling because that is about how long
+ * someone will stare at a stale pot before distrusting it.
+ */
+export const POLL_MIN_MS = 1_200;
+export const POLL_MAX_MS = 10_000;
+const POLL_GROWTH = 1.6;
+
+/**
+ * A full read runs at least this often regardless of the fingerprint.
+ *
+ * The fingerprint is a hash of the fields the live screen draws, and a hash can only
+ * cover the fields somebody remembered to put in it. This is the safety net: if one is
+ * ever missed, the screen is stale for up to half a minute rather than until reload.
+ */
+export const FULL_REFRESH_MS = 30_000;
+
+/** The next interval after a poll that found nothing, capped. */
+export function nextPollDelay(current: number): number {
+  return Math.min(POLL_MAX_MS, Math.round(current * POLL_GROWTH));
+}
+
 function addMoney(...values: number[]): number {
   return Number(sumAgorot(values.map((value) => agorot(value))));
 }
@@ -98,11 +134,19 @@ export function useLiveGame(gameId: string) {
   const rebuyDetailsRef = useRef(new Map<string, { playerId: string; amount: number }>());
   const requestSequence = useRef(0);
   const appliedSequence = useRef(0);
+  const lastRebuyAtRef = useRef(new Map<string, number>());
+  const versionRef = useRef<string | null>(null);
+  const delayRef = useRef(POLL_MIN_MS);
+  const lastFullReadRef = useRef(0);
 
   // `initial` bypasses the visibility guard: section 5.4 pauses *polling* while the
   // tab is hidden, but a first load that is skipped never clears `loading`, and the
   // screen sits on skeletons until something happens to make the tab visible.
-  const poll = useCallback(async (initial = false) => {
+  //
+  // `force` is how a write says "do not ask, just read": after a rebuy the local state
+  // is already ahead of the server, and waiting for the fingerprint to disagree would
+  // put a round trip between the tap and the truth.
+  const poll = useCallback(async (initial = false, force = false) => {
     if (
       !initial &&
       typeof document !== "undefined" &&
@@ -115,9 +159,37 @@ export function useLiveGame(gameId: string) {
     const controller = new AbortController();
     controllerRef.current = controller;
     try {
-      const response = await apiFetch<LiveGame>(`/api/game/${gameId}`, { signal: controller.signal });
+      // Ask the cheap question first. Only a first load, an explicit refresh, or the
+      // slow safety net skips it and pays for the whole game.
+      const staleByClock = Date.now() - lastFullReadRef.current >= FULL_REFRESH_MS;
+      if (!initial && !force && !staleByClock && versionRef.current !== null) {
+        const { version } = await apiFetch<{ version: string }>(
+          `/api/game/${gameId}/version`,
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
+        setError(null);
+        if (version === versionRef.current) {
+          // Nothing moved. Wait a little longer before asking again.
+          delayRef.current = nextPollDelay(delayRef.current);
+          return;
+        }
+      }
+
+      const response = await apiFetch<LiveGame & { version?: string }>(
+        `/api/game/${gameId}`,
+        { signal: controller.signal },
+      );
       if (controller.signal.aborted || !shouldApplyPoll(sequence, appliedSequence.current)) return;
       appliedSequence.current = sequence;
+      lastFullReadRef.current = Date.now();
+      // The full read carries the fingerprint it was taken at, so the cheap poll has
+      // something to compare against without a second request. It must come from the
+      // server response and not from local state: the optimistic merge below changes
+      // what is on screen without the server having moved.
+      versionRef.current = response.version ?? null;
+      // Something happened, so the table is awake again: back to the short interval.
+      delayRef.current = POLL_MIN_MS;
       setGame(() => {
         const merged = mergePendingGame(response, pendingRef.current);
         pendingRef.current = merged.pending;
@@ -132,16 +204,41 @@ export function useLiveGame(gameId: string) {
     }
   }, [gameId]);
 
+
   useEffect(() => {
-    void poll(true);
-    const interval = window.setInterval(() => void poll(), 1_200);
+    // A self-rescheduling timeout rather than a fixed interval, because the gap is no
+    // longer a constant -- it stretches while the table is quiet and resets the moment
+    // something moves.
+    let timer = 0;
+    let stopped = false;
+    // The first pass through is the initial load, which reads in full and bypasses
+    // the visibility guard; every pass after it is an ordinary poll. Folding both into
+    // one chain keeps the reschedule in a single place.
+    let first = true;
+    const tick = async () => {
+      const initial = first;
+      first = false;
+      await poll(initial);
+      if (stopped) return;
+      timer = window.setTimeout(() => void tick(), delayRef.current);
+    };
+
+    void tick();
+
     const onVisibility = () => {
-      if (document.visibilityState === "visible") void poll();
-      else controllerRef.current?.abort();
+      if (document.visibilityState === "visible") {
+        // Coming back to the screen is the one moment staleness is most visible, so
+        // it reads in full and starts the walk out again from the short interval.
+        delayRef.current = POLL_MIN_MS;
+        void poll(false, true);
+      } else {
+        controllerRef.current?.abort();
+      }
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      window.clearInterval(interval);
+      stopped = true;
+      window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
       controllerRef.current?.abort();
     };
@@ -199,6 +296,14 @@ export function useLiveGame(gameId: string) {
     if (!Number.isInteger(amount) || amount <= 0) return;
     const player = game?.players.find((candidate) => candidate.id === playerId);
     if (!player) return;
+    // A thumb that lands twice on one press is not two rebuys. Swallowing the echo
+    // here rather than disabling the button keeps the tap instant, which the latency
+    // rule requires, and keeps a deliberate second rebuy a moment later working.
+    // Per player, because a host entering rebuys for two people in a row is normal.
+    const now = Date.now();
+    const previous = lastRebuyAtRef.current.get(playerId);
+    if (previous !== undefined && now - previous < DOUBLE_TAP_WINDOW_MS) return;
+    lastRebuyAtRef.current.set(playerId, now);
     const opId = crypto.randomUUID();
     const item: PendingRebuy = { opId, playerId, amount, playerName: player.name, createdAt: new Date().toISOString() };
     rebuyDetailsRef.current.set(opId, { playerId, amount });
