@@ -179,9 +179,10 @@ export async function joinGameByCode(
     .where(and(eq(players.gameId, game.id), isNull(players.deletedAt)));
 
   // Already at this table -- the host added them, or they tapped the link twice. Hand
-  // back the seat they have rather than making a second one. A seat the host made is
-  // still unclaimed (no device, no buy-in yet) -- claiming it here is what writes the
-  // initial buy-in the host's seat deferred (spec 5.3 + the seat-costs-nothing rule).
+  // back the seat they have rather than making a second one. Claiming it here is what
+  // writes the initial buy-in a *mid-game* invite deferred (spec 5.3 + the
+  // seat-costs-nothing rule); a seat made at creation already carries one, which is why
+  // `claimInvitedSeat` writes the buy-in only when the seat has none.
   const existing = seated.find((row) => row.personId === person.id);
   if (existing) {
     if (existing.deviceId === null) {
@@ -275,9 +276,22 @@ export async function claimInvitedSeat(
       SELECT ${randomUUID()}::uuid, ${gameId}::uuid, c.id, c.buy_in, 'initial',
         ${randomUUID()}::uuid, ${actorPersonId}
       FROM claimed c
+      -- Only if the seat does not already carry one. createGame writes an initial
+      -- buy-in for every seat it makes (spec 5.2) while leaving the guest seats
+      -- unclaimed, so a seat made at setup arrives here already paid for. Without this
+      -- guard, opening the room code charged that person a second time.
+      WHERE NOT EXISTS (
+        SELECT 1 FROM ${buyIns} existing
+        WHERE existing.player_id = c.id
+          AND existing.kind = 'initial'
+          AND existing.deleted_at IS NULL
+      )
       RETURNING player_id
     )
-    SELECT player_id FROM inserted_buyin
+    -- Success is the claim, not the buy-in: a seat that already had one still claims
+    -- correctly and must not report a conflict. Postgres runs a data-modifying CTE
+    -- whether or not the final SELECT reads from it.
+    SELECT id AS player_id FROM claimed
   `);
   if (!result.rows[0]) {
     throw new RosterConflictError("ההזמנה לא נמצאה או שהמשחק כבר לא פעיל");
