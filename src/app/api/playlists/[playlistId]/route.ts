@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { deletePlaylist, MusicHandAccessError } from "@/db/music-hand-queries";
 import { requireViewer } from "@/lib/auth/session";
+import { viewerIsAdmin } from "@/lib/admin";
 
 const idSchema = z.string().uuid();
 
@@ -17,7 +18,12 @@ export async function DELETE(
     return NextResponse.json({ error: "בקשה לא תקינה" }, { status: 400 });
   }
   try {
-    await deletePlaylist(gameId.data, viewer.person.id, playlistId.data);
+    await deletePlaylist(
+      gameId.data,
+      viewer.person.id,
+      playlistId.data,
+      await viewerIsAdmin(),
+    );
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof MusicHandAccessError) {

@@ -131,6 +131,7 @@ export async function createPlaylist(
       name: input.name,
       url: input.url,
       sortOrder: (existing[0]?.sortOrder ?? -1) + 1,
+      createdByPersonId: personId,
     })
     .returning({
       id: playlists.id,
@@ -141,17 +142,38 @@ export async function createPlaylist(
   return created;
 }
 
+/**
+ * Removes a playlist from the shared shelf.
+ *
+ * Hosting a table is what lets you touch the shelf at all; owning the row is what says
+ * *which* row. Both are required, because the shelf is global: without the ownership
+ * predicate in the DELETE itself, being host of any game -- including one you opened a
+ * second ago -- deleted anybody's entry.
+ *
+ * `isAdmin` exists for the rows that predate `created_by_person_id` and so have no
+ * owner to match. It is derived from the session by the caller, never sent by a client.
+ */
 export async function deletePlaylist(
   gameId: string,
   personId: string,
   playlistId: string,
+  isAdmin = false,
 ): Promise<void> {
   await requireActiveHost(gameId, personId);
   const removed = await db
     .delete(playlists)
-    .where(eq(playlists.id, playlistId))
+    .where(
+      isAdmin
+        ? eq(playlists.id, playlistId)
+        : and(
+            eq(playlists.id, playlistId),
+            eq(playlists.createdByPersonId, personId),
+          ),
+    )
     .returning({ id: playlists.id });
   if (removed.length === 0) {
+    // Deliberately the same answer whether the row is missing or simply not yours --
+    // the shelf is shared, so "it exists but is someone else's" is not worth confirming.
     throw new MusicHandAccessError("הפלייליסט לא נמצא", 404);
   }
 }

@@ -5,6 +5,7 @@ import {
   getLiveStreakBadges,
   getSettlementStreakContext,
 } from "@/db/streak-queries";
+import { isSeatedInGame } from "@/db/queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
 
@@ -33,6 +34,20 @@ export async function GET(request: NextRequest) {
       { error: "חסר מזהה משחק" },
       { status: 400 },
     );
+  }
+
+  // Both game-scoped views return the whole roster -- names, player ids and, for the
+  // settlement view, each seat's person id. That is the same read every other
+  // game-scoped
+  // route gates on a seat, and this one did not, so a signed-in stranger could walk
+  // game ids and enumerate who plays with whom.
+  if (view !== "home") {
+    if (!(await isSeatedInGame(gameId!, viewer.person.id))) {
+      return NextResponse.json<ApiErrorBody>(
+        { error: "אינך משתתף במשחק הזה" },
+        { status: 403 },
+      );
+    }
   }
 
   if (view === "live") {

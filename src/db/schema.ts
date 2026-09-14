@@ -451,6 +451,19 @@ export const playlists = pgTable(
     name: text("name").notNull(),
     url: text("url").notNull(),
     sortOrder: integer("sort_order").notNull(),
+    /**
+     * Who put it on the shelf.
+     *
+     * The shelf itself is global -- it has no `game_id`, and every table reads the same
+     * one -- so "is host of the game named in the query string" authorized a delete that
+     * reached every row. Anyone could open their own table and clear everyone's music.
+     * An owner is what makes the authorization scope match the resource scope.
+     *
+     * Nullable for the rows that predate this column; those are admin-only to remove.
+     */
+    createdByPersonId: uuid("created_by_person_id").references(
+      (): AnyPgColumn => people.id,
+    ),
   },
   (table) => [unique("playlists_sort_order_unique").on(table.sortOrder)],
 );

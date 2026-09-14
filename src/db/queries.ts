@@ -24,6 +24,7 @@ import {
 import { generateRoomCode } from "@/lib/codes";
 import { AVATAR_KEYS, avatarKeyForPlayer } from "@/lib/avatar";
 import { getActorForGame } from "@/db/cashout-queries";
+import { getPeopleWhoPlayedWith } from "@/db/identity-queries";
 import { AuthzError, requireHost } from "@/lib/authz";
 import type { GameSummary, GameStatus, PersonSummary } from "@/lib/api";
 
@@ -236,6 +237,20 @@ export async function createGame(
 
   if (!input.personIds.includes(input.hostPersonId)) {
     throw new Error("The host must be one of the selected players");
+  }
+
+  // A seat costs its owner something -- an `initial` buy-in is written for every seat
+  // below, and the host may later enter anyone's result -- so who may be seated is an
+  // authorization question, not just a "does this row exist" one. `/api/people` already
+  // narrows the picker to accounts the host has actually sat with; enforcing the same
+  // set here is what makes that a rule rather than a suggestion, since the client posts
+  // these ids and can post any uuid it has seen. A newcomer still joins by room code.
+  const allowed = new Set(
+    (await getPeopleWhoPlayedWith(input.hostPersonId)).map((person) => person.id),
+  );
+  const stranger = input.personIds.find((personId) => !allowed.has(personId));
+  if (stranger) {
+    throw new Error(`Person ${stranger} has never played with the host`);
   }
   // The host always holds seat 0: they declared themselves before the table existed,
   // and the live screen reads seat order as the seating around the felt.

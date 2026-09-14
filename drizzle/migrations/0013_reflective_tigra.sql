@@ -1,0 +1,2 @@
+ALTER TABLE "playlists" ADD COLUMN "created_by_person_id" uuid;--> statement-breakpoint
+ALTER TABLE "playlists" ADD CONSTRAINT "playlists_created_by_person_id_people_id_fk" FOREIGN KEY ("created_by_person_id") REFERENCES "public"."people"("id") ON DELETE no action ON UPDATE no action;
