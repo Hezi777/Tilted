@@ -54,9 +54,11 @@ export async function loadGroupStats(viewerPersonId: string): Promise<GroupStats
     db
       .select({
         id: games.id,
+        // Table-qualified on both sides; see the note in head-to-head.ts -- an
+        // interpolated column here renders bare and binds to the subquery's own table.
         pot: sql<string>`coalesce((
           select sum(b.amount) from buy_ins b
-          where b.game_id = ${games.id} and b.deleted_at is null
+          where b.game_id = games.id and b.deleted_at is null
         ), 0)`,
         location: games.location,
       })

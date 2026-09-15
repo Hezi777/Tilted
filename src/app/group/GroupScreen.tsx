@@ -173,16 +173,28 @@ export function GroupScreen() {
                         name={member.name}
                         className="size-10"
                       />
+                      {/* The real name leads and the nickname sits under it. A nickname
+                          is what the table calls someone, not what identifies them, so
+                          showing it alone left rows nobody could match to a person. */}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">
-                          {member.nickname ?? member.name}
+                          {member.name}
                         </span>
-                        <span className="t-caption ink-3 block">
+                        {member.nickname && (
+                          <span className="t-caption ink-3 block truncate">
+                            {member.nickname}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex shrink-0 flex-col items-end">
+                        <span className="t-caption ink-3 tabular">
+                          {member.nightsPlayed} ערבים
+                        </span>
+                        {/* Moved off the main column so the nickname can have it, and
+                            it reads better beside the count it qualifies anyway. */}
+                        <span className="t-caption ink-3">
                           {lastSeen(member.lastPlayedAt)}
                         </span>
-                      </span>
-                      <span className="t-caption ink-3 shrink-0 tabular">
-                        {member.nightsPlayed} ערבים
                       </span>
                     </button>
                   </li>
@@ -200,7 +212,7 @@ export function GroupScreen() {
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>
-              {selected ? `אתם מול ${selected.nickname ?? selected.name}` : ""}
+              {selected ? `אתם מול ${selected.name}` : ""}
             </DrawerTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-3 px-4">

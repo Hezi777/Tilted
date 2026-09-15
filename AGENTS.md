@@ -82,6 +82,14 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
   money maths outside `src/lib/money.ts`. Format only at display time.
 - **`money.ts` and `settlement.ts` are hand-written and test-locked.** Do not edit them and
   do not reimplement net or transfer logic anywhere else. If they lack something, say so.
+- **A drizzle column interpolated into a `sql` template renders unqualified.**
+  `` sql`... where ${buyIns.playerId} = ${players.id}` `` emits `where "player_id" = "id"`,
+  and inside a subquery over `buy_ins` -- which has an `id` of its own -- Postgres binds
+  both to `buy_ins` and compares a row against itself. It does not error: `sum()` returns
+  NULL, `coalesce` turns it into 0, and every statistic reads zero. This shipped, and
+  profile net, wins, win rate, best and worst night were all 0 because of it. Spell the
+  table out (`b.player_id = players.id`) in any correlated subquery, and cover it with an
+  integration test -- a `.toSQL()` assertion passes on the broken version.
 - **Two aggregates compared in one query must be derived from the same row filter.** A sum
   over every row, set equal to a sum over live rows, is not the comparison it reads as.
   This is what made a night unclosable once a player who had cashed out was removed from

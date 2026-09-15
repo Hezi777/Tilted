@@ -15,7 +15,7 @@ import "server-only";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { buyIns, cashOuts, games, players } from "@/db/schema";
+import { games, players } from "@/db/schema";
 import { agorot, sumAgorot, type Agorot } from "@/lib/money";
 
 export interface ProfileStats {
@@ -53,16 +53,18 @@ async function loadNights(personId: string): Promise<NightResult[]> {
     .select({
       gameId: players.gameId,
       closedAt: games.closedAt,
+      // Every column here is spelled out with its table. Interpolating a drizzle
+      // column into a `sql` template emits it **unqualified** -- `${buyIns.playerId} =
+      // ${players.id}` became `"player_id" = "id"`, and since buy_ins has an id of its
+      // own, Postgres resolved both to buy_ins and compared a row against itself. It
+      // never errored; sum() just returned NULL and coalesce turned it into 0.
       paidIn: sql<string>`coalesce((
-        select sum(${buyIns.amount})
-        from ${buyIns}
-        where ${buyIns.playerId} = ${players.id}
-          and ${buyIns.deletedAt} is null
+        select sum(b.amount) from buy_ins b
+        where b.player_id = players.id and b.deleted_at is null
       ), 0)`,
       tookOut: sql<string>`coalesce((
-        select sum(${cashOuts.amount} + ${cashOuts.adjustment})
-        from ${cashOuts}
-        where ${cashOuts.playerId} = ${players.id}
+        select sum(c.amount + c.adjustment) from cash_outs c
+        where c.player_id = players.id
       ), 0)`,
     })
     .from(players)

@@ -68,7 +68,7 @@ export function LiveSessionBar({ game }: { game: GameSummary | null }) {
           {elapsed ? `פתוח ${elapsed}` : "שולחן פתוח"} · {game.playerCount} שחקנים
         </span>
       </span>
-      <Money value={game.pot} className="shrink-0 text-sm font-bold text-brand-300" />
+      <Money value={game.pot} className="t-body shrink-0 font-bold" />
       <ChevronLeftIcon
         aria-hidden="true"
         className="ink-3 size-4 shrink-0 rtl:rotate-180"

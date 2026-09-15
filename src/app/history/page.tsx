@@ -110,7 +110,7 @@ export default async function HistoryPage({
                       </span>
                     </span>
                   </span>
-                  <Money value={game.pot} className="font-semibold text-brand-300" />
+                  <Money value={game.pot} className="font-semibold" />
                 </Link>
               </li>
             ))}
