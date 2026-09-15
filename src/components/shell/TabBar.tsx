@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClubIcon, HistoryIcon, UserRoundIcon } from "@/components/icons";
+import { ClubIcon, HistoryIcon, UserRoundIcon, UsersIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * The app's three top-level destinations.
+ * The app's top-level destinations.
  *
- * Three is the count the pattern is worth having: below it a bar is noise, and above
- * five the targets crowd each other on a phone. Everything else in the app is reached
+ * Below three a bar is noise and above five the targets crowd each other on a phone, so
+ * four is inside the range this pattern works in. Everything else in the app is reached
  * from one of these.
  */
 const TABS = [
   { href: "/", label: "בית", icon: ClubIcon },
   { href: "/history", label: "היסטוריה", icon: HistoryIcon },
+  { href: "/group", label: "החבורה", icon: UsersIcon },
   { href: "/profile", label: "פרופיל", icon: UserRoundIcon },
 ] as const;
 
@@ -59,7 +60,7 @@ export function TabBar() {
             )}
           >
             <Icon aria-hidden="true" className="size-6" />
-            <span className="text-[11px] font-semibold">{tab.label}</span>
+            <span className="t-caption font-semibold">{tab.label}</span>
           </Link>
         );
       })}
