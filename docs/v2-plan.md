@@ -22,7 +22,7 @@ All money stays integer agorot.
 - `chip_sets` — id, name, `owner_person_id` (null = shared preset), `is_preset`, timestamps.
 - `chip_denominations` — id, `chip_set_id`, `color` (hex), `value` (agorot), `image_key`, `sort_order`. Two rows in one set may share a `value`.
 - `games` — add `location` (text), `chip_set_id`, `created_by_person_id`, `notes`.
-- `players` — add `table_seat` (integer, the physical chair). Distinct from `seat_order`, which stays the creation order the pot and settlement rely on.
+- `players` — add `table_seat` (integer, the physical chair). Distinct from `seat_order`, which stays the creation order the pot and settlement rely on. **Retired: see M5.** The column still exists; nothing reads it.
 - `cash_out_chips` — `cash_out_id`, `denomination_id`, `count`. The counted stack, kept so a total can be re-derived and audited.
 - `transfers` — id, `game_id`, `from_player_id`, `to_player_id`, `amount`, `paid_at`, `marked_by_device`. Persists what `settlement.ts` computes so "who has paid" is durable. The computation still lives in `settlement.ts` and is not reimplemented.
 - `people` — add `phone` (for Bit), `user_id` (auth phase).
@@ -53,8 +53,13 @@ field, `src/app/history/HistoryScreen.tsx` delete affordance.
 **M4 — transfers, Bit hand-off, paid tracking** (item 5)
 `src/db/transfer-queries.ts`, `src/app/api/game/[id]/transfers/**`, settlement UI rows.
 
-**M5 — seating** (item 10)
-`src/components/PokerTable.tsx`, `src/app/join/page.tsx`, `players.table_seat` wiring.
+**M5 — seating** (item 10) — **retired, 2026-09-15, by the product owner.**
+It shipped as a schema column, a unique index, a query, an API route and a 254-line
+`PokerTable.tsx`, and no screen ever called any of it: the live table draws
+`PokerTableArc`, so `table_seat` was null for every player who has ever played. All of
+that is removed. The `players.table_seat` column and its unique index stay in the
+database, because dropping a column is a destructive migration and nothing reads it.
+Do not re-add this without being asked — the table falls back to join order on purpose.
 
 **M6 — join flow and home CTA** (item 3)
 `src/app/join/**`, `src/app/page.tsx`.

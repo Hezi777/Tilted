@@ -32,6 +32,11 @@ writing code, in this order — **later entries override earlier ones**:
 4. `docs/design-system.md` — presentation and motion, and the last word on both. The spec
    and the plans still own behaviour and data unless it says otherwise.
 
+`docs/2026-09-audit.md` is not a fifth authority — it is the record of a whole-app review:
+what was found and fixed, what was deliberately not done and why, and what is still open.
+Read it before proposing something that sounds obviously missing; it is probably in there
+with a reason.
+
 Do not silently resolve a new conflict between them. Say which two disagree, and ask.
 
 ## Stack
@@ -48,7 +53,7 @@ The whole thing must cost nothing to run. No paid API is allowed in the runtime 
 src/app/            routes; game/[id] is the live screen, /api/* the route handlers
 src/lib/money.ts    integer-agorot helpers and display formatting   -- hand-written
 src/lib/settlement.ts  nets, greedy transfers, mismatch resolution  -- hand-written
-src/lib/export.ts   the WhatsApp summary string (spec section 7)
+src/lib/share-card.ts  the WhatsApp summary image; summary-text.ts is its text twin
 src/db/             Drizzle schema, client, seed
 src/components/ui/  vendored shadcn primitives; style them, do not police them
 public/art/         committed .webp art; the prompts that made it are docs/art-prompts.md
@@ -63,6 +68,11 @@ pnpm verify     typecheck -> lint -> test -> build. This is the done signal.
 
 `pnpm verify` must pass before any commit. `DATABASE_URL` lives in `.env.local`; see
 `.env.example`.
+
+`TEST_DATABASE_URL` points at a separate Neon branch that the integration tests truncate.
+**`pnpm db:migrate` only migrates `DATABASE_URL`** — run it against the test branch too
+after a schema change, or those tests skip (`describe.skipIf(!hasIntegrationDb)`) rather
+than fail, which is the quiet way to lose them.
 
 ## Invariants
 
@@ -100,5 +110,16 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
   offset from where the maths put it. This shipped seats outside their container, and later
   a winner's crown beside the winner's head. `left: 50%` + `-translate-x-1/2` is the safe
   pair. ESLint matches the pair, not either name — neither utility is wrong alone.
-- **Latency is the product.** A tap updates local state immediately and persists in the
-  background, rolling back with an error toast on failure. Never block a tap on a round trip.
+- **A logical property resolves against the nearest `dir`, so an LTR island flips it.**
+  A password field is `dir="ltr"` inside an RTL page: `end-*` on a button beside it
+  resolves against the *page* and lands on the left, exactly where the typed text starts.
+  Put the wrapper in the same direction as its input so both resolve on one axis. ESLint
+  cannot see this one — the utilities are individually correct.
+- **Latency is the product, and so is the database being asleep.** A tap updates local
+  state immediately and persists in the background, rolling back with an error toast on
+  failure; never block a tap on a round trip. But the live screen polls a one-statement
+  fingerprint (`getLiveGameVersion`) and reads the full game only when it changes, backing
+  off to 10s while the table is quiet. A fixed short interval keeps Neon's compute awake
+  for a whole evening, and on the free plan awake time is the meter that runs out — when
+  it does the database suspends and the app goes down. With no card on file nothing can
+  bill; it can only stop.
