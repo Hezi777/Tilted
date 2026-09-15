@@ -16,6 +16,8 @@ import { Money } from "@/components/Money";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { useIdentity } from "@/lib/identity";
 import { ChipAvatar } from "@/components/ChipAvatar";
+import { StreakBadge } from "@/components/StreakBadge";
+import type { HomeStreak } from "@/db/streak-queries";
 import { apiFetch, ApiError, type GameSummary } from "@/lib/api";
 
 export default function Home() {
@@ -27,6 +29,9 @@ export default function Home() {
   const [cancelTarget, setCancelTarget] = useState<GameSummary | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  // Spec 5.7 asks for streaks in three places; only the live seats ever had them, so a
+  // run that was still alive between nights was invisible until the next game started.
+  const [streaks, setStreaks] = useState<HomeStreak[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +47,19 @@ export default function Home() {
       cancelled = true;
     };
   }, [retryCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<{ streaks: HomeStreak[] }>("/api/streaks?view=home")
+      .then((data) => {
+        if (!cancelled) setStreaks(data.streaks.filter((row) => row.streak >= 2));
+      })
+      // A missing strip is not worth an error state on the landing screen.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // A settling game is not over -- the host started closing it, but every seat still
   // has its own result to enter, so home has to keep leading back in rather than
@@ -168,6 +186,27 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
+          </motion.section>
+        )}
+
+        {streaks.length > 0 && (
+          /* Ambient, not a leaderboard: only live runs of two or more, and a streak
+             always resets, so nobody carries a permanent label. This is the line the
+             spec calls the point of the whole feature -- seeing it before you sit down
+             against the person who is on one. */
+          <motion.section variants={motionSafe(rise, reduceMotion)} aria-labelledby="streaks-title">
+            <h2 id="streaks-title" className="section-label mb-2.5">על רצף</h2>
+            <ul className="flex flex-wrap gap-2">
+              {streaks.map((row) => (
+                <li
+                  key={row.personId}
+                  className="surface-card flex items-center gap-2 rounded-full ps-3 pe-2 py-1.5"
+                >
+                  <span className="t-caption font-bold">{row.nickname ?? row.name}</span>
+                  <StreakBadge streak={row.streak} />
+                </li>
+              ))}
+            </ul>
           </motion.section>
         )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -31,7 +32,11 @@ export function AuthScreen({
   unavailable?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
-  const [mode, setMode] = useState<Mode>("sign-in");
+  // Somebody arriving from a room link is almost always new -- an existing player
+  // already has the app on their home screen. Opening on the sign-in tab sent the most
+  // common arrival of all to the wrong half of the form.
+  const invited = nextPath.startsWith("/join");
+  const [mode, setMode] = useState<Mode>(invited ? "sign-up" : "sign-in");
   const [showPassword, setShowPassword] = useState(false);
   const [signInState, runSignIn, signingIn] = useActionState(
     signInAction,
@@ -48,15 +53,44 @@ export function AuthScreen({
 
   return (
     <main className="flex flex-1 flex-col justify-center gap-7 px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-10">
-      <header className="text-center">
-        <h1 className="t-display-l">
-          {isSignUp ? "פותחים חשבון" : "מתחברים"}
-        </h1>
-        <p className="t-body ink-2 mt-2">
-          {isSignUp
-            ? "החשבון שומר את הערבים, הרצפים והחשבון שלכם."
-            : "ברוכים השבים לשולחן."}
-        </p>
+      {/* The gate is the first screen a friend who tapped a WhatsApp link ever sees,
+          and it used to be a bare form on black while the home screen carried a
+          masthead and a glow. Someone arriving here has no idea yet what this is. */}
+      <header className="relative text-center">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-16 h-56 focal-glow"
+        />
+        <div className="relative flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/art/logo.svg"
+              alt=""
+              width={40}
+              height={96}
+              priority
+              className="h-11 w-auto shrink-0"
+            />
+            <span className="t-display leading-[0.92] text-start">
+              TILTED
+              <span className="block text-[var(--text-2)]">POKER</span>
+            </span>
+          </div>
+          <h1 className="t-title">
+            {invited
+              ? "הוזמנתם לשולחן"
+              : isSignUp
+                ? "פותחים חשבון"
+                : "מתחברים"}
+          </h1>
+          <p className="t-body ink-2 max-w-[30ch]">
+            {invited
+              ? "עוד חשבון אחד ואתם בפנים. הכניסות, הריביים והחשבון מסתדרים לבד."
+              : isSignUp
+                ? "החשבון שומר את הערבים, הרצפים והחשבון שלכם."
+                : "ברוכים השבים לשולחן."}
+          </p>
+        </div>
       </header>
 
       {unavailable && (

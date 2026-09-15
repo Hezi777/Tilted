@@ -25,6 +25,7 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { PokerTableArc } from "@/components/PokerTableArc";
 import { PokerTableArcSkeleton } from "@/components/PokerTableArcSkeleton";
 import { RebuyButton } from "@/components/RebuyButton";
+import { YourResultCard } from "@/components/YourResultCard";
 import { LiveFeed } from "@/components/LiveFeed";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -228,6 +229,22 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     window.setTimeout(() => setCopied(false), 1_500);
   }
 
+  /**
+   * The watch link, for somebody who is not going to play -- a partner, or the person
+   * who stepped outside. Separate from the invite on purpose: an invite asks the host
+   * to open the door, and this asks nothing of anybody.
+   */
+  async function shareWatchLink() {
+    if (!game) return;
+    const url = new URL(`/watch/${game.code}`, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("קישור הצפייה הועתק");
+    } catch {
+      toast.error("ההעתקה נכשלה");
+    }
+  }
+
   async function shareInvite() {
     if (!game) return;
     const url = new URL(`/join/${game.code}`, window.location.origin).toString();
@@ -280,7 +297,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           method: "POST",
           body: JSON.stringify({ successorPlayerId: successor.id, ...result }),
         });
-        toast.success(`היציאה נשמרה. ${successor.name} מנהלים את השולחן מעכשיו`);
+        toast.success(`היציאה נשמרה. ${successor.name} מארחים את השולחן מעכשיו`);
       } else {
         await apiFetch(`/api/game/${gameId}/cashout`, {
           method: "POST",
@@ -401,6 +418,20 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </Button>
       </motion.div>
 
+      {game.notes && (
+        /* Written at setup or in the rules dialog, saved, and until now never rendered
+           anywhere -- the house rules vanished the moment they were typed. They belong
+           above the table, where somebody about to play can read them. */
+        <motion.aside
+          variants={motionSafe(rise, reduceMotion)}
+          aria-label="מה כדאי לדעת"
+          className="surface-card mx-5 rounded-2xl px-4 py-3"
+        >
+          <p className="t-caption ink-3 mb-1">מה כדאי לדעת</p>
+          <p className="t-body whitespace-pre-line text-[var(--text-1)]">{game.notes}</p>
+        </motion.aside>
+      )}
+
       {joinRequests.length > 0 && (
         /* Directly under the header, above the table: someone is standing at the door
            and the host is the only person who can open it. Not a toast -- a toast is
@@ -503,6 +534,9 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           reach, while the rebuy sat above in normal flow and moved as the table
           resized. */}
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] flex-col gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl" aria-label="פעולות השולחן">
+        {/* A seat that has stepped out gets its night back in the place the rebuy
+            button used to be, rather than a row of controls quietly disappearing. */}
+        {game.yourResult && <YourResultCard result={game.yourResult} />}
         {you && !you.isSettled && (
           <RebuyButton
             amount={game.rebuyAmount}
@@ -684,6 +718,18 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
             >
               <Share2Icon aria-hidden="true" strokeWidth={1.75} />
               הזמנה לשולחן
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={() => {
+                setMoreOpen(false);
+                void shareWatchLink();
+              }}
+            >
+              <CopyIcon aria-hidden="true" strokeWidth={1.75} />
+              קישור צפייה בלבד
             </Button>
             {game.isHost && (
               <>

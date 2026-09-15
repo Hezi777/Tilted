@@ -32,3 +32,70 @@ export function buildInviteNotificationPayload(
     url: `/game/${input.gameId}`,
   };
 }
+
+export interface KnockNotificationInput {
+  /** Who is standing outside. */
+  guestName: string;
+  gameId: string;
+}
+
+/**
+ * Somebody is at the door, sent to the host.
+ *
+ * The live screen shows knocks in a banner, which works only for a host who is looking
+ * at their phone. They are usually dealing. Without this the guest waits on a spinner
+ * until the host happens to glance down, which is the exact moment the app is supposed
+ * to be saving.
+ */
+export function buildKnockNotificationPayload(
+  input: KnockNotificationInput,
+): NotificationPayload {
+  return {
+    title: "מישהו בדלת",
+    body: `${input.guestName} מבקשים להצטרף לשולחן`,
+    icon: "/art/icon-192.png",
+    url: `/game/${input.gameId}`,
+  };
+}
+
+export interface SettlingNotificationInput {
+  gameName: string | null;
+  gameId: string;
+}
+
+/**
+ * The table has started closing, sent to every seat that has not settled.
+ *
+ * This is the one moment the app needs something from everybody at once, and it is
+ * also the moment phones are in pockets and people are finding their jackets. A seat
+ * that never counts out is what leaves the night unclosable.
+ */
+export function buildSettlingNotificationPayload(
+  input: SettlingNotificationInput,
+): NotificationPayload {
+  const table = input.gameName?.trim() || "השולחן";
+  return {
+    title: "סופרים את הקופה",
+    body: `${table} נסגר — ספרו את הז׳יטונים שלכם`,
+    icon: "/art/icon-192.png",
+    url: `/game/${input.gameId}/cashout`,
+  };
+}
+
+export interface ClosedNotificationInput {
+  gameName: string | null;
+  gameId: string;
+}
+
+/** The accounts are final and the transfers are on screen. */
+export function buildClosedNotificationPayload(
+  input: ClosedNotificationInput,
+): NotificationPayload {
+  const table = input.gameName?.trim() || "הערב";
+  return {
+    title: "החשבון נסגר",
+    body: `${table} הסתיים — אפשר לראות מי מעביר למי`,
+    icon: "/art/icon-192.png",
+    url: `/game/${input.gameId}/settlement`,
+  };
+}

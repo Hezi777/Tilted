@@ -27,6 +27,7 @@ import {
   type ActorPlayer,
   type GameStatus,
 } from "@/lib/authz";
+import { buildKnockNotificationPayload } from "@/lib/push-payload";
 
 /**
  * The host of a live table, or a refusal.
@@ -121,7 +122,47 @@ export async function requestToJoin(
       target: [joinRequests.gameId, joinRequests.personId],
       set: { rejectedAt: null },
     });
+
+  await notifyHostOfKnock(game.id, personId);
   return { state: "pending", gameId: game.id };
+}
+
+/**
+ * Taps the host on the shoulder. Never throws and never blocks the knock: a guest who
+ * has asked to join has asked, whether or not the notification lands.
+ */
+async function notifyHostOfKnock(gameId: string, personId: string): Promise<void> {
+  try {
+    const [[host], [guest]] = await Promise.all([
+      db
+        .select({ personId: players.personId })
+        .from(players)
+        .where(
+          and(
+            eq(players.gameId, gameId),
+            eq(players.isHost, true),
+            isNull(players.deletedAt),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ name: people.name })
+        .from(people)
+        .where(eq(people.id, personId))
+        .limit(1),
+    ]);
+    if (!host?.personId) return;
+    const { sendPushToPerson } = await import("@/lib/push");
+    await sendPushToPerson(
+      host.personId,
+      buildKnockNotificationPayload({
+        guestName: guest?.name ?? "מישהו",
+        gameId,
+      }),
+    );
+  } catch (error) {
+    console.error("knock notification failed", error);
+  }
 }
 
 /** Where this person stands, for the join screen to poll while it waits. */

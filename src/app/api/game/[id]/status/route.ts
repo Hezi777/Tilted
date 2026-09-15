@@ -8,6 +8,10 @@ import {
 } from "@/db/cashout-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
+import {
+  notifyTableClosed,
+  notifyTableSettling,
+} from "@/db/table-notifications";
 
 // "active" is the way back from a mis-tapped "סיום לכולם"; host-only like the rest.
 const statusSchema = z.object({
@@ -59,6 +63,15 @@ export async function POST(
         : parsed.data.status === "active"
           ? await reopenSettlingGame(parsedId.data, viewer.person.id)
           : await closeSettlingGame(parsedId.data, viewer.person.id);
+
+    // After the transition has committed, and never able to fail it. Reopening a
+    // settling game notifies nobody: it is a correction of a mis-tap, and a second
+    // buzz saying the opposite of the first one is worse than silence.
+    if (parsed.data.status === "settling") {
+      await notifyTableSettling(parsedId.data, viewer.person.id);
+    } else if (parsed.data.status === "closed") {
+      await notifyTableClosed(parsedId.data, viewer.person.id);
+    }
     // Only the host may reach this route (assertCanSettle), so viewerIsHost is
     // always true here -- but the fields stay present so the screen's state shape
     // does not lose them on this response.

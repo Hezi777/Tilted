@@ -89,6 +89,21 @@ export interface LiveGame {
    * so the one player counting alone at 1am got the harder version of the job.
    */
   chipSet: ChipSetDetail | null;
+  /**
+   * How the viewer's own night ended, once they have stepped out -- null while they
+   * are still playing.
+   *
+   * The live screen used to answer "how did I do?" with a "נסגר" badge where the
+   * player's total had been: the one moment somebody most wants their number was the
+   * moment the screen took it away. They are usually standing in the kitchen by then,
+   * not on the cash-out screen the total had moved to.
+   */
+  yourResult: {
+    totalIn: number;
+    countedOut: number;
+    adjustment: number;
+    net: number;
+  } | null;
 }
 
 export interface RebuyInput {
@@ -287,7 +302,7 @@ export async function getLiveGame(
 
   const youRow = playersOut.find((player) => player.isYou) ?? null;
   const viewerIsHost = playersOut.some((player) => player.isYou && player.isHost);
-  const [allRows, yourRows, chipSet] = await Promise.all([
+  const [allRows, yourRows, chipSet, yourCashOutRows] = await Promise.all([
     viewerIsHost
       ? db
           .select({
@@ -331,6 +346,17 @@ export async function getLiveGame(
           .orderBy(desc(buyIns.createdAt), desc(buyIns.id))
       : [],
     game.chipSetId ? getChipSet(game.chipSetId) : null,
+    // Your own counted stack, once you have stepped out. Only fetched for a seat that
+    // has actually settled, so an ordinary poll on a live seat pays nothing for it.
+    youRow?.isSettled
+      ? db
+          .select({ amount: cashOuts.amount, adjustment: cashOuts.adjustment })
+          .from(cashOuts)
+          .where(
+            and(eq(cashOuts.gameId, gameId), eq(cashOuts.playerId, youRow.id)),
+          )
+          .limit(1)
+      : [],
   ]);
 
   return {
@@ -374,6 +400,23 @@ export async function getLiveGame(
     youId: youRow?.id ?? null,
     isHost: viewerIsHost,
     chipSet,
+    yourResult: yourCashOutRows[0]
+      ? {
+          totalIn: youRow?.totalIn ?? 0,
+          // The honest count and the mismatch correction stay separate in the table,
+          // and they stay separate here: the number the player actually counted is the
+          // one they will argue about, so it is the one shown.
+          countedOut: yourCashOutRows[0].amount,
+          adjustment: yourCashOutRows[0].adjustment,
+          net: Number(
+            sumAgorot([
+              agorot(yourCashOutRows[0].amount),
+              agorot(yourCashOutRows[0].adjustment),
+              agorot(-(youRow?.totalIn ?? 0)),
+            ]),
+          ),
+        }
+      : null,
   };
 }
 

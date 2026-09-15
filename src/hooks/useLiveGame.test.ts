@@ -10,6 +10,7 @@ const game: LiveGame = {
   feed: [],
   yourBuyIns: [],
   allBuyIns: [],
+  yourResult: null,
 };
 
 const pending: PendingRebuy = { opId: "op1", playerId: "p1", amount: 5_000, playerName: "א", createdAt: "2026-09-03T20:01:00.000Z" };

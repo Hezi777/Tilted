@@ -30,6 +30,10 @@ import { agorot, formatILS, formatSignedILS } from "@/lib/money";
 import { avatarSrc } from "@/lib/avatar";
 import { deterministicChipKey } from "@/components/ChipAvatar";
 import { shareCardBlob, type ShareCardData } from "@/lib/share-card";
+import { buildSummaryText } from "@/lib/summary-text";
+import { StreakBadge } from "@/components/StreakBadge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import type { SettlementStreakContext } from "@/db/streak-queries";
 import { DUR, EASE_OUT, haptic, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -171,6 +175,10 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
   const [state, setState] = useState<SettlementState | null>(null);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
+  // Spec 5.7's third surface. A streak that ends is only news at the moment it ends,
+  // and this is that moment -- the live badge simply stops appearing next time.
+  const [streaks, setStreaks] = useState<Record<string, SettlementStreakContext>>({});
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<SequenceStage>("pending");
   const [transfers, setTransfers] = useState<TransferRecord[] | null>(null);
@@ -353,6 +361,57 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
     };
   }
 
+  /**
+   * The same night as text, for pasting into the chat.
+   *
+   * Clipboard rather than `navigator.share`: the share sheet on a phone would offer to
+   * send it as a file or hand it to an app that is not the group, and the thing people
+   * actually do is paste it into a conversation that is already open.
+   */
+  useEffect(() => {
+    if (!state) return;
+    let cancelled = false;
+    apiFetch<{ context: SettlementStreakContext[] }>(
+      `/api/streaks?view=settlement&gameId=${gameId}`,
+    )
+      .then((data) => {
+        if (cancelled) return;
+        setStreaks(
+          Object.fromEntries(data.context.map((row) => [row.playerId, row])),
+        );
+      })
+      // A missing streak line must never take the settlement screen with it.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [state, gameId]);
+
+  async function copySummaryText() {
+    if (!state) return;
+    const card = shareCardData();
+    try {
+      await navigator.clipboard.writeText(
+        buildSummaryText({
+          title: card.title,
+          dateLabel: card.dateLabel,
+          pot: card.pot,
+          players: card.players.map((player) => ({
+            name: player.name,
+            net: player.net,
+            outcome: player.outcome,
+          })),
+          transfers: card.transfers,
+          note: card.note,
+        }),
+      );
+      setCopiedText(true);
+      window.setTimeout(() => setCopiedText(false), 2_000);
+    } catch {
+      toast.error("ההעתקה נכשלה");
+    }
+  }
+
   async function shareImage() {
     if (!state) return;
     setSharing(true);
@@ -469,6 +528,14 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                   >
                     <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
                     <span className="min-w-0 truncate font-semibold">{player.name}</span>
+                    {streaks[player.id]?.outcome === "extended" && (
+                      <StreakBadge streak={streaks[player.id]?.streak} />
+                    )}
+                    {streaks[player.id]?.outcome === "broken" && (
+                      /* Said once, here, and never carried as a label afterwards --
+                         which is the line spec 5.7 draws against a leaderboard. */
+                      <StatusBadge tone="muted">הרצף נגמר</StatusBadge>
+                    )}
                     <AnimatedMoney value={player.net} signed from={staged ? 0 : player.net} delay={staged ? STAGE.players + index * 0.06 : 0} className={cn("ms-auto text-lg font-bold", outcomeClass(player))} />
                   </motion.div>
                 ))}
@@ -578,6 +645,12 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
               )}
             >
               <Button className="h-14 text-base" disabled={sharing} onClick={() => void shareImage()}><Share2Icon />{sharing ? "מכינים תמונה..." : "שתפו את הסיכום"}</Button>
+              {/* The picture is the headline; this is the copy that is still useful in
+                  three weeks, when somebody searches the chat for what they paid. */}
+              <Button type="button" variant="secondary" className="h-12" onClick={() => void copySummaryText()}>
+                {copiedText ? <CheckIcon /> : <CopyIcon />}
+                {copiedText ? "הועתק" : "העתקת הסיכום כטקסט"}
+              </Button>
               <Button asChild variant="secondary" className="h-12"><Link href="/"><HomeIcon />חזרה לבית</Link></Button>
             </motion.div>
           </>
