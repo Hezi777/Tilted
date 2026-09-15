@@ -242,6 +242,47 @@ export async function forceCancelGame(gameId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Permanently removes a table, whatever state it is in.
+ *
+ * The creator's own delete refuses anything that has not ended, and that guard is right
+ * for them -- deleting a night mid-hand would take the pot with it. An admin clearing a
+ * test table or a duplicate needs the guard gone, so this one only asks that the game
+ * exists. The UI names what is lost before it calls this; there is no undo.
+ */
+export async function adminDeleteGame(gameId: string): Promise<boolean> {
+  const [game] = await db
+    .select({ id: games.id })
+    .from(games)
+    .where(eq(games.id, gameId))
+    .limit(1);
+  if (!game) return false;
+  const { purgeGame } = await import("@/db/queries");
+  await purgeGame(gameId);
+  return true;
+}
+
+/**
+ * Edits a table's identity from outside it.
+ *
+ * `updateGameRules` is the host's, and it refuses a game that has closed -- correct
+ * there, because changing the buy-in of a settled night would make its history disagree
+ * with its settlement. This touches only the three fields that are labels rather than
+ * money, so it is safe on a closed game: a night named "ערב" can be given its real name
+ * weeks later without any number moving.
+ */
+export async function adminUpdateGame(
+  gameId: string,
+  patch: { name?: string | null; location?: string | null; notes?: string | null },
+): Promise<boolean> {
+  const rows = await db
+    .update(games)
+    .set(patch)
+    .where(eq(games.id, gameId))
+    .returning({ id: games.id });
+  return rows.length > 0;
+}
+
 /** How many live seats a person still occupies, so a delete can refuse to strand one. */
 export async function livePlayerCount(personId: string): Promise<number> {
   const rows = await db

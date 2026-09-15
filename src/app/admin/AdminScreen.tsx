@@ -536,19 +536,50 @@ function TablesDrawer({
   games: AdminGame[];
   onChanged: () => void;
 }) {
-  const [confirming, setConfirming] = useState<AdminGame | null>(null);
+  const [editing, setEditing] = useState<AdminGame | null>(null);
+  const [confirming, setConfirming] = useState<
+    { game: AdminGame; mode: "cancel" | "purge" } | null
+  >(null);
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function forceCancel() {
-    if (!confirming) return;
+  async function save() {
+    if (!editing) return;
     setBusy(true);
     try {
-      await apiFetch(`/api/admin/games/${confirming.id}`, { method: "DELETE" });
-      toast.success("השולחן בוטל");
-      setConfirming(null);
+      await apiFetch(`/api/admin/games/${editing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: name.trim() || null,
+          location: location.trim() || null,
+        }),
+      });
+      toast.success("השולחן עודכן");
+      setEditing(null);
       onChanged();
     } catch (reason) {
-      toast.error(reason instanceof ApiError ? reason.message : "הביטול נכשל");
+      toast.error(reason instanceof ApiError ? reason.message : "העדכון נכשל");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirm() {
+    if (!confirming) return;
+    const purge = confirming.mode === "purge";
+    setBusy(true);
+    try {
+      await apiFetch(
+        `/api/admin/games/${confirming.game.id}${purge ? "?purge=1" : ""}`,
+        { method: "DELETE" },
+      );
+      toast.success(purge ? "השולחן נמחק" : "השולחן בוטל");
+      setConfirming(null);
+      setEditing(null);
+      onChanged();
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "הפעולה נכשלה");
     } finally {
       setBusy(false);
     }
@@ -561,41 +592,105 @@ function TablesDrawer({
           {games.map((game) => {
             const live = game.status === "active" || game.status === "settling";
             return (
-              <li key={game.id} className="surface-card flex min-h-18 items-center gap-3 rounded-[18px] px-4 py-3">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">
-                    {game.name ?? "ערב"}
-                    <span dir="ltr" className="money ink-3 ms-2 font-bold">{game.code}</span>
+              <li key={game.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setName(game.name ?? "");
+                    setLocation(game.location ?? "");
+                    setEditing(game);
+                  }}
+                  className="surface-card flex min-h-18 w-full items-center gap-3 rounded-[18px] px-4 py-3 text-start focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">
+                      {game.name ?? "ערב"}
+                      <span dir="ltr" className="money ink-3 ms-2 font-bold">{game.code}</span>
+                    </span>
+                    <span className="t-caption ink-3 block truncate">
+                      {STATUS_LABEL[game.status]} · {game.playerCount} שחקנים
+                      {live && game.unsettledCount > 0 && ` · ${game.unsettledCount} לא ספרו`}
+                      {" · "}
+                      {when(game.closedAt ?? game.createdAt)}
+                    </span>
                   </span>
-                  <span className="t-caption ink-3 block truncate">
-                    {STATUS_LABEL[game.status]} · {game.playerCount} שחקנים
-                    {live && game.unsettledCount > 0 && ` · ${game.unsettledCount} לא ספרו`}
-                    {" · "}
-                    {when(game.closedAt ?? game.createdAt)}
-                  </span>
-                </span>
-                {live && (
-                  <Button type="button" variant="ghost" className="shrink-0 text-destructive" onClick={() => setConfirming(game)}>
-                    ביטול
-                  </Button>
-                )}
+                  {live && <StatusBadge tone="muted">פתוח</StatusBadge>}
+                </button>
               </li>
             );
           })}
         </ul>
       </ToolDrawer>
 
+      <Drawer open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
+        <DrawerContent className="max-h-[88dvh]">
+          <DrawerHeader><DrawerTitle>{editing?.name ?? "ערב"}</DrawerTitle></DrawerHeader>
+          {editing && (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4">
+              <Field label="שם הערב">
+                <Input value={name} maxLength={200} onChange={(event) => setName(event.target.value)} placeholder="ערב" />
+              </Field>
+              <Field label="מיקום">
+                <Input value={location} maxLength={120} onChange={(event) => setLocation(event.target.value)} placeholder="הבית של מי" />
+              </Field>
+              {/* Only the labels, never the money. Changing the buy-in of a settled
+                  night would make its history disagree with its settlement. */}
+              <p className="t-caption ink-3">
+                הסכומים והתוצאות לא ניתנים לעריכה מכאן — רק שם הערב והמיקום.
+              </p>
+              <Button type="button" disabled={busy} onClick={() => void save()}>
+                שמירה
+              </Button>
+
+              {editing.status === "active" || editing.status === "settling" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-destructive"
+                  disabled={busy}
+                  onClick={() => setConfirming({ game: editing, mode: "cancel" })}
+                >
+                  ביטול השולחן
+                </Button>
+              ) : null}
+              {/* The strongest of the three, and last, so a thumb reaching for save
+                  never finds it first. */}
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive"
+                disabled={busy}
+                onClick={() => setConfirming({ game: editing, mode: "purge" })}
+              >
+                מחיקת השולחן לצמיתות
+              </Button>
+            </div>
+          )}
+          <DrawerFooter>
+            <Button type="button" variant="outline" className="h-12" onClick={() => setEditing(null)}>
+              סגירה
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
       <Drawer open={confirming !== null} onOpenChange={(next) => !next && setConfirming(null)}>
         <DrawerContent>
-          <DrawerHeader><DrawerTitle>לבטל את {confirming?.name ?? "השולחן"}?</DrawerTitle></DrawerHeader>
+          <DrawerHeader>
+            <DrawerTitle>
+              {confirming?.mode === "purge" ? "למחוק לצמיתות?" : "לבטל את השולחן?"}
+            </DrawerTitle>
+          </DrawerHeader>
           <div className="flex flex-col gap-3 px-4">
-            {/* Cancelled, not closed: closing runs settlement, and a night nobody
-                finished counting has no settlement to run. */}
+            {/* Named, and specific about what is lost. Cancel leaves the night in the
+                record as abandoned; purge acts as though it never happened. */}
             <p className="t-body text-[var(--text-1)]">
-              הערב יסומן כבוטל ולא ייכנס להיסטוריה. אין דרך לחזור מזה.
+              {confirming?.mode === "purge"
+                ? `${confirming.game.name ?? "הערב"} יימחק על כל הכניסות, הספירות וההעברות שלו. אין דרך לחזור מזה.`
+                : "הערב יסומן כבוטל ולא ייכנס להיסטוריה. אין דרך לחזור מזה."}
             </p>
-            <Button type="button" variant="destructive" disabled={busy} onClick={() => void forceCancel()}>
-              כן, בטלו את השולחן
+            <Button type="button" variant="destructive" disabled={busy} onClick={() => void confirm()}>
+              {confirming?.mode === "purge" ? "כן, מחקו לצמיתות" : "כן, בטלו את השולחן"}
             </Button>
           </div>
           <DrawerFooter>

@@ -492,6 +492,18 @@ export async function deleteGame(gameId: string, deviceId: string): Promise<void
     throw new GameDeleteError("רק מי שיצר את המשחק יכול למחוק אותו", 403);
   }
 
+  await purgeGame(gameId);
+}
+
+/**
+ * Removes a game and everything hanging off it, with no permission check of its own.
+ *
+ * Split out of `deleteGame` so the admin route can reuse the cascade instead of
+ * restating it -- the order matters (chips before cash-outs, hand players before hands,
+ * and the game's own mismatch pointer cleared before its players go) and two copies of
+ * it would drift. Callers are responsible for deciding who may do this.
+ */
+export async function purgeGame(gameId: string): Promise<void> {
   const cashOutRows = await db
     .select({ id: cashOuts.id })
     .from(cashOuts)
