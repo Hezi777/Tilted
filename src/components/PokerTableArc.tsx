@@ -146,7 +146,14 @@ export function PokerTableArc({
 
       {/* The pot, up in the light and above the table -- where a poker client puts
           it, and the only place on a portrait screen no seat can crowd it. */}
-      <div className="pointer-events-none absolute inset-x-0 top-[2%] z-20 flex flex-col items-center text-center">
+      {/* `polite` and not `assertive`: the pot moves on every rebuy, and a screen
+          reader interrupting itself mid-sentence twenty times an evening is worse than
+          hearing the new figure a moment late. */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="pointer-events-none absolute inset-x-0 top-[2%] z-20 flex flex-col items-center text-center"
+      >
         <span className="section-label block text-felt-foreground-muted">הקופה על השולחן</span>
         <AnimatedMoney
           value={pot}

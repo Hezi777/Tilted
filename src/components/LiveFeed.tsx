@@ -14,10 +14,16 @@ function ago(value: string): string {
 
 export function LiveFeed({ items, showTitle = true }: { items: readonly LiveFeedItem[]; showTitle?: boolean }) {
   return (
-    <section aria-labelledby="feed-heading" className="flex flex-col gap-3">
-      {showTitle && <h2 id="feed-heading" className="text-muted-foreground text-xs font-bold tracking-wide">מה קרה בשולחן</h2>}
+    // The feed is how somebody who is not watching the table finds out that a rebuy
+    // landed, so it announces -- politely, for the same reason the pot does.
+    <section
+      aria-labelledby="feed-heading"
+      aria-live="polite"
+      className="flex flex-col gap-3"
+    >
+      {showTitle && <h2 id="feed-heading" className="section-label">מה קרה בשולחן</h2>}
       {items.length === 0 ? (
-        <p className="empty-slot rounded-[18px] p-4 text-sm text-[var(--text-2)]">עוד לא נוספו כניסות או ריבאיים</p>
+        <p className="empty-slot t-body rounded-[18px] p-4 text-[var(--text-2)]">עוד לא נוספו כניסות או ריבאיים</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {items.slice(0, 6).map((item) => (

@@ -80,7 +80,7 @@ export function HistoryFilters({
             type="date"
             value={initial.from}
             onChange={(event) => pushParams({ from: event.target.value })}
-            className="h-10 w-[8.5rem] rounded-xl bg-ink-800 px-3 text-sm"
+            className="h-11 w-[8.5rem] rounded-xl bg-ink-800 px-3 t-body"
             aria-label="מתאריך"
           />
         </label>
@@ -91,7 +91,7 @@ export function HistoryFilters({
             type="date"
             value={initial.to}
             onChange={(event) => pushParams({ to: event.target.value })}
-            className="h-10 w-[8.5rem] rounded-xl bg-ink-800 px-3 text-sm"
+            className="h-11 w-[8.5rem] rounded-xl bg-ink-800 px-3 t-body"
             aria-label="עד תאריך"
           />
         </label>
@@ -102,7 +102,7 @@ export function HistoryFilters({
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 gap-1.5 rounded-xl px-3 text-sm"
+                className="h-11 gap-1.5 rounded-xl px-3 t-body"
               >
                 {initial.location || "כל המיקומים"}
                 <ChevronLeftIcon aria-hidden="true" className="size-3.5 rtl:rotate-90" />
@@ -132,7 +132,7 @@ export function HistoryFilters({
           <Button
             type="button"
             variant="ghost"
-            className="h-10 rounded-xl px-3 text-sm text-destructive"
+            className="h-11 rounded-xl px-3 t-body text-destructive"
             onClick={() => {
               setQ("");
               router.replace("/history", { scroll: false });

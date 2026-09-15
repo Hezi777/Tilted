@@ -23,7 +23,7 @@ export function RebuyButton({
       disabled={disabled}
       onClick={onClick}
     >
-      <span className="text-[11px] font-medium opacity-70">הוספת ריביי</span>
+      <span className="t-caption font-medium opacity-70">הוספת ריביי</span>
       <Money value={amount} className="text-base font-bold tracking-[-0.02em]" />
     </Button>
   );

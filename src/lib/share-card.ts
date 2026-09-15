@@ -22,7 +22,12 @@ const IN = {
   page: "#0b0b0f",
   card: "#1c1c23",
   raised: "#26262f",
-  feltFrom: "#1fb97a",
+  // Deepened from #1fb97a, which could not carry text at all: white on that green is
+  // 2.54:1, so the labels on the felt failed AA outright and no opacity tweak could fix
+  // it -- the gradient's bright end was the problem. #147a51 keeps the same hue and
+  // saturation two stops darker, where --text-0 reads at 4.9:1. This is the image that
+  // gets posted to the group and opened in daylight.
+  feltFrom: "#147a51",
   feltTo: "#062a1d",
   text0: "#f5f6f7",
   text1: "#9e9eac",
@@ -248,7 +253,9 @@ export async function drawShareCard(data: ShareCardData): Promise<HTMLCanvasElem
 
   run(ctx, "הקופה של הערב", W / 2, y + 86, {
     font: `600 32px ${ui}`,
-    color: "rgba(245,246,247,0.78)",
+    // Full --text-0 on the felt, not a knocked-back white: the grey steps are measured
+    // against the dark card and read at 2:1 on green.
+    color: IN.text0,
     align: "center",
     direction: "rtl",
   });
@@ -260,7 +267,7 @@ export async function drawShareCard(data: ShareCardData): Promise<HTMLCanvasElem
   });
   run(ctx, data.playerCountLabel, W / 2, y + 244, {
     font: `500 28px ${ui}`,
-    color: "rgba(245,246,247,0.72)",
+    color: IN.text0,
     align: "center",
     direction: "rtl",
   });
