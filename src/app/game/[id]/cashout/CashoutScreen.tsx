@@ -13,6 +13,7 @@ import { Money } from "@/components/Money";
 import { ArcPill } from "@/components/ui/arc-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { DUR, EASE_OUT } from "@/lib/motion";
 import { Label } from "@/components/ui/label";
@@ -89,6 +90,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
   const [overriddenIds, setOverriddenIds] = React.useState<Set<string>>(new Set());
   const [assigning, setAssigning] = React.useState(false);
+  // Split and assign reassign real money on a single tap, and the audit already
+  // records that a resolution can drop a transfer's paid_at once its pair no
+  // longer exists -- so this step, unlike recount, is not cleanly reversible.
+  const [pendingResolution, setPendingResolution] = React.useState<
+    { kind: "split" } | { kind: "assign"; playerId: string; playerName: string } | null
+  >(null);
   const chipSaveTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const chipSaveVersions = React.useRef(new Map<string, number>());
 
@@ -534,7 +541,6 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
                         className="self-start text-[var(--text-2)]"
                         onClick={() => addTo(setOverriddenIds, player.id)}
                       >
@@ -667,7 +673,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                     className="w-full"
                     variant="secondary"
                     disabled={!hasWinner}
-                    onClick={() => void resolve("split")}
+                    onClick={() => setPendingResolution({ kind: "split" })}
                   >
                     פיצול ההפרש בין המנצחים
                   </Button>
@@ -703,7 +709,13 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                             <Button
                               key={player.id}
                               variant="secondary"
-                              onClick={() => void resolve("assign", player.id)}
+                              onClick={() =>
+                                setPendingResolution({
+                                  kind: "assign",
+                                  playerId: player.id,
+                                  playerName: player.name,
+                                })
+                              }
                             >
                               {player.name}
                             </Button>
@@ -715,6 +727,52 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                 </div>
               </div>
             )}
+
+            <Dialog
+              open={pendingResolution !== null}
+              onOpenChange={(open) => {
+                if (!open) setPendingResolution(null);
+              }}
+            >
+              <DialogContent showCloseButton={false}>
+                <DialogHeader>
+                  <DialogTitle>לאשר את הפתרון?</DialogTitle>
+                  <DialogDescription>
+                    {pendingResolution?.kind === "assign" ? (
+                      <>
+                        {pendingResolution.playerName} יספוג את ההפרש של{" "}
+                        <Money value={Math.abs(state.difference)} className="font-semibold text-foreground" />{" "}
+                        לבד. אי אפשר לבטל את זה אחרי שמאשרים.
+                      </>
+                    ) : (
+                      <>
+                        ההפרש של <Money value={Math.abs(state.difference)} className="font-semibold text-foreground" />{" "}
+                        יתחלק בין כל מי שסיים ברווח. אי אפשר לבטל את זה אחרי שמאשרים.
+                      </>
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!pendingResolution) return;
+                      if (pendingResolution.kind === "assign") {
+                        void resolve("assign", pendingResolution.playerId);
+                      } else {
+                        void resolve("split");
+                      }
+                      setPendingResolution(null);
+                    }}
+                  >
+                    כן, לאשר
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setPendingResolution(null)}>
+                    ביטול
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {state.status === "settling" && (
               <div className="flex flex-col gap-2">

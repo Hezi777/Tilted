@@ -9,12 +9,13 @@ import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { apiFetch, ApiError } from "@/lib/api";
-import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
+import { agorot, formatILS } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
 import { isEligibleSuccessor } from "@/lib/roster-status";
 import type { PlayerStreakMap } from "@/db/streak-queries";
 import { AppHeader } from "@/components/AppHeader";
 import { AmountInput } from "@/components/AmountInput";
+import { Money } from "@/components/Money";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { ChipCounter } from "@/components/ChipCounter";
 import { type ChipCounts } from "@/lib/chips";
@@ -30,7 +31,6 @@ import { LiveFeed } from "@/components/LiveFeed";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MetaPill } from "@/components/ui/meta-pill";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,7 +46,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const router = useRouter();
   const { game, loading, error, addRebuy, undo, editRebuy, refresh } = useLiveGame(gameId);
   const [customPlayer, setCustomPlayer] = useState<{ id: string; name: string } | null>(null);
-  const [customAmount, setCustomAmount] = useState("");
+  const [customAmount, setCustomAmount] = useState<number | null>(null);
   const [deletePlayer, setDeletePlayer] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -79,6 +79,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [successorPickerOpen, setSuccessorPickerOpen] = useState(false);
   const [successor, setSuccessor] = useState<{ id: string; name: string } | null>(null);
   const [endingForAll, setEndingForAll] = useState(false);
+  const [extendingTime, setExtendingTime] = useState(false);
   const [confirmEndForAll, setConfirmEndForAll] = useState(false);
 
   // Every client's poll has to follow the game through its lifecycle (the bug this
@@ -100,6 +101,9 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
 
   // The door. Polled rather than pushed: someone knocking is not worth a socket, and
   // five seconds is faster than the person can walk over and ask.
+  // What removing this seat actually erases, read off the row the table already has.
+  const deletePlayerTotal =
+    game?.players.find((player) => player.id === deletePlayer?.id)?.totalIn ?? null;
   const isHost = game?.isHost ?? false;
   useEffect(() => {
     if (!isHost) return;
@@ -183,7 +187,13 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   async function submitCustom() {
     if (!customPlayer || !game) return;
     try {
-      const amount = shekelsToAgorot(Number(customAmount));
+      // `AmountInput` hands back integer agorot already, so there is no parsing to
+      // redo here -- and nothing to get wrong a second time.
+      const amount = customAmount;
+      if (amount === null || amount <= 0) {
+        toast.error("נא להזין סכום תקין");
+        return;
+      }
       // The night's rebuy is the ceiling. Said here as well as enforced on the server,
       // so a typo is caught before it becomes a round trip and a toast.
       if (amount > game.rebuyAmount) {
@@ -192,7 +202,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       }
       addRebuy(customPlayer.id, amount);
       setCustomPlayer(null);
-      setCustomAmount("");
+      setCustomAmount(null);
     } catch {
       toast.error("נא להזין סכום תקין");
     }
@@ -266,7 +276,12 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     }
   }
 
+  // Guarded like every other mutation on this screen. Without the flag two taps
+  // inside one round trip -- ordinary on the connection this app is used on --
+  // added an hour rather than half of one, and said so twice.
   async function extendTime() {
+    if (extendingTime) return;
+    setExtendingTime(true);
     try {
       await apiFetch(`/api/game/${gameId}/end-time`, {
         method: "POST",
@@ -276,6 +291,8 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       await refresh();
     } catch (reason) {
       toast.error(reason instanceof ApiError ? reason.message : "הוספת הזמן נכשלה");
+    } finally {
+      setExtendingTime(false);
     }
   }
 
@@ -496,16 +513,25 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           // Your own actions already live in the dock, so tapping your own face opens
           // nothing new -- it used to, and that was the same rebuy reachable twice.
           // Only the host may act on someone else's row.
-          onSeatSelect={(player) => {
-            if (player.isYou || !game.isHost) return;
-            setFocusedPlayerId((current) => (current === player.id ? null : player.id));
-          }}
+          // Passed only for the host. Gating inside the callback still left the prop
+          // truthy, so every guest got a press animation and an `aria-pressed` seat
+          // for a tap that could never do anything.
+          onSeatSelect={
+            game.isHost
+              ? (player) => {
+                  if (player.isYou) return;
+                  setFocusedPlayerId((current) =>
+                    current === player.id ? null : player.id,
+                  );
+                }
+              : undefined
+          }
         />
       </motion.section>
 
       {game.players.length === 1 && (
         <p className="surface-card t-body text-muted-foreground mx-5 rounded-[20px] px-4 py-3 text-center">
-          אתם לבד כרגע. שתפו את קוד החדר <span className="money font-bold text-brand-300">{game.code}</span> כדי שחברים יצטרפו.
+          אתם לבד כרגע. שתפו את קוד החדר <span className="money font-bold text-violet-300">{game.code}</span> כדי שחברים יצטרפו.
         </p>
       )}
 
@@ -577,11 +603,23 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <DialogContent showCloseButton={false}>
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
           {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage={game.isHost} onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { setFocusedPlayerId(null); setRebuysFor({ id: item.id, name: item.name }); setRebuysOpen(true); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} onEarlyExit={(item) => { setFocusedPlayerId(null); setEarlyExitFor({ id: item.id, name: item.name }); setEarlyChipCounts({}); setEarlyAmount(null); setEarlyExitOpen(true); }} />}
+          {/* Every other close-button-less dialog on this screen pairs that with an
+              explicit way out. This one did not, and an installed PWA has no back
+              gesture, so the undiscoverable backdrop tap was the only exit. */}
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setFocusedPlayerId(null)}>סגירה</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent showCloseButton={false} className="max-h-[80dvh] overflow-y-auto">
-          <DialogHeader><DialogTitle>היסטוריית השולחן</DialogTitle><DialogDescription>הכניסות והריבאיים שנרשמו הערב</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>היסטוריית השולחן</DialogTitle>
+            {/* The feed is capped server-side, and the old copy read as a complete
+                record. By hour four that is a dozen rows out of forty, shown to
+                somebody who opened this to settle an argument. */}
+            <DialogDescription>הפעולות האחרונות שנרשמו הערב</DialogDescription>
+          </DialogHeader>
           <LiveFeed items={game.feed} showTitle={false} />
           <DialogFooter><Button type="button" variant="outline" className="h-12" onClick={() => setHistoryOpen(false)}>חזרה לשולחן</Button></DialogFooter>
         </DialogContent>
@@ -749,6 +787,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
                   type="button"
                   variant="secondary"
                   className="w-full justify-start"
+                  disabled={extendingTime}
                   onClick={() => {
                     setMoreOpen(false);
                     void extendTime();
@@ -937,8 +976,62 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={customPlayer !== null} onOpenChange={(open) => !open && setCustomPlayer(null)}><DialogContent><DialogHeader><DialogTitle>ריביי אחר</DialogTitle><DialogDescription>כמה להוסיף עבור {customPlayer?.name}?</DialogDescription></DialogHeader><Label htmlFor="custom-rebuy">סכום בשקלים</Label><Input id="custom-rebuy" type="number" min="1" inputMode="decimal" value={customAmount} onChange={(event) => setCustomAmount(event.target.value)} autoFocus /><DialogFooter><Button type="button" onClick={() => void submitCustom()}>הוסיפו לקופה</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={deletePlayer !== null} onOpenChange={(open) => !open && setDeletePlayer(null)}><DialogContent><DialogHeader><DialogTitle>להסיר מהשולחן?</DialogTitle><DialogDescription>כל הכניסות של {deletePlayer?.name} יוסרו יחד איתו.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="destructive" disabled={busy} onClick={() => void removePlayer()}>הסירו שחקן</Button><Button type="button" variant="outline" onClick={() => setDeletePlayer(null)}>השאירו</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog
+        open={customPlayer !== null}
+        onOpenChange={(open) => {
+          if (open) return;
+          setCustomPlayer(null);
+          setCustomAmount(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ריביי אחר</DialogTitle>
+            <DialogDescription>כמה להוסיף עבור {customPlayer?.name}?</DialogDescription>
+          </DialogHeader>
+          <Label>סכום בשקלים</Label>
+          {/* `AmountInput` rather than a raw number field: it is text + inputmode, it
+              commits on blur instead of reformatting under the caret, and it is what
+              every other amount on this screen already goes through. */}
+          <AmountInput
+            aria-label="סכום הריביי בשקלים"
+            initialAmount={null}
+            onChange={setCustomAmount}
+            onCommit={setCustomAmount}
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={customAmount === null || customAmount <= 0}
+              onClick={() => void submitCustom()}
+            >
+              הוסיפו לקופה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deletePlayer !== null} onOpenChange={(open) => !open && setDeletePlayer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>להסיר מהשולחן?</DialogTitle>
+            {/* The old copy named the person but not the money. This erases every
+                buy-in they made and moves the pot for the whole table, with no undo,
+                so the number being erased is the thing worth showing. */}
+            <DialogDescription>
+              כל הכניסות של {deletePlayer?.name} יוסרו יחד איתו, ואי אפשר לבטל.
+            </DialogDescription>
+          </DialogHeader>
+          {deletePlayerTotal !== null && (
+            <p className="t-body text-[var(--text-1)]">
+              נכנס עד עכשיו עם <Money value={deletePlayerTotal} className="font-bold" /> — הסכום הזה יירד מהקופה.
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="destructive" disabled={busy} onClick={() => void removePlayer()}>הסירו שחקן</Button>
+            <Button type="button" variant="outline" onClick={() => setDeletePlayer(null)}>השאירו</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {game.isHost && (
         <HandRecorder gameId={gameId} players={seated} open={handRecorderOpen} onOpenChange={setHandRecorderOpen} />

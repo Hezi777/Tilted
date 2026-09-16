@@ -44,6 +44,8 @@ export interface HistoryListFilters {
   /** Israel-local `YYYY-MM-DD`, inclusive. */
   endDate?: string;
   location?: string;
+  /** Row cap for `/history`'s "load more" paging. Omitted, the query is unbounded. */
+  limit?: number;
 }
 
 /**
@@ -112,7 +114,7 @@ export function buildHistoryListQuery(personId: string, filters: HistoryListFilt
     );
   }
 
-  return db
+  const query = db
     .select({
       id: games.id,
       name: games.name,
@@ -127,6 +129,8 @@ export function buildHistoryListQuery(personId: string, filters: HistoryListFilt
     .where(and(...conditions))
     .groupBy(games.id)
     .orderBy(desc(games.createdAt));
+
+  return filters.limit ? query.limit(filters.limit) : query;
 }
 
 export async function getHistoryList(

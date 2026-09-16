@@ -56,7 +56,12 @@ export function TabBar() {
               // 48px is the stricter of the two platform floors, so it is the one to keep.
               "flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] py-1 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)]",
               "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              active ? "text-foreground" : "text-[var(--text-2)] hover:text-[var(--text-1)]",
+              // Colour alone doesn't carry state for low-vision sighted users (WCAG
+              // 1.4.11). A pill behind the active tab is the second channel;
+              // aria-current already covers screen readers.
+              active
+                ? "bg-ink-800 text-foreground"
+                : "text-[var(--text-2)] hover:text-[var(--text-1)]",
             )}
           >
             <Icon aria-hidden="true" className="size-6" />

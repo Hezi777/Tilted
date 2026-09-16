@@ -63,8 +63,12 @@ function DrawerContent({
       >
         {/* vaul's own Handle, not a decorative div: it carries the drag affordance and a
             touch area taller than the 4px bar. `bg-muted` is `--ink-800` on a `--ink-700`
-            surface -- a grip darker than the sheet it sits on, and invisible. */}
-        <DrawerPrimitive.Handle className="mx-auto mt-4 hidden h-1 w-[100px] shrink-0 rounded-full bg-foreground/25 group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+            surface -- a grip darker than the sheet it sits on, and invisible.
+            `bg-foreground/25` measured ~2.19:1 against the sheet, below the 3:1 WCAG
+            wants for a control that carries state (docs/2026-09-audit.md, item 6).
+            `--text-1` is a solid step, not an alpha blend, and clears 3:1 against
+            `--ink-700` with room to spare. */}
+        <DrawerPrimitive.Handle className="mx-auto mt-4 hidden h-1 w-[100px] shrink-0 rounded-full bg-[var(--text-1)] group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>

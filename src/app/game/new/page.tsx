@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PencilIcon, PlusIcon } from "@/components/icons";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
+import { AmountInput } from "@/components/AmountInput";
+import { ChipAvatar } from "@/components/ChipAvatar";
+import { Money } from "@/components/Money";
 import { PokerChip } from "@/components/PokerChip";
 import { deriveEdgeColor } from "@/lib/chip-art";
 import {
@@ -31,7 +34,7 @@ import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
 import { AVATAR_KEYS } from "@/lib/avatar";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { agorot, shekelsToAgorot } from "@/lib/money";
+import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
 import { denominationInputText } from "@/lib/chips";
 import { useIdentity } from "@/lib/identity";
 
@@ -78,6 +81,15 @@ interface GameChipSet {
     edgeColor: string | null;
     value: number;
   }>;
+}
+
+/** The roster and stakes of a past night, fetched from `/api/games/[id]/rematch`. */
+interface RematchSeed {
+  name: string | null;
+  buyIn: number;
+  rebuyAmount: number;
+  chipSetId: string | null;
+  people: Array<{ id: string; name: string; nickname: string | null; avatarKey: string | null }>;
 }
 
 function defaultExitTime(): string {
@@ -157,9 +169,12 @@ function StepProgress({
   );
 }
 
-/** New game setup. Spec 5.2. */
-export default function NewGamePage() {
+function NewGameForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // v2 rematch (plan item 12): `/game/new?from=<gameId>` pre-fills this form from a
+  // past night rather than starting blank. Absent for the ordinary "open a table" path.
+  const rematchFromId = searchParams.get("from");
   const reduceMotion = useReducedMotion();
   const identity = useIdentity();
   const hostPersonId = identity === undefined ? undefined : (identity?.id ?? null);
@@ -171,18 +186,20 @@ export default function NewGamePage() {
   const [location, setLocation] = useState("");
   const [exitTime, setExitTime] = useState(defaultExitTime);
   const [buyInChoice, setBuyInChoice] = useState<BuyInChoice>("50");
-  const [customBuyIn, setCustomBuyIn] = useState("");
+  const [customBuyInAgorot, setCustomBuyInAgorot] = useState<number | null>(null);
   const [rebuyDifferent, setRebuyDifferent] = useState(false);
   // Requirements item 4: some groups count every stack together, others let each
   // player type their own. The host decides here rather than the app deciding for them.
   const [resultEntry, setResultEntry] = useState<"host_only" | "players">("host_only");
-  const [customRebuy, setCustomRebuy] = useState("");
+  const [customRebuyAgorot, setCustomRebuyAgorot] = useState<number | null>(null);
 
   const [people, setPeople] = useState<PersonSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [peopleRetryCount] = useState(0);
+  const [peopleRetryCount, setPeopleRetryCount] = useState(0);
 
   const [chipSets, setChipSets] = useState<GameChipSet[] | null>(null);
+  const [chipSetsError, setChipSetsError] = useState<string | null>(null);
+  const [chipSetsRetryCount, setChipSetsRetryCount] = useState(0);
   const [selectedChipSetId, setSelectedChipSetId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingChipSetId, setEditingChipSetId] = useState<string | null>(null);
@@ -193,6 +210,16 @@ export default function NewGamePage() {
   const [savingChipSet, setSavingChipSet] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+
+  // v2 rematch: the seats the last night had, minus the host (who is seated below
+  // regardless) and anyone the host removes here before opening the table.
+  const [extraSeatedIds, setExtraSeatedIds] = useState<Set<string>>(new Set());
+  const [rosterPickerOpen, setRosterPickerOpen] = useState(false);
+  const [rematchSeed, setRematchSeed] = useState<RematchSeed | null>(null);
+  const [rematchError, setRematchError] = useState<string | null>(null);
+  // A ref, not state: this only ever guards a one-shot, and as state it would have to
+  // be set from inside an effect body, which cascades a render for nothing.
+  const rematchAppliedRef = useRef(false);
 
   useEffect(() => {
     // No declared identity means no host, and the whole screen is meaningless.
@@ -219,6 +246,11 @@ export default function NewGamePage() {
     if (loadError) toast.error(loadError);
   }, [loadError]);
 
+  function retryLoadPeople() {
+    setLoadError(null);
+    setPeopleRetryCount((count) => count + 1);
+  }
+
   useEffect(() => {
     let cancelled = false;
     apiFetch<{ chipSets: GameChipSet[] }>("/api/chip-sets")
@@ -229,30 +261,100 @@ export default function NewGamePage() {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        toast.error(error instanceof ApiError ? error.message : "טעינת חבילות הז׳יטונים נכשלה");
+        const message = error instanceof ApiError ? error.message : "טעינת חבילות הז׳יטונים נכשלה";
+        setChipSetsError(message);
+        toast.error(message);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [chipSetsRetryCount]);
 
-  const buyInShekels = useMemo(() => {
-    if (buyInChoice === "custom") return Number(customBuyIn);
-    return Number(buyInChoice);
-  }, [buyInChoice, customBuyIn]);
+  // Waits for the roster, the chip sets and the host's own id before asking, so the
+  // seed can be applied entirely inside this callback -- there is nothing left to
+  // synchronise afterwards, and a prefill is a convenience that can afford to land a
+  // moment late. The ref keeps it a one-shot, so a later render cannot re-seed over
+  // somebody the host has since removed by hand.
+  useEffect(() => {
+    if (!rematchFromId || hostPersonId == null || people === null || chipSets === null) return;
+    if (rematchAppliedRef.current) return;
+    let cancelled = false;
+    apiFetch<RematchSeed>(`/api/games/${rematchFromId}/rematch`)
+      .then((seed) => {
+        if (cancelled) return;
+        rematchAppliedRef.current = true;
+        setRematchSeed(seed);
 
-  const rebuyShekels = rebuyDifferent ? Number(customRebuy) : buyInShekels;
+        // Anyone who has left the group since is dropped rather than seated as a
+        // name the roster can no longer resolve. The host is never in `extraSeatedIds`.
+        const known = new Set(people.map((person) => person.id));
+        setExtraSeatedIds(
+          new Set(
+            seed.people
+              .map((person) => person.id)
+              .filter((id) => id !== hostPersonId && known.has(id))
+              .slice(0, AVATAR_KEYS.length - 1),
+          ),
+        );
+
+        const preset = BUY_IN_CHIPS.find(
+          (chip) => shekelsToAgorot(Number(chip.amount)) === seed.buyIn,
+        );
+        if (preset) {
+          setBuyInChoice(preset.amount);
+        } else {
+          setBuyInChoice("custom");
+          setCustomBuyInAgorot(seed.buyIn);
+        }
+        if (seed.rebuyAmount !== seed.buyIn) {
+          setRebuyDifferent(true);
+          setCustomRebuyAgorot(seed.rebuyAmount);
+        }
+        // Only if that set still exists -- it may have been deleted since the night.
+        if (seed.chipSetId && chipSets.some((chipSet) => chipSet.id === seed.chipSetId)) {
+          setSelectedChipSetId(seed.chipSetId);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setRematchError(err instanceof ApiError ? err.message : "טעינת הערב הקודם נכשלה");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rematchFromId, hostPersonId, people, chipSets]);
+
+  useEffect(() => {
+    if (rematchError) toast.error(rematchError);
+  }, [rematchError]);
+
+  const buyInAgorot = useMemo(() => {
+    if (buyInChoice === "custom") return customBuyInAgorot;
+    return shekelsToAgorot(Number(buyInChoice));
+  }, [buyInChoice, customBuyInAgorot]);
+
+  const rebuyAgorot = rebuyDifferent ? customRebuyAgorot : buyInAgorot;
 
   const moneyValid =
-    Number.isFinite(buyInShekels) && buyInShekels > 0 &&
-    Number.isFinite(rebuyShekels) && rebuyShekels > 0;
+    buyInAgorot !== null && buyInAgorot > 0 &&
+    rebuyAgorot !== null && rebuyAgorot > 0;
 
-  // The host, and only the host. Everyone else arrives through the link and is let in
-  // at the door, so a new table starts as one seat rather than a guest list.
-  const seated = useMemo(
-    () => (hostPersonId == null ? new Set<string>() : new Set([hostPersonId])),
-    [hostPersonId],
-  );
+  // The host, always -- plus anyone carried over from a rematch and not since removed.
+  // Everyone else still arrives through the link and is let in at the door.
+  const seated = useMemo(() => {
+    if (hostPersonId == null) return new Set<string>();
+    return new Set([hostPersonId, ...extraSeatedIds]);
+  }, [hostPersonId, extraSeatedIds]);
+
+  function toggleSeated(personId: string) {
+    if (personId === hostPersonId) return;
+    setExtraSeatedIds((current) => {
+      const next = new Set(current);
+      if (next.has(personId)) next.delete(personId);
+      else next.add(personId);
+      return next;
+    });
+  }
 
   const hostInRoster = people?.some((person) => person.id === hostPersonId) ?? false;
 
@@ -328,10 +430,10 @@ export default function NewGamePage() {
     hostInRoster &&
     seated.size > 0 &&
     seated.size <= AVATAR_KEYS.length &&
-    Number.isFinite(buyInShekels) &&
-    buyInShekels > 0 &&
-    Number.isFinite(rebuyShekels) &&
-    rebuyShekels > 0;
+    buyInAgorot !== null &&
+    buyInAgorot > 0 &&
+    rebuyAgorot !== null &&
+    rebuyAgorot > 0;
 
   const disabledReason =
     people === null
@@ -340,25 +442,23 @@ export default function NewGamePage() {
         ? "השם שבחרתם לא נמצא ברשימה. בחרו אותו מחדש במסך הבית"
         : seated.size > AVATAR_KEYS.length
           ? `אפשר להושיב עד ${AVATAR_KEYS.length} שחקנים בשולחן`
-        : !Number.isFinite(buyInShekels) || buyInShekels <= 0
+        : buyInAgorot === null || buyInAgorot <= 0
           ? "הזינו סכום כניסה תקין"
-          : !Number.isFinite(rebuyShekels) || rebuyShekels <= 0
+          : rebuyAgorot === null || rebuyAgorot <= 0
             ? "הזינו סכום ריביי תקין"
             : null;
 
   async function handleSubmit() {
-    if (!canSubmit || hostPersonId == null) return;
+    if (!canSubmit || hostPersonId == null || buyInAgorot === null || rebuyAgorot === null) return;
     setSubmitting(true);
     try {
-      const buyIn = shekelsToAgorot(buyInShekels);
-      const rebuyAmount = shekelsToAgorot(rebuyShekels);
       const { id } = await apiFetch<{ id: string }>("/api/games", {
         method: "POST",
         body: JSON.stringify({
           name: name.trim() || undefined,
           location: location.trim() || undefined,
-          buyIn,
-          rebuyAmount,
+          buyIn: buyInAgorot,
+          rebuyAmount: rebuyAgorot,
           plannedEndAt: exitTimeToIso(exitTime),
           personIds: Array.from(seated),
           chipSetId: selectedChipSetId,
@@ -425,6 +525,59 @@ export default function NewGamePage() {
                 />
               </Field>
             </motion.div>
+
+            {rematchSeed && (
+              <motion.section
+                variants={motionSafe(rise, reduceMotion)}
+                className="flex flex-col gap-2.5"
+                aria-labelledby="rematch-roster-heading"
+              >
+                <div>
+                  <Label id="rematch-roster-heading" className="t-label text-[var(--text-1)]">
+                    אותה חבורה
+                  </Label>
+                  <p className="t-caption mt-1 text-[var(--text-2)]">
+                    {rematchSeed.name
+                      ? `מהערב "${rematchSeed.name}" — אפשר להוריד או להוסיף מישהו לפני שפותחים.`
+                      : "מהערב הקודם — אפשר להוריד או להוסיף מישהו לפני שפותחים."}
+                  </p>
+                </div>
+                <ul className="flex flex-wrap gap-3">
+                  {people
+                    ?.filter((person) => seated.has(person.id))
+                    .map((person) => (
+                      <li key={person.id} className="relative">
+                        <ChipAvatar
+                          avatarKey={person.avatarKey}
+                          personId={person.id}
+                          name={person.nickname ?? person.name}
+                          className="size-14"
+                        />
+                        {person.id !== hostPersonId && (
+                          <button
+                            type="button"
+                            aria-label={`הסרת ${person.nickname ?? person.name}`}
+                            onClick={() => toggleSeated(person.id)}
+                            className="absolute -top-1 -end-1 grid size-5 place-items-center rounded-full bg-ink-800 text-[10px] text-[var(--text-2)]"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setRosterPickerOpen(true)}
+                      aria-label="הוספת שחקן"
+                      className="grid size-14 place-items-center rounded-full border border-dashed border-ink-600 text-[var(--text-2)]"
+                    >
+                      <PlusIcon aria-hidden="true" className="size-5" />
+                    </button>
+                  </li>
+                </ul>
+              </motion.section>
+            )}
           </>
         )}
 
@@ -465,11 +618,11 @@ export default function NewGamePage() {
                   onClick={() => setCustomOpen(true)}
                   className="aspect-square h-auto flex-1 rounded-full border-0 bg-transparent p-0 opacity-60 transition-[transform,opacity] duration-[var(--dur-base)] ease-[var(--ease-out)] data-[state=on]:-translate-y-1 data-[state=on]:opacity-100"
                 >
-                  {customBuyIn ? (
+                  {customBuyInAgorot !== null ? (
                     <PokerChip
                       color={CUSTOM_CHIP.body}
                       edgeColor={CUSTOM_CHIP.edge}
-                      label={`₪${customBuyIn}`}
+                      label={formatILS(agorot(customBuyInAgorot))}
                       className="size-full"
                     />
                   ) : (
@@ -488,7 +641,7 @@ export default function NewGamePage() {
                 setCustomOpen(open);
                 // Closing with nothing typed means they changed their mind, so the
                 // row must not stay parked on an empty custom chip.
-                if (!open && !customBuyIn.trim()) setBuyInChoice("20");
+                if (!open && customBuyInAgorot === null) setBuyInChoice("20");
               }}
             >
               <DialogContent>
@@ -500,26 +653,20 @@ export default function NewGamePage() {
                   <PokerChip
                     color={CUSTOM_CHIP.body}
                     edgeColor={CUSTOM_CHIP.edge}
-                    label={customBuyIn ? `₪${customBuyIn}` : "₪"}
+                    label={customBuyInAgorot !== null ? formatILS(agorot(customBuyInAgorot)) : "₪"}
                     className="size-28"
                   />
-                  <Input
-                    className={cn(FIELD_CLASS, "money w-40 text-center text-xl")}
-                    type="number"
-                    inputMode="decimal"
-                    min={1}
-                    dir="ltr"
-                    autoFocus
-                    placeholder="150"
+                  <AmountInput
+                    initialAmount={customBuyInAgorot}
+                    onChange={setCustomBuyInAgorot}
+                    onCommit={setCustomBuyInAgorot}
                     aria-label="סכום הכניסה בשקלים"
-                    value={customBuyIn}
-                    onChange={(e) => setCustomBuyIn(e.target.value)}
                   />
                 </div>
                 <DialogFooter>
                   <Button
                     type="button"
-                    disabled={!customBuyIn.trim() || Number(customBuyIn) <= 0}
+                    disabled={customBuyInAgorot === null || customBuyInAgorot <= 0}
                     onClick={() => setCustomOpen(false)}
                   >
                     זה הסכום
@@ -538,14 +685,11 @@ export default function NewGamePage() {
                 />
               </div>
               {rebuyDifferent && (
-                <Input
-                  className={FIELD_CLASS}
-                  type="number"
-                  inputMode="decimal"
-                  min={1}
-                  placeholder="סכום ריביי בשקלים"
-                  value={customRebuy}
-                  onChange={(e) => setCustomRebuy(e.target.value)}
+                <AmountInput
+                  initialAmount={customRebuyAgorot}
+                  onChange={setCustomRebuyAgorot}
+                  onCommit={setCustomRebuyAgorot}
+                  aria-label="סכום ריביי בשקלים"
                 />
               )}
             </motion.div>
@@ -611,7 +755,21 @@ export default function NewGamePage() {
                 </Button>
               </div>
 
-              {chipSets === null && <Skeleton className="h-24 w-full" />}
+              {chipSets === null && !chipSetsError && <Skeleton className="h-24 w-full" />}
+
+              {chipSetsError && (
+                <div className="surface-card flex flex-col items-center gap-2.5 rounded-[20px] p-4 text-center">
+                  <p className="t-caption text-[var(--text-2)]">{chipSetsError}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setChipSetsRetryCount((count) => count + 1)}
+                  >
+                    נסה שוב
+                  </Button>
+                </div>
+              )}
 
               <ToggleGroup
                 type="single"
@@ -682,6 +840,24 @@ export default function NewGamePage() {
 
         {step === 2 && (
           <motion.div variants={motionSafe(rise, reduceMotion)} className="flex flex-col gap-3">
+            {/* A recap, not another input -- the amounts were already chosen in step
+                1. Without this, a host who tapped past a wrong custom amount had no
+                second look before the table opened on it. */}
+            <div className="surface-card flex flex-col gap-2 rounded-[20px] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="t-caption text-[var(--text-2)]">כניסה</span>
+                <Money value={buyInAgorot ?? 0} className="font-semibold" />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="t-caption text-[var(--text-2)]">ריביי</span>
+                <Money value={rebuyAgorot ?? 0} className="font-semibold" />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="t-caption text-[var(--text-2)]">שעת יציאה</span>
+                <span className="t-caption font-semibold tabular-nums">{exitTime}</span>
+              </div>
+            </div>
+
             <Label className="t-label text-[var(--text-1)]">איך נכנסים לשולחן</Label>
             {/* The roster checklist used to live here. It made the host type everybody
                 in before the night began, and every seat it created sat unclaimed all
@@ -710,6 +886,17 @@ export default function NewGamePage() {
       </motion.div>
       {/* The sticky primary action. Only the final step submits. */}
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[450px] flex-col gap-2 bg-ink-950/85 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
+        {step === 2 && people === null && loadError && !submitting && (
+          <div className="flex flex-col items-center gap-2">
+            <p className="t-caption text-center text-[var(--text-2)]">{loadError}</p>
+            <Button type="button" size="sm" variant="secondary" onClick={retryLoadPeople}>
+              נסה שוב
+            </Button>
+          </div>
+        )}
+        {step === 2 && people === null && !loadError && !submitting && (
+          <p className="t-caption text-center text-[var(--text-2)]">טוענים את רשימת השחקנים...</p>
+        )}
         {step === 2 && !canSubmit && disabledReason && !submitting && (
           <p className="t-caption text-center text-[var(--text-2)]">{disabledReason}</p>
         )}
@@ -769,6 +956,54 @@ export default function NewGamePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {rematchSeed && (
+        <Dialog open={rosterPickerOpen} onOpenChange={setRosterPickerOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>הוספת שחקן</DialogTitle>
+            </DialogHeader>
+            <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+              {people
+                ?.filter((person) => !seated.has(person.id))
+                .map((person) => (
+                  <li key={person.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleSeated(person.id);
+                        setRosterPickerOpen(false);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-start transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-ink-800"
+                    >
+                      <ChipAvatar
+                        avatarKey={person.avatarKey}
+                        personId={person.id}
+                        name={person.nickname ?? person.name}
+                        className="size-10"
+                      />
+                      <span className="t-body">{person.nickname ?? person.name}</span>
+                    </button>
+                  </li>
+                ))}
+              {people && people.every((person) => seated.has(person.id)) && (
+                <p className="t-caption py-4 text-center text-[var(--text-2)]">
+                  כל מי שברשימה כבר בשולחן
+                </p>
+              )}
+            </ul>
+          </DialogContent>
+        </Dialog>
+      )}
     </main>
+  );
+}
+
+/** New game setup. Spec 5.2. */
+export default function NewGamePage() {
+  return (
+    <Suspense fallback={null}>
+      <NewGameForm />
+    </Suspense>
   );
 }

@@ -283,7 +283,7 @@ export function HandRecorder({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="hand-pot">גובה הקופה בשקלים (לא חובה)</Label>
-              <Input id="hand-pot" className="h-12" dir="ltr" type="number" min="0" inputMode="decimal" value={pot} onChange={(event) => setPot(event.target.value)} placeholder="150" />
+              <Input id="hand-pot" className="h-12" dir="ltr" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={pot} onChange={(event) => setPot(event.target.value)} placeholder="150" />
             </div>
             <div className="flex flex-col gap-2">
               <Label>מי השתתף ומה הייתה התוצאה?</Label>
@@ -325,7 +325,7 @@ export function HandRecorder({
                                 unavailable={unavailableExcept(playerDraft.holeCards)}
                                 onChange={(holeCards) => updatePlayer(player.id, { holeCards })}
                               />
-                              <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="number" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
+                              <Input aria-label={`התוצאה של ${player.name} בשקלים`} className="h-12" dir="ltr" type="text" inputMode="decimal" value={playerDraft.delta} onChange={(event) => updatePlayer(player.id, { delta: event.target.value })} placeholder="+ / − ₪" />
                             </div>
                           </motion.div>
                         )}

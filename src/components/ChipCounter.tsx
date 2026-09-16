@@ -172,15 +172,21 @@ function ChipCounterRow({
         >
           <MinusIcon strokeWidth={1.75} />
         </Button>
+        {/* Text rather than `type="number"`: the spinner is hidden anyway, but a
+            number field still takes a scroll wheel and an arrow key, which on a
+            desktop browser silently changed a chip count nobody was editing. Digits
+            are filtered here instead, so the field can never hold a NaN. */}
         <Input
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={0}
-          step={1}
+          pattern="[0-9]*"
           disabled={disabled}
           aria-label={`כמות ז׳יטונים בערך ${formatILS(agorot(denomination.value))}`}
           value={count}
-          onChange={(event) => onCount(Number(event.target.value))}
+          onChange={(event) => {
+            const digits = event.target.value.replace(/\D/g, "");
+            onCount(digits === "" ? 0 : Number(digits));
+          }}
           className="money h-12 w-16 px-2 text-center t-body font-semibold tabular-nums"
         />
         <Button

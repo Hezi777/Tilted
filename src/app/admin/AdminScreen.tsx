@@ -416,8 +416,15 @@ function CustomCharacterFields({
       <Button type="button" disabled={busy || label.trim().length === 0} onClick={() => onSave(label.trim(), reserved)}>
         שמירה
       </Button>
-      {/* Far from the save button on purpose -- this is the irreversible one. */}
-      <Button type="button" variant="ghost" className="text-destructive" disabled={busy} onClick={onDelete}>
+      {/* Far from the save button on purpose -- this is the irreversible one. The
+          comment used to promise more distance than a 12px flex gap delivered. */}
+      <Button
+        type="button"
+        variant="ghost"
+        className="mt-3 text-destructive"
+        disabled={busy}
+        onClick={onDelete}
+      >
         מחיקת הדמות
       </Button>
     </div>
@@ -543,6 +550,9 @@ function TablesDrawer({
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [busy, setBusy] = useState(false);
+  // Purge destroys other people's recorded history, not just the actor's own -- the
+  // same typed-word confirmation ProfileScreen already uses for deleting an account.
+  const [purgeConfirmText, setPurgeConfirmText] = useState("");
 
   async function save() {
     if (!editing) return;
@@ -576,6 +586,7 @@ function TablesDrawer({
       );
       toast.success(purge ? "השולחן נמחק" : "השולחן בוטל");
       setConfirming(null);
+      setPurgeConfirmText("");
       setEditing(null);
       onChanged();
     } catch (reason) {
@@ -653,17 +664,22 @@ function TablesDrawer({
                   ביטול השולחן
                 </Button>
               ) : null}
-              {/* The strongest of the three, and last, so a thumb reaching for save
-                  never finds it first. */}
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-destructive"
-                disabled={busy}
-                onClick={() => setConfirming({ game: editing, mode: "purge" })}
-              >
-                מחיקת השולחן לצמיתות
-              </Button>
+              {/* Separated under its own label rather than sitting one 12px gap below
+                  save as a visual peer of cancel: cancel leaves the record intact,
+                  this one destroys it -- two very different consequences drawn the
+                  same weight is what NN/g calls dangerous UX. The strongest of the
+                  three, and last, so a thumb reaching for save never finds it first. */}
+              <div className="mt-1 flex flex-col gap-2 border-t border-[var(--border)] pt-3">
+                <p className="t-caption ink-3">אזור מסוכן</p>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={busy}
+                  onClick={() => setConfirming({ game: editing, mode: "purge" })}
+                >
+                  מחיקת השולחן לצמיתות
+                </Button>
+              </div>
             </div>
           )}
           <DrawerFooter>
@@ -674,7 +690,15 @@ function TablesDrawer({
         </DrawerContent>
       </Drawer>
 
-      <Drawer open={confirming !== null} onOpenChange={(next) => !next && setConfirming(null)}>
+      <Drawer
+        open={confirming !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setConfirming(null);
+            setPurgeConfirmText("");
+          }
+        }}
+      >
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>
@@ -689,12 +713,39 @@ function TablesDrawer({
                 ? `${confirming.game.name ?? "הערב"} יימחק על כל הכניסות, הספירות וההעברות שלו. אין דרך לחזור מזה.`
                 : "הערב יסומן כבוטל ולא ייכנס להיסטוריה. אין דרך לחזור מזה."}
             </p>
-            <Button type="button" variant="destructive" disabled={busy} onClick={() => void confirm()}>
+            {confirming?.mode === "purge" && (
+              // Purge destroys other people's history, not just the actor's own -- the
+              // one drawer tap here used to be lower friction than deleting your own
+              // account. Same typed-word gate ProfileScreen uses at :467.
+              <Field label="אישור מחיקה" hint='כתבו "מחיקה" כדי לאשר'>
+                <Input
+                  value={purgeConfirmText}
+                  onChange={(event) => setPurgeConfirmText(event.target.value)}
+                  placeholder="מחיקה"
+                />
+              </Field>
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                busy || (confirming?.mode === "purge" && purgeConfirmText.trim() !== "מחיקה")
+              }
+              onClick={() => void confirm()}
+            >
               {confirming?.mode === "purge" ? "כן, מחקו לצמיתות" : "כן, בטלו את השולחן"}
             </Button>
           </div>
           <DrawerFooter>
-            <Button type="button" variant="outline" className="h-12" onClick={() => setConfirming(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12"
+              onClick={() => {
+                setConfirming(null);
+                setPurgeConfirmText("");
+              }}
+            >
               ביטול
             </Button>
           </DrawerFooter>

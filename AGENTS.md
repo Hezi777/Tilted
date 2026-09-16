@@ -103,6 +103,12 @@ These are the ones that are expensive to get wrong and cannot be inferred from t
 - **Authentication is required.** Neon Managed Better Auth with email and password is the
   only identity system. Every playable Person is bound to one auth user; do not create
   accountless guests or restore the old localStorage identity picker.
+- **Rose is money, not emphasis.** `brand-*` aliases `--red-400`, which is also `--loss`
+  and `--destructive`. It shipped as the app's general accent -- the winner's crown, the
+  "you" badge, the live-table strip, the focus border on every amount field -- so red meant
+  both "you lost" and "this matters". Violet is the accent (`--violet-300` is the only
+  violet step that may carry text) and `--amber-400` is the winner, which its own comment
+  in `globals.css` already reserved. Reach for one of those, never for `brand-*`.
 - **RTL: Tailwind logical properties only** — `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`/
   `text-start`/`text-end`. ESLint fails the build on `ml-`, `pr-`, `text-left` and friends.
 - **Hebrew UI, English code.** Every user-facing string is Hebrew; every identifier,

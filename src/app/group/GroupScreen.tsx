@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { AppHeader } from "@/components/AppHeader";
@@ -199,8 +200,26 @@ export function GroupScreen() {
                     </button>
                   </li>
                 ))}
-                {members.length === 0 && (
+                {members.length === 0 && query.trim() && (
                   <li className="t-body ink-3 px-1 py-4">לא נמצא שחקן בשם הזה.</li>
+                )}
+                {members.length === 0 && !query.trim() && (
+                  // Same empty-slot pattern as home (src/app/page.tsx) -- a search
+                  // finding nothing and never having played are different states
+                  // and read like it here, instead of both saying "not found".
+                  <li className="empty-slot mt-1 flex flex-col items-center gap-3 rounded-[20px] px-6 py-10 text-center">
+                    <Image
+                      src="/art/states/empty.webp"
+                      alt=""
+                      width={88}
+                      height={88}
+                      className="size-20 object-contain"
+                    />
+                    <p className="t-title">עדיין לא שיחקתם עם אף אחד</p>
+                    <p className="t-caption ink-3 max-w-[30ch] leading-relaxed">
+                      ברגע שיצטרפו שחקנים לערב, הם יופיעו כאן עם ההיסטוריה המשותפת.
+                    </p>
+                  </li>
                 )}
               </ul>
             </motion.section>

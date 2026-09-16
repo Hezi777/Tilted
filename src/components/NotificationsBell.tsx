@@ -117,10 +117,13 @@ export function NotificationsBell() {
                     מארח: {invite.hostName} · {invite.seatedCount} מושבים
                   </p>
                 </div>
+                {/* Raised from size="sm" (40px) at the call site: these sit adjacent in
+                    a drawer, one-handed, and a grown hit area under a smaller control
+                    could overlap its neighbour. Full size clears the 44px floor by
+                    being drawn at it. */}
                 <div className="flex shrink-0 gap-2">
                   <Button
                     type="button"
-                    size="sm"
                     variant="ghost"
                     disabled={busyId === invite.playerId}
                     onClick={() => decline(invite)}
@@ -129,7 +132,6 @@ export function NotificationsBell() {
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
                     disabled={busyId === invite.playerId}
                     onClick={() => accept(invite)}
                   >

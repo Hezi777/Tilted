@@ -54,11 +54,11 @@ export function LiveSessionBar({ game }: { game: GameSummary | null }) {
   return (
     <Link
       href={`/game/${game.id}`}
-      className="group flex min-h-14 items-center gap-3 border-b border-brand-500/25 bg-brand-900/45 px-5 py-2 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-brand-900/60 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+      className="group flex min-h-14 items-center gap-3 border-b border-violet-500/25 bg-violet-900/45 px-5 py-2 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-violet-900/60 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
     >
       <span
         aria-hidden="true"
-        className="size-2 shrink-0 rounded-full bg-brand-300 shadow-[0_0_10px_var(--red-300)] motion-safe:animate-pulse"
+        className="size-2 shrink-0 rounded-full bg-violet-300 shadow-[0_0_10px_var(--violet-500)] motion-safe:animate-pulse"
       />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-bold">
@@ -69,9 +69,12 @@ export function LiveSessionBar({ game }: { game: GameSummary | null }) {
         </span>
       </span>
       <Money value={game.pot} className="t-body shrink-0 font-bold" />
+      {/* This strip is a way *into* the game: forward. The page is always dir="rtl",
+          so `rtl:rotate-180` here was not a mirroring fix, it was unconditional --
+          forward in RTL is left, and ChevronLeftIcon already points left undrawn. */}
       <ChevronLeftIcon
         aria-hidden="true"
-        className="ink-3 size-4 shrink-0 rtl:rotate-180"
+        className="ink-3 size-4 shrink-0"
       />
       <span className="sr-only">חזרה לשולחן</span>
     </Link>
