@@ -6,6 +6,7 @@
  * predicates; it takes a live database to prove what they match.
  */
 
+import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   hasIntegrationDb,
@@ -140,5 +141,178 @@ describe.skipIf(!hasIntegrationDb)("removing a seat that already cashed out", ()
     const state = await cashout.getCashoutState(game.gameId);
     expect(state?.players.some((player) => player.id === game.guest.playerId)).toBe(false);
     expect(state?.pot).toBe(10_000);
+  });
+});
+
+/**
+ * The authorization hole: `resolveSeatActor` resolves an attached member to the SAME
+ * `players.id` as the seat, so `attachSeatMember`'s old check --
+ * `access.actor.id !== playerId` -- read true for that member too, exactly as it does
+ * for the seat's real primary occupant. An attached member could attach further
+ * people to a seat they do not own. Only the host or the seat's own primary occupant
+ * (`players.person_id`) may extend it.
+ */
+describe.skipIf(!hasIntegrationDb)("attachSeatMember authorization", () => {
+  let cashout: typeof import("@/db/cashout-queries");
+
+  beforeAll(async () => {
+    cashout = await import("@/db/cashout-queries");
+  });
+
+  it("refuses an already-attached member trying to attach someone else", async () => {
+    const game = await seedActiveGame(10_000);
+    const { db } = await import("@/db");
+    const { people, seatMembers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const firstMemberId = randomUUID();
+    await db.insert(people).values({ id: firstMemberId, name: "שותף/ה", userId: `user_${firstMemberId}` });
+    await db.insert(seatMembers).values({
+      id: randomUUID(),
+      gameId: game.gameId,
+      playerId: game.guest.playerId,
+      personId: firstMemberId,
+    });
+
+    const secondMemberId = randomUUID();
+    await db.insert(people).values({
+      id: secondMemberId,
+      name: "שותף/ה נוסף/ת",
+      userId: `user_${secondMemberId}`,
+    });
+
+    // `firstMemberId` resolves to the SAME `players.id` as the seat's own primary
+    // occupant (see `resolveSeatActor`) -- this is the exact confusion the old
+    // `access.actor.id !== playerId` check fell for.
+    await expect(
+      cashout.attachSeatMember(game.gameId, firstMemberId, game.guest.playerId, secondMemberId),
+    ).rejects.toThrow();
+
+    // Refused, not merely reported as refused: no row was written.
+    const rows = await db
+      .select({ id: seatMembers.id })
+      .from(seatMembers)
+      .where(eq(seatMembers.personId, secondMemberId));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("the host may attach a member to any seat", async () => {
+    const game = await seedActiveGame(10_000);
+    const { db } = await import("@/db");
+    const { people, seatMembers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const memberId = randomUUID();
+    await db.insert(people).values({ id: memberId, name: "שותף/ה", userId: `user_${memberId}` });
+
+    await expect(
+      cashout.attachSeatMember(game.gameId, game.host.personId, game.guest.playerId, memberId),
+    ).resolves.toBeUndefined();
+
+    const rows = await db
+      .select({ id: seatMembers.id })
+      .from(seatMembers)
+      .where(eq(seatMembers.personId, memberId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("the seat's own primary occupant may attach a member", async () => {
+    const game = await seedActiveGame(10_000);
+    const { db } = await import("@/db");
+    const { people, seatMembers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const memberId = randomUUID();
+    await db.insert(people).values({ id: memberId, name: "שותף/ה", userId: `user_${memberId}` });
+
+    await expect(
+      cashout.attachSeatMember(game.gameId, game.guest.personId, game.guest.playerId, memberId),
+    ).resolves.toBeUndefined();
+
+    const rows = await db
+      .select({ id: seatMembers.id })
+      .from(seatMembers)
+      .where(eq(seatMembers.personId, memberId));
+    expect(rows).toHaveLength(1);
+  });
+});
+
+/**
+ * Membership of a closed night must be immutable -- it is what makes profile net,
+ * streak and head-to-head stable once a game is done. `attachSeatMember` and
+ * `detachSeatMember` must refuse a game that is not `active` or `settling`, checked
+ * in the statement itself.
+ */
+describe.skipIf(!hasIntegrationDb)("attachSeatMember/detachSeatMember status guard", () => {
+  let cashout: typeof import("@/db/cashout-queries");
+
+  beforeAll(async () => {
+    cashout = await import("@/db/cashout-queries");
+  });
+
+  it("refuses attaching a member to a closed game", async () => {
+    const game = await seedActiveGame(10_000);
+    const { db } = await import("@/db");
+    const { games, people, seatMembers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db.update(games).set({ status: "closed" }).where(eq(games.id, game.gameId));
+
+    const memberId = randomUUID();
+    await db.insert(people).values({ id: memberId, name: "שותף/ה", userId: `user_${memberId}` });
+
+    await expect(
+      cashout.attachSeatMember(game.gameId, game.host.personId, game.guest.playerId, memberId),
+    ).rejects.toThrow();
+
+    const rows = await db
+      .select({ id: seatMembers.id })
+      .from(seatMembers)
+      .where(eq(seatMembers.personId, memberId));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("still allows attaching a member while the game is active", async () => {
+    const game = await seedActiveGame(10_000);
+    const { db } = await import("@/db");
+    const { people, seatMembers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const memberId = randomUUID();
+    await db.insert(people).values({ id: memberId, name: "שותף/ה", userId: `user_${memberId}` });
+
+    await expect(
+      cashout.attachSeatMember(game.gameId, game.host.personId, game.guest.playerId, memberId),
+    ).resolves.toBeUndefined();
+
+    const rows = await db
+      .select({ id: seatMembers.id })
+      .from(seatMembers)
+      .where(eq(seatMembers.personId, memberId));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("refuses detaching from a closed game", async () => {
+    const game = await seedActiveGame(10_000);
+    const { db } = await import("@/db");
+    const { games, people, seatMembers } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const memberId = randomUUID();
+    await db.insert(people).values({ id: memberId, name: "שותף/ה", userId: `user_${memberId}` });
+    await db.insert(seatMembers).values({
+      id: randomUUID(),
+      gameId: game.gameId,
+      playerId: game.guest.playerId,
+      personId: memberId,
+    });
+    await db.update(games).set({ status: "closed" }).where(eq(games.id, game.gameId));
+
+    await expect(cashout.detachSeatMember(game.gameId, memberId)).rejects.toThrow();
+
+    const rows = await db
+      .select({ id: seatMembers.id })
+      .from(seatMembers)
+      .where(eq(seatMembers.personId, memberId));
+    expect(rows).toHaveLength(1);
   });
 });

@@ -34,6 +34,20 @@ export function isolate(amount: string): string {
   return `⁦${amount}⁩`;
 }
 
+/**
+ * The one name a shared seat (plan item 9) shows everywhere: the WhatsApp text
+ * (`buildSummaryText`, below) and the share image (`share-card.ts`) both read it from
+ * `SettlementPlayer.name`, and `SettlementScreen.tsx` builds both payloads from that
+ * same field -- so calling this once, in one place, is what keeps them from disagreeing.
+ */
+export function formatSeatDisplayName(
+  primaryName: string,
+  memberNames: readonly string[],
+): string {
+  if (memberNames.length === 0) return primaryName;
+  return [primaryName, ...memberNames].join(" ו");
+}
+
 export interface SummaryTextInput {
   title: string;
   dateLabel: string;

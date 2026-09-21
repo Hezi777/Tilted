@@ -99,11 +99,16 @@ export async function loadHeadToHead(
         eq(players.personId, viewerPersonId),
         isNull(players.deletedAt),
         eq(games.status, "closed"),
+        // Wave 4, item 9 (corrected): a shared seat is excluded from head-to-head
+        // entirely, for whichever side of the pair it belongs to -- neither the
+        // viewer's own seat nor the opponent's counts if either one is shared.
+        sql`(select count(*) from seat_members sm where sm.player_id = players.id) <= 1`,
         sql`exists (
           select 1 from ${players} other
           where other.game_id = ${players.gameId}
             and other.person_id = ${opponentPersonId}::uuid
             and other.deleted_at is null
+            and (select count(*) from seat_members sm2 where sm2.player_id = other.id) <= 1
         )`,
       ),
     );

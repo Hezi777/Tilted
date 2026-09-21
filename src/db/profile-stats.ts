@@ -74,6 +74,14 @@ async function loadNights(personId: string): Promise<NightResult[]> {
         eq(players.personId, personId),
         isNull(players.deletedAt),
         eq(games.status, "closed"),
+        // Wave 4, item 9 (corrected): a shared seat (more than one seat_members row)
+        // is how two people play together without the night landing on either
+        // record -- personal stats exclude it entirely, not split or halved. The
+        // count is spelled out against `players` by name, not `${players.id}`,
+        // because that column interpolated into this correlated subquery would
+        // render unqualified as `"id"` -- and seat_members has an `id` column of its
+        // own, so Postgres would silently bind it there instead (AGENTS.md).
+        sql`(select count(*) from seat_members sm where sm.player_id = players.id) <= 1`,
       ),
     )
     .orderBy(sql`${games.closedAt} desc nulls last`);

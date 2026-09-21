@@ -14,6 +14,10 @@ const cashoutSchema = z.object({
   amount: z.number().int().min(0).max(100_000_000).optional(),
   chipCounts: z.record(z.uuid(), z.number().int().min(0).max(1_000_000)).optional(),
   early: z.boolean().optional().default(false),
+  /** The seat's "סיימתי לספור" intent (plan item 5). Defaults to false, which is
+   * also what every in-progress autosave sends -- an edit without this flag re-opens
+   * a seat that had already finished. */
+  done: z.boolean().optional().default(false),
 }).superRefine((value, context) => {
   if ((value.amount === undefined) === (value.chipCounts === undefined)) {
     context.addIssue({
@@ -114,6 +118,7 @@ export async function POST(
         ? { chipCounts: parsed.data.chipCounts ?? {} }
         : { amount: parsed.data.amount },
       parsed.data.early,
+      parsed.data.done,
     );
     return NextResponse.json({
       ...state,

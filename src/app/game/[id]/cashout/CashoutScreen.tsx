@@ -9,23 +9,26 @@ import { AmountInput } from "@/components/AmountInput";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { ChipCounter } from "@/components/ChipCounter";
+import { TrashIcon } from "@/components/icons";
 import { Money } from "@/components/Money";
 import { ArcPill } from "@/components/ui/arc-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { DUR, EASE_OUT } from "@/lib/motion";
+import { DUR, EASE_OUT, motionSafe, rise } from "@/lib/motion";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, ApiError } from "@/lib/api";
 import { agorot } from "@/lib/money";
 import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
 import { mergeCashoutPlayers } from "@/lib/cashout-sync";
+import { buildCashoutFlushBody } from "@/lib/cashout-completion";
 import { computeNets, countedTotal, mismatchDelta, type PlayerLedger } from "@/lib/settlement";
 
 interface CashoutPlayer {
   id: string;
+  personId: string | null;
   name: string;
   avatarKey: string | null;
   seatOrder: number;
@@ -34,6 +37,14 @@ interface CashoutPlayer {
   cashOut: number | null;
   adjustment: number;
   chipCounts: ChipCounts;
+  /** The seat's own "סיימתי לספור" record (plan item 5). Never a substitute for
+   * `cashOut !== null` -- both are required before the host can close. */
+  countDoneAt: string | null;
+  /** Who actually typed the current `cashOut` (plan item 3). */
+  enteredByPersonId: string | null;
+  enteredByName: string | null;
+  /** Other Persons attached to this seat (plan item 9). */
+  memberNames: string[];
 }
 
 interface CashoutChipSet {
@@ -96,8 +107,19 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   const [pendingResolution, setPendingResolution] = React.useState<
     { kind: "split" } | { kind: "assign"; playerId: string; playerName: string } | null
   >(null);
+  // Carried-forward item 2, gate 3: the host cannot reach the roster from here
+  // without this -- `LiveGameScreen` redirects to cash-out the moment the game
+  // becomes `settling`, and this screen had no removal control of its own.
+  const [deleteTarget, setDeleteTarget] = React.useState<
+    { id: string; name: string; totalIn: number } | null
+  >(null);
+  const [deletingPlayer, setDeletingPlayer] = React.useState(false);
   const chipSaveTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const chipSaveVersions = React.useRef(new Map<string, number>());
+  // Mirrors `state` for the unmount flush below, which fires from a cleanup closure
+  // captured once at mount -- reading `state` there would see the value from that
+  // first render forever, not whatever was last tapped in.
+  const latestStateRef = React.useRef<CashoutState | null>(null);
 
   function addTo(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) {
     setter((current) => {
@@ -134,11 +156,32 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     void load();
   }, [load]);
 
+  React.useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+
   React.useEffect(
     () => () => {
-      for (const timer of chipSaveTimers.current.values()) clearTimeout(timer);
+      // Flushing, not just cancelling (docs/2026-09-audit.md open item 5): a chip
+      // tapped a moment before navigating away must still reach the server. Reading
+      // `latestStateRef` rather than `state` is what makes this the actual last
+      // value instead of the one from the render that first mounted this effect,
+      // and `keepalive` is what lets the request outlive the unmount that fires it.
+      const current = latestStateRef.current;
+      for (const [playerId, timer] of chipSaveTimers.current) {
+        clearTimeout(timer);
+        const player = current?.players.find((entry) => entry.id === playerId);
+        if (!player) continue;
+        const body = buildCashoutFlushBody(player, Boolean(current?.chipSet));
+        void apiFetch(`/api/game/${gameId}/cashout`, {
+          method: "POST",
+          body: JSON.stringify(body),
+          keepalive: true,
+        }).catch(() => undefined);
+      }
+      chipSaveTimers.current.clear();
     },
-    [],
+    [gameId],
   );
 
   // A player sitting in checkout has to follow the host to the settlement screen the
@@ -189,8 +232,13 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   function optimisticAmount(playerId: string, amount: number | null) {
     setState((current) => {
       if (!current) return current;
+      // An edit re-opens a done seat immediately (plan item 5) -- the server will
+      // confirm it, but the host reading "ממתינים ל..." should not wait a round
+      // trip to see this seat back on the list.
       const players = current.players.map((player) =>
-        player.id === playerId ? { ...player, cashOut: amount } : player,
+        player.id === playerId
+          ? { ...player, cashOut: amount, countDoneAt: null }
+          : player,
       );
       const next = { ...current, players };
       const nextLedgers = ledgers(next);
@@ -219,7 +267,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
       );
       const players = current.players.map((player) =>
         player.id === playerId
-          ? { ...player, chipCounts, cashOut: amount }
+          ? { ...player, chipCounts, cashOut: amount, countDoneAt: null }
           : player,
       );
       const next = { ...current, players };
@@ -235,7 +283,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     });
   }
 
-  async function save(playerId: string, amount: number) {
+  async function save(playerId: string, amount: number, done = false) {
     if (!state) return;
     const previous = state;
     addTo(setSavingIds, playerId);
@@ -244,7 +292,12 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
         `/api/game/${gameId}/cashout`,
         {
           method: "POST",
-          body: JSON.stringify({ playerId, amount, early: state.status === "active" }),
+          body: JSON.stringify({
+            playerId,
+            amount,
+            early: state.status === "active",
+            done,
+          }),
         },
       );
       /* The response is authoritative for the player just saved and for the
@@ -275,6 +328,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     playerId: string,
     chipCounts: ChipCounts,
     version: number,
+    done = false,
   ) {
     if (!state) return;
     removeFrom(setPendingIds, playerId);
@@ -286,6 +340,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
           playerId,
           chipCounts,
           early: state.status === "active",
+          done,
         }),
       });
       if (chipSaveVersions.current.get(playerId) !== version) return;
@@ -343,7 +398,28 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
   function saveEarlyChipCounts(player: CashoutPlayer) {
     const version = (chipSaveVersions.current.get(player.id) ?? 0) + 1;
     chipSaveVersions.current.set(player.id, version);
-    void persistChipCounts(player.id, player.chipCounts, version);
+    void persistChipCounts(player.id, player.chipCounts, version, true);
+  }
+
+  /**
+   * "סיימתי לספור": persists the exact value on screen and marks it done, in the
+   * same request (plan item 5). It must flush any pending debounce first -- an
+   * explicit done button that quietly loses the last tap the debounce had not saved
+   * yet would be worse than no button at all.
+   */
+  function finishCounting(player: CashoutPlayer) {
+    const timer = chipSaveTimers.current.get(player.id);
+    if (timer) {
+      clearTimeout(timer);
+      chipSaveTimers.current.delete(player.id);
+    }
+    const version = (chipSaveVersions.current.get(player.id) ?? 0) + 1;
+    chipSaveVersions.current.set(player.id, version);
+    if (state?.chipSet) {
+      void persistChipCounts(player.id, player.chipCounts, version, true);
+    } else if (player.cashOut !== null) {
+      void save(player.id, player.cashOut, true);
+    }
   }
 
   async function changeStatus(status: "settling" | "closed" | "active") {
@@ -393,7 +469,29 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
     }
   }
 
-  const missing = state?.players.some((player) => player.cashOut === null) ?? false;
+  /** Carried-forward item 2, gate 3: the same route the live screen already uses,
+   * reachable from here now that settling redirects the host past it. */
+  async function removeSeat() {
+    if (!deleteTarget) return;
+    setDeletingPlayer(true);
+    try {
+      await apiFetch(`/api/game/${gameId}/players/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      setDeleteTarget(null);
+      await load();
+    } catch (error) {
+      toast.error(errorText(error));
+    } finally {
+      setDeletingPlayer(false);
+    }
+  }
+
+  // Both facts, not just a saved amount (plan item 5): a seat can carry a stale
+  // `cash_outs` row from before its last edit re-opened it, and closing on that
+  // would settle a number the seat itself no longer stands behind.
+  const missing = state?.players.some((player) => player.countDoneAt === null) ?? false;
+  const waitingOn = state?.players.filter((player) => player.countDoneAt === null) ?? [];
   const mismatch = (state?.difference ?? 0) !== 0;
   const resolved =
     state?.mismatchKind === "split" || state?.mismatchKind === "assigned";
@@ -408,7 +506,7 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
       (player) => player.cashOut !== null && player.cashOut - player.totalIn > 0,
     ) ?? false;
   const blockReason = missing
-    ? "יש להזין סכום לכל השחקנים כדי לסגור את המשחק."
+    ? `ממתינים ל${waitingOn.map((player) => player.name).join(", ")} לסיים לספור.`
     : mismatch && !resolved
     ? "אי אפשר לסגור כשיש הפרש בספירה. יש לבחור פתרון למעלה."
     : null;
@@ -524,11 +622,52 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                     <div className="flex flex-row items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-11" />
-                        <p className="t-title">{player.name}</p>
+                        <div>
+                          <p className="t-title">
+                            {player.memberNames.length > 0
+                              ? `${player.name} ו${player.memberNames.join(" ו")}`
+                              : player.name}
+                          </p>
+                          {player.countDoneAt !== null && (
+                            // A seat settling into its done state (plan item 12): this
+                            // paragraph only exists once `countDoneAt` is set, so its own
+                            // mount is the trigger -- no extra ref or controls needed, the
+                            // house `rise` entrance just plays once, here, for real.
+                            <motion.p
+                              variants={motionSafe(rise, reduceMotion)}
+                              initial="hidden"
+                              animate="show"
+                              className="t-caption text-profit"
+                            >
+                              סיימו לספור
+                            </motion.p>
+                          )}
+                        </div>
                       </div>
-                      {player.settledAt && (
-                        <Badge variant="secondary">{frozen ? "תוצאה קפואה" : "סגר חשבון"}</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {player.settledAt && (
+                          <Badge variant="secondary">{frozen ? "תוצאה קפואה" : "סגר חשבון"}</Badge>
+                        )}
+                        {state.viewerIsHost &&
+                          player.id !== state.viewerPlayerId &&
+                          (state.status === "active" || state.status === "settling") && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`להסיר את ${player.name}`}
+                              onClick={() =>
+                                setDeleteTarget({
+                                  id: player.id,
+                                  name: player.name,
+                                  totalIn: player.totalIn,
+                                })
+                              }
+                            >
+                              <TrashIcon />
+                            </Button>
+                          )}
+                      </div>
                     </div>
 
                     {readOnly && (
@@ -536,6 +675,15 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                         רק {player.name} או המארח יכולים לעדכן את הספירה הזאת.
                       </p>
                     )}
+
+                    {/* Item 3: a number entered by someone other than the seat's own
+                        occupant is labelled, at cash-out and at settlement. */}
+                    {player.enteredByPersonId !== null &&
+                      player.enteredByPersonId !== player.personId && (
+                        <p className="t-caption ink-3">
+                          הוזן על ידי {player.enteredByName ?? "מישהו אחר"}
+                        </p>
+                      )}
 
                     {locked && overridable && (
                       <Button
@@ -618,10 +766,27 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                         onClick={() =>
                           state.chipSet
                             ? saveEarlyChipCounts(player)
-                            : player.cashOut !== null && void save(player.id, player.cashOut)
+                            : player.cashOut !== null && void save(player.id, player.cashOut, true)
                         }
                       >
                         שמרו סגירת חשבון מוקדמת
+                      </Button>
+                    )}
+
+                    {/* Item 5: the explicit intent, separate from the row that
+                        `saveCashout` already writes on every edit -- a stack counted
+                        to ₪0 must be able to finish too, which no autosave alone can
+                        express. Locked seats (frozen, or someone else's) never see
+                        this: overriding a frozen number is the host's separate
+                        action above. */}
+                    {state.status === "settling" && !locked && (
+                      <Button
+                        className="w-full"
+                        variant={player.countDoneAt !== null ? "secondary" : "default"}
+                        disabled={isSaving || isPending || player.cashOut === null}
+                        onClick={() => finishCounting(player)}
+                      >
+                        {player.countDoneAt !== null ? "עדכנו וסיימו שוב" : "סיימתי לספור"}
                       </Button>
                     )}
                   </div>
@@ -769,6 +934,37 @@ export default function CashoutScreen({ gameId }: { gameId: string }) {
                   </Button>
                   <Button type="button" variant="secondary" onClick={() => setPendingResolution(null)}>
                     ביטול
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Carried-forward item 2, gate 3. Matches the live screen's own
+                delete-seat dialog: names the person AND the money it erases -- an
+                irreversible pot change is the thing worth showing, not just the
+                name. */}
+            <Dialog
+              open={deleteTarget !== null}
+              onOpenChange={(open) => !open && setDeleteTarget(null)}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>להסיר את {deleteTarget?.name}?</DialogTitle>
+                  <DialogDescription>
+                    כל הכניסות של {deleteTarget?.name} יוסרו יחד איתו, ואי אפשר לבטל.
+                  </DialogDescription>
+                </DialogHeader>
+                {deleteTarget && (
+                  <p className="t-body text-[var(--text-1)]">
+                    נכנס עד עכשיו עם <Money value={deleteTarget.totalIn} className="font-bold" /> — הסכום הזה יירד מהקופה.
+                  </p>
+                )}
+                <DialogFooter>
+                  <Button type="button" variant="destructive" disabled={deletingPlayer} onClick={() => void removeSeat()}>
+                    הסירו שחקן
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+                    השאירו
                   </Button>
                 </DialogFooter>
               </DialogContent>

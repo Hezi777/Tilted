@@ -527,7 +527,16 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                     className="flex min-h-14 items-center gap-3 py-2"
                   >
                     <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
-                    <span className="min-w-0 truncate font-semibold">{player.name}</span>
+                    <div className="min-w-0">
+                      <span className="block truncate font-semibold">{player.name}</span>
+                      {/* Item 3: a number entered by someone other than the seat's
+                          own occupant is labelled here too, not only at cash-out. */}
+                      {player.isEnteredByOther && (
+                        <span className="t-caption ink-3 block truncate">
+                          הוזן על ידי {player.enteredByName ?? "מישהו אחר"}
+                        </span>
+                      )}
+                    </div>
                     {streaks[player.id]?.outcome === "extended" && (
                       <StreakBadge streak={streaks[player.id]?.streak} />
                     )}

@@ -14,7 +14,7 @@ import "server-only";
 import { and, eq, exists, isNotNull, isNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { people, players } from "@/db/schema";
+import { cashOuts, people, players, seatMembers } from "@/db/schema";
 import { normalizeName, reservedAvatarForName } from "@/lib/avatar";
 import { claimCustomAvatarFor } from "@/db/custom-avatar-queries";
 import type { PersonSummary, ViewerPerson } from "@/lib/api";
@@ -250,6 +250,17 @@ export async function getProfile(userId: string): Promise<ProfileRecord | null> 
  * night, and every buy-in and cash-out is joined to them. Deleting a Person must not
  * rewrite a settled evening for the four other people who were at that table -- so the
  * seat keeps its history and simply stops pointing at an account.
+ *
+ * `seat_members` and `cash_outs.entered_by_person_id` follow the same reasoning but
+ * land differently because of what each column is:
+ * - `seat_members.person_id` is `NOT NULL` -- it cannot be detached in place the way
+ *   `players.person_id` is, and it is membership, not history (the seat's own row in
+ *   `players` already carries the night). The account's rows there are deleted.
+ * - `cash_outs.entered_by_person_id` is nullable attribution, not the result itself
+ *   (`amount` stays). It is nulled, the same way `players.person_id` is, so the count
+ *   is untouched and only "who typed this" is forgotten along with the account.
+ * Both are new `ON DELETE NO ACTION` references (drizzle/migrations/0016), so without
+ * this the `people` delete below would fail with a foreign-key violation.
  */
 export async function detachAndDeletePerson(userId: string): Promise<void> {
   const [person] = await db
@@ -259,9 +270,16 @@ export async function detachAndDeletePerson(userId: string): Promise<void> {
     .limit(1);
   if (!person) return;
 
-  await db
-    .update(players)
-    .set({ personId: null, deviceId: null })
-    .where(eq(players.personId, person.id));
-  await db.delete(people).where(eq(people.id, person.id));
+  await db.batch([
+    db
+      .update(players)
+      .set({ personId: null, deviceId: null })
+      .where(eq(players.personId, person.id)),
+    db.delete(seatMembers).where(eq(seatMembers.personId, person.id)),
+    db
+      .update(cashOuts)
+      .set({ enteredByPersonId: null })
+      .where(eq(cashOuts.enteredByPersonId, person.id)),
+    db.delete(people).where(eq(people.id, person.id)),
+  ]);
 }
