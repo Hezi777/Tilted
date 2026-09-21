@@ -3,19 +3,22 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { buyIns, cashOuts, games, people, players } from "@/db/schema";
+import { buyIns, cashOuts, games, people, players, seatMembers } from "@/db/schema";
 import {
   assertCanDeleteBuyIn,
   assertCanInsertBuyIn,
   assertCanManageRoster,
+  assertCanRemoveRoster,
   requireActor,
   AuthzError,
   type ActorPlayer,
   type BuyInRow,
 } from "@/lib/authz";
+import { resolveSeatActor } from "@/db/cashout-queries";
 import { firstAvailableAvatarKey } from "@/lib/avatar";
 import { getChipSet, type ChipSetDetail } from "@/db/chip-queries";
 import { agorot, sumAgorot } from "@/lib/money";
+import { formatSeatDisplayName } from "@/lib/summary-text";
 
 export interface LivePlayer {
   id: string;
@@ -145,26 +148,25 @@ function toActor(row: {
   };
 }
 
+/**
+ * Resolves the acting seat for the live screen the same way cash-out does (plan item
+ * 9): the caller's own seat first, and only then a seat they are attached to as a
+ * shared member (`resolveSeatActor`), which never confers `is_host`. Without this, a
+ * shared seat's member could see and follow the table but never actually act on the
+ * stack from the live screen -- only from cash-out.
+ */
 async function getActor(gameId: string, deviceId: string): Promise<ActorRow> {
-  const [row] = await db
-    .select({
-      id: players.id,
-      isHost: players.isHost,
-      deviceId: players.deviceId,
-      settledAt: players.settledAt,
-      deletedAt: players.deletedAt,
-      gameId: games.id,
-      status: games.status,
-    })
-    .from(players)
-    .innerJoin(games, eq(games.id, players.gameId))
-    .where(and(eq(players.gameId, gameId), eq(players.deviceId, deviceId)))
+  const [game] = await db
+    .select({ id: games.id, status: games.status })
+    .from(games)
+    .where(eq(games.id, gameId))
     .limit(1);
-  if (!row) {
+  const row = game ? await resolveSeatActor(gameId, deviceId) : null;
+  if (!row || !game) {
     requireActor(null);
     throw new Error("unreachable");
   }
-  return row;
+  return { ...row, gameId: game.id, status: game.status as ActorRow["status"] };
 }
 
 /**
@@ -206,7 +208,13 @@ export async function getLiveGameVersion(gameId: string): Promise<string | null>
         -- A seat being claimed sets device_id and changes nothing else, so the count
         -- of claimed seats has to be in here or "someone just took their seat" is the
         -- one change the table would not see.
-        || '/' || count(device_id)::text AS f
+        || '/' || count(device_id)::text
+        -- A re-claim on a seat that is already claimed changes avatar_key only --
+        -- device_id does not move -- so a seat's rendered character could change with
+        -- nothing else here moving, and the other phone stayed on it until the 30s
+        -- safety refresh. Folding every seat's key into one ordered string makes any
+        -- single seat's change visible, including two seats swapping keys.
+        || '/' || coalesce(string_agg(avatar_key, ',' ORDER BY id), '') AS f
       FROM players WHERE game_id = ${gameId}::uuid
     )
     SELECT md5(
@@ -285,14 +293,36 @@ export async function getLiveGame(
   ]);
   if (!game) return null;
 
+  // Every seat's attached members (plan item 9), for two things: marking "you" on a
+  // seat this Person is attached to but does not hold directly, and showing every
+  // shared seat's other names on the table itself -- the same merged name settlement
+  // and the share card use, through the same helper, so the table never disagrees
+  // with the night's final summary about who was sitting where.
+  const allMembers = await db
+    .select({ playerId: seatMembers.playerId, personId: seatMembers.personId, name: people.name })
+    .from(seatMembers)
+    .innerJoin(people, eq(people.id, seatMembers.personId))
+    .where(eq(seatMembers.gameId, gameId));
+  const memberSeatIds = new Set(
+    allMembers.filter((row) => row.personId === deviceId).map((row) => row.playerId),
+  );
+  const otherMemberNamesByPlayer = new Map<string, string[]>();
+  const primaryPersonByPlayer = new Map(playerRows.map((row) => [row.id, row.personId]));
+  for (const row of allMembers) {
+    if (row.personId === primaryPersonByPlayer.get(row.playerId)) continue;
+    const names = otherMemberNamesByPlayer.get(row.playerId) ?? [];
+    names.push(row.name);
+    otherMemberNamesByPlayer.set(row.playerId, names);
+  }
+
   const playersOut = playerRows.map((row) => ({
     id: row.id,
     personId: row.personId,
-    name: row.name,
+    name: formatSeatDisplayName(row.name, otherMemberNamesByPlayer.get(row.id) ?? []),
     avatarKey: row.avatarKey,
     seatOrder: row.seatOrder,
     isHost: row.isHost,
-    isYou: row.deviceId === deviceId,
+    isYou: row.deviceId === deviceId || memberSeatIds.has(row.id),
     isSettled: row.settledAt !== null,
     isWaiting: row.deviceId === null,
     totalIn: Number(row.totalIn),
@@ -300,8 +330,15 @@ export async function getLiveGame(
     tableSeat: row.tableSeat,
   }));
 
-  const youRow = playersOut.find((player) => player.isYou) ?? null;
-  const viewerIsHost = playersOut.some((player) => player.isYou && player.isHost);
+  // `isHost` above is a fact about the *seat* (whether it is the table's host seat),
+  // not about whoever is looking -- a shared member's `isYou` legitimately matches
+  // the host's own seat, and deriving "viewer is host" from that combination would be
+  // exactly the escalation plan item 9 warns about: it would hand every member of the
+  // host's seat `viewerIsHost`. The real answer comes from the same actor resolution
+  // every write already uses, which never returns `isHost: true` for a member.
+  const actor = await resolveSeatActor(gameId, deviceId);
+  const youRow = actor ? (playersOut.find((player) => player.id === actor.id) ?? null) : null;
+  const viewerIsHost = actor?.isHost ?? false;
   const [allRows, yourRows, chipSet, yourCashOutRows] = await Promise.all([
     viewerIsHost
       ? db
@@ -709,18 +746,24 @@ export async function deleteLivePlayer(
 ): Promise<void> {
   const actorRow = await getActor(gameId, deviceId);
   const actor = requireActor(toActor(actorRow));
-  assertCanManageRoster(actorRow.status, actor);
+  assertCanRemoveRoster(actorRow.status, actor);
   const result = await db.execute<{ id: string }>(sql`
     WITH active_game AS (
       SELECT g.id
       FROM ${games} g
-      WHERE g.id = ${gameId}::uuid AND g.status = 'active'
+      WHERE g.id = ${gameId}::uuid AND g.status IN ('active', 'settling')
       FOR UPDATE
     ), target AS (
       SELECT p.id
       FROM ${players} p
       INNER JOIN active_game g ON g.id = p.game_id
       WHERE p.id = ${playerId}::uuid AND p.deleted_at IS NULL
+        -- Never the host's own seat. Deleting it leaves no players.is_host row in
+        -- the game (players_game_id_host_unique guarantees at most one, never
+        -- zero-by-choice), which strands close/reopen/cancel and roster management
+        -- for good. The host must hand the table to a successor first
+        -- (exitHostAsSuccessor), which moves is_host before anything is removed.
+        AND NOT p.is_host
         -- Never a seat that has already counted out. Removing one soft-deleted its
         -- buy-ins and left its cash_outs row behind, so the money that player won or
         -- lost simply left the books: the night still closed and told the host he had
@@ -746,14 +789,28 @@ export async function deleteLivePlayer(
     SELECT id FROM deleted_player
   `);
   if (result.rows.length === 0) {
-    // Nothing matched. Say which of the two reasons it was, because "remove" failing
-    // silently on a seat the host can see is worse than either answer.
+    // Nothing matched. Say which of the reasons it was, because "remove" failing
+    // silently on a seat the host can see is worse than any of the answers.
+    const [target] = await db
+      .select({ isHost: players.isHost })
+      .from(players)
+      .where(
+        and(
+          eq(players.id, playerId),
+          eq(players.gameId, gameId),
+          isNull(players.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (target?.isHost) throw new AuthzError("host_cannot_remove_self");
     const [settled] = await db
       .select({ id: cashOuts.id })
       .from(cashOuts)
       .where(and(eq(cashOuts.playerId, playerId), eq(cashOuts.gameId, gameId)))
       .limit(1);
     if (settled) throw new AuthzError("player_settled");
-    throw new Error("game_not_active");
+    // Was a plain Error("game_not_active") -- its English identifier piped straight
+    // into a Hebrew toast. AuthzError already carries the Hebrew string and status.
+    throw new AuthzError("game_not_active");
   }
 }

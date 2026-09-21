@@ -489,7 +489,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                 <Card className="accent-rim bg-[linear-gradient(145deg,var(--ink-700),var(--ink-900))]">
                   <CardContent className="flex items-center gap-4">
                     <div className="relative">
-                      <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-20 ring-2 ring-brand-500/70" />
+                      <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-20 ring-2 ring-[var(--amber-400)]/70" />
                       <motion.div
                         /* `left` + `translate-x`, never `start-1/2` + `translate-x`. The
                            logical inset flips under dir="rtl" and the physical transform
@@ -501,7 +501,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                         initial={staged ? "hidden" : false}
                         animate={staged ? "show" : "done"}
                       >
-                        <CrownIcon className="size-8 fill-brand-500 text-brand-300 drop-shadow-[0_3px_8px_rgb(194_30_58/0.5)]" />
+                        <CrownIcon className="size-8 fill-[var(--amber-400)] text-[var(--amber-400)] drop-shadow-[0_3px_8px_rgb(245_208_106/0.5)]" />
                       </motion.div>
                     </div>
                     <div className="min-w-0">
@@ -527,7 +527,16 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                     className="flex min-h-14 items-center gap-3 py-2"
                   >
                     <ChipAvatar avatarKey={player.avatarKey} personId={player.id} name={player.name} className="size-10" />
-                    <span className="min-w-0 truncate font-semibold">{player.name}</span>
+                    <div className="min-w-0">
+                      <span className="block truncate font-semibold">{player.name}</span>
+                      {/* Item 3: a number entered by someone other than the seat's
+                          own occupant is labelled here too, not only at cash-out. */}
+                      {player.isEnteredByOther && (
+                        <span className="t-caption ink-3 block truncate">
+                          הוזן על ידי {player.enteredByName ?? "מישהו אחר"}
+                        </span>
+                      )}
+                    </div>
                     {streaks[player.id]?.outcome === "extended" && (
                       <StreakBadge streak={streaks[player.id]?.streak} />
                     )}
@@ -578,7 +587,7 @@ export default function SettlementScreen({ gameId }: { gameId: string }) {
                             /* `origin-right` is physical on purpose: the app is dir="rtl"
                                only, so right *is* the start edge, and Tailwind has no
                                logical transform-origin to reach for. */
-                            className="flex flex-1 origin-right items-center gap-1 text-brand-300"
+                            className="flex flex-1 origin-right items-center gap-1 text-violet-300"
                           ><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></motion.span>
                           <span className="min-w-0 truncate">{transfer.toName}</span>
                           <Money

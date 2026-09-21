@@ -7,6 +7,7 @@
  */
 
 import { and, asc, eq, exists, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   buyIns,
@@ -15,6 +16,7 @@ import {
   games,
   people,
   players,
+  seatMembers,
 } from "@/db/schema";
 import { getChipSet, type ChipSetDetail } from "@/db/chip-queries";
 import {
@@ -23,6 +25,7 @@ import {
   assertCanHandoffHost,
   assertCanSettle,
   requireActor,
+  AuthzError,
   type ActorPlayer,
   type ResultEntry,
 } from "@/lib/authz";
@@ -42,6 +45,7 @@ import { totalAgorotForCounts, type ChipCounts } from "@/lib/chips";
 
 export interface CashoutPlayer {
   id: string;
+  personId: string | null;
   name: string;
   avatarKey: string | null;
   seatOrder: number;
@@ -51,6 +55,16 @@ export interface CashoutPlayer {
   cashOut: number | null;
   adjustment: number;
   chipCounts: ChipCounts;
+  /** The seat's own record of "finished counting" (plan item 5). Never a substitute
+   * for `cashOut !== null` -- both are required to close. */
+  countDoneAt: string | null;
+  /** Who actually typed the current `cashOut` (plan item 3): a Person, so a shared
+   * seat's members are told apart even though they share `id` above. */
+  enteredByPersonId: string | null;
+  enteredByName: string | null;
+  /** Other Persons attached to this seat (plan item 9), excluding the primary
+   * occupant, for display only -- money is always attributed to `personId` alone. */
+  memberNames: string[];
 }
 
 export interface CashoutState {
@@ -85,6 +99,71 @@ interface GameRow {
 interface ActorLookup {
   game: GameRow;
   actor: ActorPlayer;
+}
+
+export interface SeatActorRow {
+  id: string;
+  isHost: boolean;
+  deviceId: string | null;
+  settledAt: Date | null;
+  deletedAt: Date | null;
+}
+
+/**
+ * Resolves who a Person acts as in this game.
+ *
+ * Their own seat first, matched the way every write already has -- through
+ * `players.device_id`, which despite its name has held the signed-in Person's id since
+ * M10 (see `src/lib/auth/session.ts`). Only if that fails, a seat they are attached to
+ * as a shared member (plan item 9).
+ *
+ * **A member resolved this way is never the host, regardless of whose seat it is.**
+ * `seat_members` confers seat ownership and never `players.is_host` -- resolving a
+ * member through the seat's own Player row would otherwise hand them the seat's real
+ * `is_host` flag and, with it, every host-only action in this file.
+ */
+export async function resolveSeatActor(
+  gameId: string,
+  personId: string,
+): Promise<SeatActorRow | null> {
+  const [own] = await db
+    .select({
+      id: players.id,
+      isHost: players.isHost,
+      deviceId: players.deviceId,
+      settledAt: players.settledAt,
+      deletedAt: players.deletedAt,
+    })
+    .from(players)
+    .where(
+      and(
+        eq(players.gameId, gameId),
+        eq(players.deviceId, personId),
+        isNull(players.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (own) return own;
+
+  const [member] = await db
+    .select({
+      id: players.id,
+      deviceId: players.deviceId,
+      settledAt: players.settledAt,
+      deletedAt: players.deletedAt,
+    })
+    .from(seatMembers)
+    .innerJoin(players, eq(players.id, seatMembers.playerId))
+    .where(
+      and(
+        eq(seatMembers.gameId, gameId),
+        eq(seatMembers.personId, personId),
+        isNull(players.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!member) return null;
+  return { ...member, isHost: false };
 }
 
 function toLedger(player: CashoutPlayer): PlayerLedger {
@@ -131,23 +210,7 @@ export async function getActorForGame(
   const game = await getGameRow(gameId);
   if (!game) return null;
 
-  const [row] = await db
-    .select({
-      id: players.id,
-      isHost: players.isHost,
-      deviceId: players.deviceId,
-      settledAt: players.settledAt,
-      deletedAt: players.deletedAt,
-    })
-    .from(players)
-    .where(
-      and(
-        eq(players.gameId, gameId),
-        eq(players.deviceId, deviceId),
-        isNull(players.deletedAt),
-      ),
-    );
-
+  const row = await resolveSeatActor(gameId, deviceId);
   return row ? { game, actor: requireActor(row) } : null;
 }
 
@@ -155,19 +218,24 @@ export async function getActorForGame(
 export async function getCashoutState(
   gameId: string,
 ): Promise<CashoutState | null> {
-  // Four reads with no dependency between them, on a screen every phone polls while
-  // the host counts chips out loud. One round trip instead of four.
-  const [game, playerRows, buyInRows, chipCountRows] = await Promise.all([
+  const enteredBy = alias(people, "entered_by_person");
+  // Five reads with no dependency between them, on a screen every phone polls while
+  // the host counts chips out loud. One round trip instead of five.
+  const [game, playerRows, buyInRows, chipCountRows, memberRows] = await Promise.all([
     getGameRow(gameId),
     db
       .select({
         id: players.id,
+        personId: players.personId,
         name: players.name,
         avatarKey: players.avatarKey,
         seatOrder: players.seatOrder,
         settledAt: players.settledAt,
+        countDoneAt: players.countDoneAt,
         cashOut: cashOuts.amount,
         adjustment: cashOuts.adjustment,
+        enteredByPersonId: cashOuts.enteredByPersonId,
+        enteredByName: enteredBy.name,
       })
       .from(players)
       .leftJoin(
@@ -177,6 +245,7 @@ export async function getCashoutState(
           eq(cashOuts.gameId, gameId),
         ),
       )
+      .leftJoin(enteredBy, eq(enteredBy.id, cashOuts.enteredByPersonId))
       .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)))
       .orderBy(asc(players.seatOrder)),
     db
@@ -197,6 +266,22 @@ export async function getCashoutState(
       .from(cashOutChips)
       .innerJoin(cashOuts, eq(cashOutChips.cashOutId, cashOuts.id))
       .where(eq(cashOuts.gameId, gameId)),
+    // Attached members other than the seat's own occupant (plan item 9), for display.
+    db
+      .select({
+        playerId: seatMembers.playerId,
+        name: people.name,
+        personId: seatMembers.personId,
+      })
+      .from(seatMembers)
+      .innerJoin(people, eq(people.id, seatMembers.personId))
+      .innerJoin(players, eq(players.id, seatMembers.playerId))
+      .where(
+        and(
+          eq(seatMembers.gameId, gameId),
+          sql`${seatMembers.personId} IS DISTINCT FROM ${players.personId}`,
+        ),
+      ),
   ]);
   if (!game) return null;
 
@@ -211,17 +296,29 @@ export async function getCashoutState(
     countsByPlayer.set(row.playerId, counts);
   }
 
+  const membersByPlayer = new Map<string, string[]>();
+  for (const row of memberRows) {
+    const names = membersByPlayer.get(row.playerId) ?? [];
+    names.push(row.name);
+    membersByPlayer.set(row.playerId, names);
+  }
+
   const resultPlayers: CashoutPlayer[] = playerRows.map((row) => ({
     id: row.id,
+    personId: row.personId,
     name: row.name,
     avatarKey: row.avatarKey,
     seatOrder: row.seatOrder,
     settledAt: row.settledAt?.toISOString() ?? null,
+    countDoneAt: row.countDoneAt?.toISOString() ?? null,
     totalIn: totals.get(row.id)?.totalIn ?? 0,
     buyInCount: totals.get(row.id)?.buyInCount ?? 0,
     cashOut: row.cashOut === null ? null : Number(row.cashOut),
     adjustment: Number(row.adjustment ?? 0),
     chipCounts: countsByPlayer.get(row.id) ?? {},
+    enteredByPersonId: row.enteredByPersonId,
+    enteredByName: row.enteredByName,
+    memberNames: membersByPlayer.get(row.id) ?? [],
   }));
   const ledgers = resultPlayers.map(toLedger);
 
@@ -324,6 +421,17 @@ function insertChipCountsSql(chipCounts: ChipCounts | null) {
 /**
  * Saves one count. A raw edit clears every old adjustment and mismatch marker,
  * forcing the host to resolve the newly observed difference again.
+ *
+ * `done` is the seat's own "סיימתי לספור" intent (plan item 5), persisted in the same
+ * statement as the count -- never a separate write, or a window opens where close sees
+ * the new amount with the old done flag still set. `false` is not just "not yet
+ * pressed the button": every autosave from an in-progress edit calls this with
+ * `done: false`, which is what re-opens a seat that had already finished once an edit
+ * changes it again.
+ *
+ * A frozen seat (an early exit, or a host override of one) is the one exception: it
+ * always ends up done, because the player who left cannot come back later to press
+ * the button, and `done: false` must not be able to re-block a close on their behalf.
  */
 export async function saveCashout(
   gameId: string,
@@ -331,6 +439,12 @@ export async function saveCashout(
   playerId: string,
   entry: CashoutEntry,
   early: boolean,
+  // Defaults to true for callers below the HTTP route (existing tests, and any other
+  // server code that writes a final count directly): writing a number has always
+  // meant "this is the result" to them. The route itself always passes an explicit
+  // value -- an in-progress autosave sends `false`, and only the "סיימתי לספור"
+  // action sends `true` -- so this default never reaches a real user's tap.
+  done: boolean = true,
 ): Promise<CashoutState> {
   const access = await getActorForGame(gameId, deviceId);
   if (!access) throw new Error("המשחק לא נמצא");
@@ -339,6 +453,11 @@ export async function saveCashout(
     entry,
   );
   const insertedChipCounts = insertChipCountsSql(chipCounts);
+  // `deviceId` is the signed-in Person's id (see resolveSeatActor) -- the actual
+  // identity that typed this number, which is not always `access.actor.id`'s own
+  // Person: a shared-seat member's actor resolves to the *seat's* player id, and
+  // `players.device_id` on that row is the primary occupant's, not this caller's.
+  const enteredByPersonId = deviceId;
 
   const [target] = await db
     .select({
@@ -356,20 +475,25 @@ export async function saveCashout(
 
     // The INSERT is conditional on active status and a live player. This keeps an
     // early cash-out from landing after a concurrent active -> settling transition.
+    // An early exit always finishes counting in the same statement -- the departing
+    // player cannot come back to press "סיימתי לספור" once they are gone.
     const saved = await db.execute<{ id: string }>(sql`
       WITH active_game AS (
         SELECT id FROM games
         WHERE id = ${gameId}::uuid AND status = 'active'
         FOR UPDATE
       ), saved AS (
-        INSERT INTO cash_outs (id, game_id, player_id, amount, adjustment)
-        SELECT gen_random_uuid(), g.id, p.id, ${amount}, 0
+        INSERT INTO cash_outs (id, game_id, player_id, amount, adjustment, entered_by_person_id)
+        SELECT gen_random_uuid(), g.id, p.id, ${amount}, 0, ${enteredByPersonId}::uuid
         FROM active_game g
         JOIN players p ON p.game_id = g.id
         WHERE p.id = ${playerId}::uuid
           AND p.deleted_at IS NULL
         ON CONFLICT (game_id, player_id)
-        DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
+        DO UPDATE SET
+          amount = EXCLUDED.amount,
+          adjustment = 0,
+          entered_by_person_id = EXCLUDED.entered_by_person_id
         RETURNING id, player_id
       ), deleted_counts AS (
         DELETE FROM cash_out_chips
@@ -379,7 +503,8 @@ export async function saveCashout(
         ${insertedChipCounts}
       ), settled AS (
         UPDATE players p
-        SET settled_at = coalesce(p.settled_at, now())
+        SET settled_at = coalesce(p.settled_at, now()),
+            count_done_at = coalesce(p.count_done_at, now())
         FROM saved
         WHERE p.id = saved.player_id
         RETURNING p.id
@@ -396,29 +521,48 @@ export async function saveCashout(
     // a JS-side check before the query cannot stop a race with another request that
     // reads its authorization a moment earlier, and an early-exit's frozen result
     // must never be overwritten by an incidental write during finalization. The
-    // host's own deliberate override is the one case this lets through.
+    // host's own deliberate override is the one case this lets through, and it must
+    // not be able to clear a frozen seat's done flag either -- see `count_done_at`
+    // below.
     const saved = await db.execute<{ id: string }>(sql`
       WITH settling_game AS (
         SELECT id FROM games
         WHERE id = ${gameId}::uuid AND status = 'settling'
         FOR UPDATE
       ), saved AS (
-        INSERT INTO cash_outs (id, game_id, player_id, amount, adjustment)
-        SELECT gen_random_uuid(), g.id, p.id, ${amount}, 0
+        INSERT INTO cash_outs (id, game_id, player_id, amount, adjustment, entered_by_person_id)
+        SELECT gen_random_uuid(), g.id, p.id, ${amount}, 0, ${enteredByPersonId}::uuid
         FROM settling_game g
         JOIN players p ON p.game_id = g.id
         WHERE p.id = ${playerId}::uuid
           AND p.deleted_at IS NULL
           AND (p.settled_at IS NULL OR ${access.actor.isHost})
         ON CONFLICT (game_id, player_id)
-        DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
-        RETURNING id, game_id
+        DO UPDATE SET
+          amount = EXCLUDED.amount,
+          adjustment = 0,
+          entered_by_person_id = EXCLUDED.entered_by_person_id
+        RETURNING id, game_id, player_id
       ), deleted_counts AS (
         DELETE FROM cash_out_chips
         WHERE cash_out_id IN (SELECT id FROM saved)
         RETURNING id
       ), inserted_counts AS (
         ${insertedChipCounts}
+      ), marked_done AS (
+        -- Cleared in the same statement as the edit: a raw edit that is not the
+        -- explicit "סיימתי לספור" action re-opens the seat (done: false), and a
+        -- frozen seat (early exit, or the host's override of one) can never go back
+        -- to not-done -- its player is not coming back to reconfirm.
+        UPDATE players p
+        SET count_done_at = CASE
+          WHEN p.settled_at IS NOT NULL THEN coalesce(p.count_done_at, now())
+          WHEN ${done}::boolean THEN now()
+          ELSE NULL
+        END
+        FROM saved
+        WHERE p.id = saved.player_id
+        RETURNING p.id
       ), cleared AS (
         UPDATE cash_outs
         SET adjustment = 0
@@ -461,7 +605,10 @@ export async function applyMismatchResolution(
 
   const state = await getCashoutState(gameId);
   if (!state) throw new Error("המשחק לא נמצא");
-  if (state.players.some((player) => player.cashOut === null)) {
+  // Completion, not row existence (plan item 5): a seat can carry a stale
+  // `cash_outs` row from before its last edit re-opened it, and allocating a gap
+  // over an unconfirmed draft is exactly what this gate exists to prevent.
+  if (state.players.some((player) => player.countDoneAt === null)) {
     throw new Error("יש להזין ספירה לכל השחקנים");
   }
 
@@ -586,14 +733,30 @@ export async function reopenSettlingGame(
   if (!access) throw new Error("המשחק לא נמצא");
   assertCanSettle(access.game.status, access.actor);
 
-  // The status predicate is in the UPDATE so two phones racing cannot both reopen,
-  // and so a game someone just closed is refused rather than silently reopened.
-  const [changed] = await db
-    .update(games)
-    .set({ status: "active" })
-    .where(and(eq(games.id, gameId), eq(games.status, "settling")))
-    .returning({ id: games.id });
-  if (!changed) throw new Error("המשחק כבר לא בספירה");
+  // The status flip and the done-flag reset are one statement: play resuming and a
+  // stale done flag surviving into the next pass must not be two separately-failable
+  // writes. Early-settled seats (`settled_at IS NOT NULL`) are the exception -- they
+  // keep both their counted amount and their done flag, same as their frozen number.
+  // The status predicate on `reopened` is what keeps two phones racing from both
+  // reopening, and a game someone just closed from being silently reopened.
+  const result = await db.execute<{ id: string }>(sql`
+    WITH reopened AS (
+      UPDATE games
+      SET status = 'active'
+      WHERE id = ${gameId}::uuid AND status = 'settling'
+      RETURNING id
+    ), cleared AS (
+      UPDATE players p
+      SET count_done_at = NULL
+      FROM reopened
+      WHERE p.game_id = reopened.id
+        AND p.settled_at IS NULL
+        AND p.deleted_at IS NULL
+      RETURNING p.id
+    )
+    SELECT id FROM reopened
+  `);
+  if (!result.rows[0]) throw new Error("המשחק כבר לא בספירה");
 
   const state = await getCashoutState(gameId);
   if (!state) throw new Error("המשחק לא נמצא");
@@ -626,13 +789,21 @@ export async function closeSettlingGame(
     SET status = 'closed', closed_at = now()
     WHERE g.id = ${gameId}::uuid
       AND g.status = 'settling'
+      -- One row filter for both required facts (plan item 5): a live seat blocks
+      -- the close if it has no cash_outs row OR is not marked done. Splitting these
+      -- into two separate predicates compared against each other is exactly the
+      -- "two aggregates, two row filters" shape that made a night unclosable once
+      -- (AGENTS.md) -- here they are one NOT EXISTS over one row filter instead.
       AND NOT EXISTS (
         SELECT 1 FROM players p
         WHERE p.game_id = g.id
           AND p.deleted_at IS NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM cash_outs co
-            WHERE co.game_id = g.id AND co.player_id = p.id
+          AND (
+            p.count_done_at IS NULL
+            OR NOT EXISTS (
+              SELECT 1 FROM cash_outs co
+              WHERE co.game_id = g.id AND co.player_id = p.id
+            )
           )
       )
       AND coalesce((
@@ -717,12 +888,15 @@ export async function exitHostAsSuccessor(
         AND p.id <> ${hostPlayerId}::uuid
         AND pe.user_id IS NOT NULL
     ), saved AS (
-      INSERT INTO ${cashOuts} (id, game_id, player_id, amount, adjustment)
-      SELECT gen_random_uuid(), g.id, ${hostPlayerId}::uuid, ${amount}, 0
+      INSERT INTO ${cashOuts} (id, game_id, player_id, amount, adjustment, entered_by_person_id)
+      SELECT gen_random_uuid(), g.id, ${hostPlayerId}::uuid, ${amount}, 0, ${deviceId}::uuid
       FROM active_game g
       WHERE EXISTS (SELECT 1 FROM eligible_successor)
       ON CONFLICT (game_id, player_id)
-      DO UPDATE SET amount = EXCLUDED.amount, adjustment = 0
+      DO UPDATE SET
+        amount = EXCLUDED.amount,
+        adjustment = 0,
+        entered_by_person_id = EXCLUDED.entered_by_person_id
       RETURNING id
     ), deleted_counts AS (
       DELETE FROM ${cashOutChips}
@@ -731,8 +905,12 @@ export async function exitHostAsSuccessor(
     ), inserted_counts AS (
       ${insertedChipCounts}
     ), demoted_host AS (
+      -- The departing host is also an early exit: their own result is frozen and
+      -- done in the same statement as everyone else's early cash-out.
       UPDATE ${players}
-      SET settled_at = coalesce(settled_at, now()), is_host = false
+      SET settled_at = coalesce(settled_at, now()),
+          count_done_at = coalesce(count_done_at, now()),
+          is_host = false
       WHERE id = ${hostPlayerId}::uuid AND EXISTS (SELECT 1 FROM saved)
       RETURNING id
     ), promoted_successor AS (
@@ -753,4 +931,117 @@ export async function exitHostAsSuccessor(
   const state = await getCashoutState(gameId);
   if (!state) throw new Error("המשחק לא נמצא");
   return state;
+}
+
+/**
+ * Attaches a Person to a seat as a shared member (plan item 9).
+ *
+ * The host or the seat's own primary occupant may do this; nobody else. Money never
+ * moves for this write, but membership must still be restricted to a game that is
+ * `active` or `settling` -- attaching a member to a closed night grants it full
+ * access to that night through `isSeatedInGame`, which every closed-game statistic
+ * and view depends on being immutable.
+ */
+export async function attachSeatMember(
+  gameId: string,
+  deviceId: string,
+  playerId: string,
+  memberPersonId: string,
+): Promise<void> {
+  const access = await getActorForGame(gameId, deviceId);
+  if (!access) throw new Error("המשחק לא נמצא");
+
+  // The seat's PRIMARY occupant (`players.person_id`), not the resolved actor id --
+  // an attached member resolves to the same `players.id` as the seat (see
+  // `resolveSeatActor`), so comparing player ids would let one attached member
+  // attach further people. Only the host or that seat's own account may extend it.
+  const [seat] = await db
+    .select({ personId: players.personId })
+    .from(players)
+    .where(
+      and(
+        eq(players.id, playerId),
+        eq(players.gameId, gameId),
+        isNull(players.deletedAt),
+      ),
+    );
+  if (!seat) throw new Error("המקום לא נמצא");
+  if (!access.actor.isHost && seat.personId !== deviceId) {
+    throw new AuthzError("not_your_seat");
+  }
+
+  const [person] = await db
+    .select({ id: people.id })
+    .from(people)
+    .where(and(eq(people.id, memberPersonId), sql`${people.userId} IS NOT NULL`));
+  if (!person) throw new Error("לא נמצא חשבון שחקן");
+
+  // `unique(game_id, person_id)` is the backstop against one Person holding two
+  // seats at one table (their own elsewhere, or another shared seat) -- this is the
+  // readable refusal in front of it, not a replacement for it.
+  //
+  // The authorization is repeated here, live, against the row being written --
+  // the JS check above reads a snapshot taken before this statement runs, and a
+  // host demoted between that read and this insert (or a primary occupant who
+  // released the seat in the meantime) must not still get to attach someone.
+  const result = await db.execute<{ id: string }>(sql`
+    INSERT INTO seat_members (id, game_id, player_id, person_id)
+    SELECT gen_random_uuid(), ${gameId}::uuid, p.id, ${memberPersonId}::uuid
+    FROM players p
+    WHERE p.id = ${playerId}::uuid
+      AND p.game_id = ${gameId}::uuid
+      AND p.deleted_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM ${games} gm
+        WHERE gm.id = ${gameId}::uuid AND gm.status IN ('active', 'settling')
+      )
+      AND (
+        p.person_id = ${deviceId}::uuid
+        OR EXISTS (
+          SELECT 1 FROM players host
+          WHERE host.game_id = ${gameId}::uuid
+            AND host.device_id = ${deviceId}
+            AND host.deleted_at IS NULL
+            AND host.is_host
+        )
+      )
+    ON CONFLICT (game_id, person_id) DO NOTHING
+    RETURNING id
+  `);
+  if (!result.rows[0]) {
+    throw new Error("אי אפשר לצרף את החשבון למקום הזה");
+  }
+}
+
+/**
+ * Detaches the caller from a seat they were attached to as a shared member.
+ *
+ * Self only, and only a non-primary attachment: the seat's own primary occupant
+ * (`players.person_id`) is not "attached" in this sense, and leaving or releasing
+ * their own seat is a different action (`releasePlayerClaim`) with its own rules
+ * about what happens to the seat itself. This never touches that row.
+ *
+ * Restricted to a game that is still `active` or `settling` -- detaching from a
+ * closed night would retroactively change profile, streak and head-to-head figures,
+ * which are computed from current membership rows. Membership of a closed night
+ * must be immutable.
+ */
+export async function detachSeatMember(
+  gameId: string,
+  deviceId: string,
+): Promise<void> {
+  const result = await db.execute<{ id: string }>(sql`
+    DELETE FROM seat_members sm
+    USING players p, ${games} gm
+    WHERE sm.game_id = ${gameId}::uuid
+      AND sm.person_id = ${deviceId}::uuid
+      AND p.id = sm.player_id
+      AND p.person_id IS DISTINCT FROM sm.person_id
+      AND gm.id = ${gameId}::uuid
+      AND gm.status IN ('active', 'settling')
+    RETURNING sm.id
+  `);
+  if (!result.rows[0]) {
+    throw new Error("לא נמצאה השתתפות להסרה");
+  }
 }

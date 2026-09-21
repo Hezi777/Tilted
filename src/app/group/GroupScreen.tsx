@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { AppHeader } from "@/components/AppHeader";
+import { XIcon } from "@/components/icons";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
@@ -148,14 +150,29 @@ export function GroupScreen() {
               <h2 id="group-people" className="section-label mb-2.5">
                 מי משחק
               </h2>
-              <Input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="חיפוש שחקן"
-                aria-label="חיפוש שחקן"
-                className="mb-3"
-              />
+              <div className="relative mb-3">
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="חיפוש שחקן"
+                  aria-label="חיפוש שחקן"
+                  className="h-12"
+                />
+                {query && (
+                  // Same explicit clear as the history filters -- the browser's own
+                  // search-field "x" is inconsistent across WebViews and easy to miss
+                  // one-handed.
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="ניקוי החיפוש"
+                    className="absolute inset-y-0 end-2 my-auto flex size-8 items-center justify-center text-[var(--text-2)] after:absolute after:-inset-2 hover:text-[var(--text-1)]"
+                  >
+                    <XIcon aria-hidden="true" className="size-4" />
+                  </button>
+                )}
+              </div>
               <ul className="row-list">
                 {members.map((member) => (
                   <li key={member.personId}>
@@ -199,8 +216,26 @@ export function GroupScreen() {
                     </button>
                   </li>
                 ))}
-                {members.length === 0 && (
+                {members.length === 0 && query.trim() && (
                   <li className="t-body ink-3 px-1 py-4">לא נמצא שחקן בשם הזה.</li>
+                )}
+                {members.length === 0 && !query.trim() && (
+                  // Same empty-slot pattern as home (src/app/page.tsx) -- a search
+                  // finding nothing and never having played are different states
+                  // and read like it here, instead of both saying "not found".
+                  <li className="empty-slot mt-1 flex flex-col items-center gap-3 rounded-[20px] px-6 py-10 text-center">
+                    <Image
+                      src="/art/states/empty.webp"
+                      alt=""
+                      width={88}
+                      height={88}
+                      className="size-20 object-contain"
+                    />
+                    <p className="t-title">עדיין לא שיחקתם עם אף אחד</p>
+                    <p className="t-caption ink-3 max-w-[30ch] leading-relaxed">
+                      ברגע שיצטרפו שחקנים לערב, הם יופיעו כאן עם ההיסטוריה המשותפת.
+                    </p>
+                  </li>
                 )}
               </ul>
             </motion.section>

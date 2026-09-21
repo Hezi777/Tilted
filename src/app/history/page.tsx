@@ -11,6 +11,9 @@ import { HistoryFilters } from "./HistoryFilters";
 
 export const dynamic = "force-dynamic";
 
+/** Rows shown per "load more" step -- a weekly group hits this in five months. */
+const PAGE_SIZE = 20;
+
 /**
  * Every evening that has finished.
  *
@@ -21,11 +24,16 @@ export const dynamic = "force-dynamic";
  * Rendered on the server, so the list arrives with the page instead of after a skeleton.
  * Search and the date/location filters are read from the URL and applied in
  * `getHistoryList` itself, not by fetching everything and filtering here.
+ *
+ * The list itself is bounded by `page` (also on the URL, like the filters): a group
+ * that plays weekly for a year has 50+ closed games, and mounting all of them at once
+ * was the original bug. One row over `PAGE_SIZE * page` is fetched so "load more" can
+ * tell there's another page without a second round trip.
  */
 export default async function HistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; from?: string; to?: string; location?: string }>;
+  searchParams: Promise<{ q?: string; from?: string; to?: string; location?: string; page?: string }>;
 }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/auth/sign-in");
@@ -36,16 +44,31 @@ export default async function HistoryPage({
   const to = params.to ?? "";
   const location = params.location ?? "";
   const hasFilters = Boolean(q || from || to || location);
+  const page = Math.max(1, Number(params.page) || 1);
+  const visible = PAGE_SIZE * page;
 
-  const [closed, locations] = await Promise.all([
+  const [rows, locations] = await Promise.all([
     getHistoryList(viewer.person.id, {
       search: q || undefined,
       startDate: from || undefined,
       endDate: to || undefined,
       location: location || undefined,
+      limit: visible + 1,
     }),
     getHistoryLocations(viewer.person.id),
   ]);
+  const hasMore = rows.length > visible;
+  const closed = hasMore ? rows.slice(0, visible) : rows;
+
+  const nextPageHref = (() => {
+    const next = new URLSearchParams();
+    if (q) next.set("q", q);
+    if (from) next.set("from", from);
+    if (to) next.set("to", to);
+    if (location) next.set("location", location);
+    next.set("page", String(page + 1));
+    return `/history?${next.toString()}`;
+  })();
 
   return (
     <main className="flex flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
@@ -115,6 +138,16 @@ export default async function HistoryPage({
               </li>
             ))}
           </ul>
+        )}
+
+        {hasMore && (
+          <Link
+            href={nextPageHref}
+            scroll={false}
+            className="t-body ink-2 hover:text-foreground flex min-h-11 items-center justify-center rounded-[14px] py-2.5 font-medium transition-colors duration-[var(--dur-base)] ease-[var(--ease-out)] hover:bg-white/3"
+          >
+            עוד ערבים
+          </Link>
         )}
       </div>
     </main>

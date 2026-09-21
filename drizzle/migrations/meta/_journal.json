@@ -113,6 +113,27 @@
       "when": 1789429270882,
       "tag": "0015_purple_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789825621598,
+      "tag": "0016_daily_blackheart",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789836396626,
+      "tag": "0017_backfill_seat_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0018_backfill_count_done_at",
+      "breakpoints": true
     }
   ]
 }

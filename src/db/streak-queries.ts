@@ -11,7 +11,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { buyIns, cashOuts, games, people, players } from "@/db/schema";
+import { buyIns, cashOuts, games, people, players, seatMembers } from "@/db/schema";
 import { agorot } from "@/lib/money";
 import { computeNets, type PlayerLedger } from "@/lib/settlement";
 import {
@@ -93,7 +93,7 @@ export async function getClosedStreakGames(): Promise<StreakGame[]> {
   if (closedRows.length === 0) return [];
 
   const gameIds = closedRows.map((game) => game.id);
-  const playerRows = await db
+  const allPlayerRows = await db
     .select({
       id: players.id,
       gameId: players.gameId,
@@ -104,6 +104,21 @@ export async function getClosedStreakGames(): Promise<StreakGame[]> {
     .from(players)
     .where(and(inArray(players.gameId, gameIds), isNull(players.deletedAt)))
     .orderBy(asc(players.seatOrder));
+
+  // Wave 4, item 9 (corrected): a shared seat (more than one seat_members row) is
+  // excluded from every personal streak entirely -- not attributed to whoever
+  // happens to be the seat's primary occupant. Filtering it out of this one feed is
+  // enough: every streak function below (`activeStreaks`, `currentStreak`) reads
+  // only from the `players` array this function returns.
+  const sharedSeatCounts = await db
+    .select({ playerId: seatMembers.playerId, count: sql<string>`count(*)` })
+    .from(seatMembers)
+    .where(inArray(seatMembers.gameId, gameIds))
+    .groupBy(seatMembers.playerId);
+  const sharedSeatIds = new Set(
+    sharedSeatCounts.filter((row) => Number(row.count) > 1).map((row) => row.playerId),
+  );
+  const playerRows = allPlayerRows.filter((player) => !sharedSeatIds.has(player.id));
 
   const buyInRows = await db
     .select({

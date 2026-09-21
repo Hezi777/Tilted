@@ -152,7 +152,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
               <CardContent className="flex items-center gap-4">
                 <div className="relative">
                   <ChipAvatar avatarKey={winner.avatarKey} personId={winner.id} name={winner.name} className="size-16" />
-                  <CrownIcon className="absolute -top-3 -end-2 size-6 fill-brand-500 text-brand-300" />
+                  <CrownIcon className="absolute -top-3 -end-2 size-6 fill-[var(--amber-400)] text-[var(--amber-400)]" />
                 </div>
                 <div><p className="text-sm text-muted-foreground">בראש הערימה</p><p className="text-xl font-bold">{winner.name}</p></div>
                 <Money value={winner.net} signed className="ms-auto text-xl font-bold text-profit" />
@@ -178,7 +178,7 @@ export default function HistoryScreen({ gameId }: { gameId: string }) {
                 {state.transfers.map((transfer) => (
                   <div key={`${transfer.fromPlayerId}-${transfer.toPlayerId}`} className="flex min-h-14 items-center gap-2 py-2">
                     <span>{transfer.fromName}</span>
-                    <span className="flex flex-1 items-center gap-1 text-brand-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></span>
+                    <span className="flex flex-1 items-center gap-1 text-violet-300"><span className="h-px flex-1 bg-current" /><ArrowLeftIcon className="size-4" /></span>
                     <span>{transfer.toName}</span>
                     <Money value={transfer.amount} className="ms-auto font-bold" />
                   </div>

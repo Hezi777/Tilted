@@ -144,12 +144,14 @@ export function ResetScreen({ nextPath = "/" }: { nextPath?: string }) {
                 className="pe-24 text-start"
                 aria-describedby="reset-password-hint"
               />
-              {/* Typed one-handed in a dim room, so it can be checked before sending. */}
+              {/* Typed one-handed in a dim room, so it can be checked before sending.
+                  Raised from size="sm" (40px) to clear the 44px floor; centered on the
+                  input's height rather than inset from its edges now that the button is
+                  taller than the field. */}
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="absolute inset-y-1 end-1"
+                className="absolute top-1/2 end-1 -translate-y-1/2"
                 aria-pressed={showPassword}
                 onClick={() => setShowPassword((current) => !current)}
               >

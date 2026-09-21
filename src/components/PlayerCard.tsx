@@ -46,7 +46,7 @@ export function PlayerCard({
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
               <p className="truncate font-bold">{player.name}</p>
-              {player.isYou && <span className="shrink-0 rounded-full bg-brand-500/14 px-2 py-0.5 text-xs text-brand-300">אתה</span>}
+              {player.isYou && <span className="shrink-0 rounded-full bg-violet-900/40 px-2 py-0.5 text-xs text-violet-300">אתה</span>}
               {player.isHost && <span className="text-muted-foreground shrink-0 text-xs">מארח</span>}
             </div>
             {/* A waiting seat still has money in the pot: the host picked this player
@@ -56,7 +56,7 @@ export function PlayerCard({
                 person, not a reason to stop counting their chips. */}
             <div className="mt-1 flex items-center gap-2">
               <Money value={player.totalIn} className="text-lg font-semibold" />
-              <span className="shrink-0 rounded-full bg-brand-500/14 px-2 py-0.5 text-xs font-bold text-brand-300">x{player.buyInCount}</span>
+              <span className="shrink-0 rounded-full bg-violet-900/40 px-2 py-0.5 text-xs font-bold text-violet-300">x{player.buyInCount}</span>
               {player.isWaiting && <span className="text-muted-foreground shrink-0 text-xs">ממתין</span>}
               {player.isSettled && <span className="text-muted-foreground shrink-0 text-xs">נסגר</span>}
             </div>

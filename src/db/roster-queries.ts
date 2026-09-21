@@ -6,6 +6,8 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { buyIns, games, people, players } from "@/db/schema";
 import { AVATAR_KEYS, avatarKeyForPlayer } from "@/lib/avatar";
+import { MAX_SEATS } from "@/lib/seat-layout";
+import { resolveSeatActor } from "@/db/cashout-queries";
 import type { JoinGameDetail, PendingInvite } from "@/lib/api";
 import {
   assertCanManageRoster,
@@ -129,6 +131,15 @@ export async function claimPlayer(
             AND occupied.deleted_at IS NULL
         )
       RETURNING p.id
+    -- The seat's choice is per-table by design (schema.ts), but it is also the
+    -- person's only record of "the character I picked" -- claimPlayer used to write
+    -- the seat and never the profile, so the choice evaporated and the next game
+    -- seated them from the stale profile key again. Conditioned on the claimed CTE so
+    -- a failed claim (wrong owner, character already taken) writes nothing here either.
+    ), updated_person AS (
+      UPDATE ${people}
+      SET avatar_key = ${avatarKey}
+      WHERE id = ${actorPersonId}::uuid AND EXISTS (SELECT 1 FROM claimed)
     )
     SELECT id FROM claimed
   `);
@@ -232,6 +243,13 @@ export async function joinGameByCode(
       FROM inserted_player p
       INNER JOIN active_game g ON g.id = p.game_id
       RETURNING player_id
+    -- The seat's primary occupant gets a seat_members row too (plan item 9): the
+    -- only thing that makes seat_members' own person-uniqueness sufficient to stop
+    -- one Person holding two seats at one table.
+    ), inserted_seat_member AS (
+      INSERT INTO seat_members (id, game_id, player_id, person_id)
+      SELECT ${randomUUID()}::uuid, p.game_id, p.id, ${person.id}::uuid
+      FROM inserted_player p
     )
     SELECT player_id FROM inserted_buyin
   `);
@@ -388,23 +406,9 @@ export async function getRosterContext(gameId: string, actorPersonId: string) {
     .where(eq(games.id, gameId));
   if (!game) return null;
 
-  const [actorRow] = await db
-    .select({
-      id: players.id,
-      isHost: players.isHost,
-      deviceId: players.deviceId,
-      settledAt: players.settledAt,
-      deletedAt: players.deletedAt,
-    })
-    .from(players)
-    .where(
-      and(
-        eq(players.gameId, gameId),
-        eq(players.deviceId, actorPersonId),
-        isNull(players.deletedAt),
-      ),
-    )
-    .limit(1);
+  // Same resolution every write uses (plan item 9): the caller's own seat, or a seat
+  // they are attached to as a shared member -- which never resolves as host.
+  const actorRow = await resolveSeatActor(gameId, actorPersonId);
 
   return { game, actor: (actorRow ?? null) as RosterActorRow | null };
 }
@@ -480,12 +484,33 @@ export async function addPlayerToGame(
                 AND duplicate.person_id = ${person.id}::uuid
                 AND duplicate.deleted_at IS NULL
             )
+            -- docs/2026-09-audit.md open item 8: the ten-seat cap used to exist only
+            -- in createGame, so a table grew past it through the door or by hand. In
+            -- the statement rather than around it, so two adds racing the last open
+            -- seat cannot both land.
+            AND (
+              SELECT count(*) FROM ${players} live
+              WHERE live.game_id = g.id AND live.deleted_at IS NULL
+            ) < ${MAX_SEATS}
           RETURNING id
+        -- The seat's primary occupant gets a seat_members row too (plan item 9),
+        -- same as every other seat-creation path in this file.
+        ), inserted_seat_member AS (
+          INSERT INTO seat_members (id, game_id, player_id, person_id)
+          SELECT ${randomUUID()}::uuid, ${gameId}::uuid, p.id, ${person.id}::uuid
+          FROM inserted_player p
         )
         SELECT id FROM inserted_player
       `);
 
   if (!result.rows[0]) {
+    const [seatCount] = await db
+      .select({ count: sql<string>`count(*)` })
+      .from(players)
+      .where(and(eq(players.gameId, gameId), isNull(players.deletedAt)));
+    if (Number(seatCount?.count ?? 0) >= MAX_SEATS) {
+      throw new RosterConflictError("השולחן מלא");
+    }
     throw new RosterConflictError("המשחק כבר לא פעיל או שהשחקן כבר נמצא במשחק");
   }
 

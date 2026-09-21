@@ -48,6 +48,23 @@ export default function Home() {
     };
   }, [retryCount]);
 
+  // An installed PWA has no pull-to-refresh, so a phone that has been in a pocket
+  // while somebody else closed the table comes back showing a night that is over
+  // with no way to say so. Coming back to the screen is the refresh gesture.
+  // Deliberately not a timer: on the free plan the meter is Neon's *awake* time,
+  // so this asks once, when someone is actually looking.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      // Same pair as the manual retry button: a stale error must not outlive the
+      // fetch that succeeds after it.
+      setError(null);
+      setRetryCount((count) => count + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     apiFetch<{ streaks: HomeStreak[] }>("/api/streaks?view=home")
@@ -67,6 +84,9 @@ export default function Home() {
   const activeGame =
     games?.find((game) => game.status === "active" || game.status === "settling") ?? null;
   const closedGames = games?.filter((game) => game.status === "closed") ?? [];
+  // The most recent night is the one worth replaying: it is the roster the group
+  // currently has, not the one it had a season ago.
+  const lastClosedGame = closedGames[0] ?? null;
 
   async function cancelGame() {
     if (!cancelTarget) return;
@@ -157,6 +177,15 @@ export default function Home() {
           <Button asChild size="lg" variant="secondary" className="w-full">
             <Link href="/join">מצטרפים למשחק</Link>
           </Button>
+          {/* This group plays the same people most weeks, so the roster step is the
+              one nobody needs to repeat. Offered only when there is no table open --
+              beside "חזרה לשולחן" it would read as a second way into tonight rather
+              than a way to start another one. It pre-fills; it does not commit. */}
+          {activeGame === null && lastClosedGame && (
+            <Button asChild variant="ghost" className="w-full text-[var(--text-1)]">
+              <Link href={`/game/new?from=${lastClosedGame.id}`}>אותה חבורה, ערב חדש</Link>
+            </Button>
+          )}
         </motion.div>
 
         {activeGame && (

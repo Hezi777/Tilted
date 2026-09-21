@@ -14,7 +14,7 @@
 
 import "server-only";
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { games, people, players } from "@/db/schema";
 import { agorot, type Agorot } from "@/lib/money";
@@ -64,27 +64,42 @@ export async function loadGroupStats(viewerPersonId: string): Promise<GroupStats
       })
       .from(games)
       .where(and(eq(games.status, "closed"), sql`${games.id} in ${viewerGames}`)),
+    // Wave 4, item B (owner reversal of part of brief item 4): membership is now
+    // driven from `people`, not from having played -- an account holder who has
+    // never finished a shared night still belongs to the group, with zero nights.
+    // `players`/`games` are LEFT-joined, and their scoping (closed, shared with the
+    // viewer) lives in the JOIN's own ON clause, not in WHERE -- a WHERE predicate on
+    // a LEFT-joined column turns it back into an INNER JOIN by rejecting every row
+    // whose join found nothing, which is exactly how this shipped as a silent zero
+    // twice before (AGENTS.md's "two aggregates, one row filter" warning). Membership
+    // (people.user_id IS NOT NULL) and the play-history figures beside it are
+    // deliberately two different row filters this time -- that is the whole point of
+    // the change, not a bug to fix.
     db
       .select({
         personId: people.id,
         name: people.name,
         nickname: people.nickname,
         avatarKey: people.avatarKey,
-        nightsPlayed: sql<string>`count(*)`,
+        nightsPlayed: sql<string>`count(${games.id})`,
         lastPlayedAt: sql<Date | null>`max(${games.closedAt})`,
       })
-      .from(players)
-      .innerJoin(people, eq(people.id, players.personId))
-      .innerJoin(games, eq(games.id, players.gameId))
-      .where(
+      .from(people)
+      .leftJoin(
+        players,
+        and(eq(players.personId, people.id), isNull(players.deletedAt)),
+      )
+      .leftJoin(
+        games,
         and(
-          isNull(players.deletedAt),
+          eq(games.id, players.gameId),
           eq(games.status, "closed"),
-          sql`${players.gameId} in ${viewerGames}`,
+          sql`${games.id} in ${viewerGames}`,
         ),
       )
+      .where(isNotNull(people.userId))
       .groupBy(people.id, people.name, people.nickname, people.avatarKey)
-      .orderBy(desc(sql`count(*)`)),
+      .orderBy(desc(sql`count(${games.id})`)),
   ]);
 
   const pots = nightRows.map((row) => Number(row.pot));

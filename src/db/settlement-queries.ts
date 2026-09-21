@@ -8,6 +8,7 @@ import {
   type PlayerLedger,
 } from "@/lib/settlement";
 import { getCashoutState, type CashoutState } from "@/db/cashout-queries";
+import { formatSeatDisplayName } from "@/lib/summary-text";
 
 export type SettlementOutcome = "winner" | "loser" | "even";
 
@@ -22,6 +23,10 @@ export interface SettlementPlayer {
   adjustment: number;
   net: number;
   outcome: SettlementOutcome;
+  /** Who actually typed this result (plan item 3), shown when it was not the
+   * seat's own occupant. Optional: test fixtures built by hand predate this field. */
+  enteredByName?: string | null;
+  isEnteredByOther?: boolean;
 }
 
 export interface SettlementTransfer {
@@ -96,7 +101,13 @@ export async function getSettlementState(
     .sort((a, b) => b.net - a.net || a.seatOrder - b.seatOrder)
     .map((net) => ({
       id: net.playerId,
-      name: playersById.get(net.playerId)?.name ?? "",
+      // One name for a shared seat (plan item 9), computed once here so the share
+      // image and the WhatsApp text -- both built from this same field -- cannot
+      // disagree about who was at the seat.
+      name: formatSeatDisplayName(
+        playersById.get(net.playerId)?.name ?? "",
+        playersById.get(net.playerId)?.memberNames ?? [],
+      ),
       avatarKey: playersById.get(net.playerId)?.avatarKey ?? null,
       seatOrder: net.seatOrder,
       totalIn: playersById.get(net.playerId)?.totalIn ?? 0,
@@ -105,6 +116,11 @@ export async function getSettlementState(
       adjustment: playersById.get(net.playerId)?.adjustment ?? 0,
       net: net.net,
       outcome: net.net > 0 ? "winner" : net.net < 0 ? "loser" : "even",
+      enteredByName: playersById.get(net.playerId)?.enteredByName ?? null,
+      isEnteredByOther:
+        playersById.get(net.playerId)?.enteredByPersonId !== null &&
+        playersById.get(net.playerId)?.enteredByPersonId !==
+          playersById.get(net.playerId)?.personId,
     } satisfies SettlementPlayer));
   const names = new Map(players.map((player) => [player.id, player.name]));
   const displayTransfers = transfers.map((transfer) => ({

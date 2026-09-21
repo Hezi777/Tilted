@@ -87,11 +87,98 @@ export function railPoints(rail: Rail, count: number): { left: string; top: stri
   });
 }
 
-/** Seats give up size only as fast as the rail actually runs out of room. */
+/**
+ * The hard ceiling on how many seats a table may ever hold.
+ *
+ * `docs/2026-09-audit.md` open item 8: the cap used to exist only in `createGame`, so
+ * a table could grow past it through the door (`approveJoinRequest`) or by the host's
+ * own hand (`addPlayerToGame`) -- both funnel through `addPlayerToGame`, which is
+ * where the cap is actually enforced now. Ten, not `AVATAR_KEYS.length` (28): open
+ * item 7 is that the arc itself cannot carry a tenth seat's tap target at 390px no
+ * matter how it is drawn, so the product limit is the smaller of the two, not the
+ * number of avatar faces that happen to exist.
+ */
+export const MAX_SEATS = 10;
+
+/**
+ * The most opponents the arc itself may draw.
+ *
+ * `docs/2026-09-audit.md` open item 7, confirmed: past six opponents (seven seats at
+ * the table) the per-seat button drops below the 48px floor no matter what width it
+ * is given -- the rail has run out of arc length, not out of styling room. Above this
+ * count `PokerTableArc` stops trying to be an arc and renders the same seats as a
+ * two-column list on the same felt instead.
+ */
+export const ARC_MAX_OPPONENTS = 6;
+
+/**
+ * The narrowest screen this table is drawn on.
+ *
+ * `railPoints` returns percentages, and a percentage gap only becomes a tap target
+ * once it has a width to be a percentage *of*. The container is
+ * `w-full max-w-[450px]`, so the binding case is the narrow phone, not the cap.
+ */
+export const REFERENCE_WIDTH_PX = 390;
+
+/**
+ * Seats give up size only as fast as the rail actually runs out of room.
+ *
+ * This ladder is not a taste judgement, it is measured. `railPoints` spaces seats by
+ * equal arc length, so the gap between adjacent centres shrinks with every player
+ * added; a fixed per-tier width does not. The two used to be written independently and
+ * they disagreed -- from six players up, adjacent seat buttons genuinely overlapped in
+ * the DOM, both at `z-20`, so a tap in the overlap resolved to whichever painted later
+ * rather than the one under the thumb. On the ordinary night, where the host enters
+ * everyone else's rebuys from one phone, that credited the wrong player's money.
+ *
+ * So `width` here is the largest Tailwind step that still fits the closest adjacent
+ * gap at that exact count, at `REFERENCE_WIDTH_PX`. `seat-layout.test.ts` re-derives
+ * the gaps from `railPoints` and fails if any tier outgrows its room, which is what
+ * stops the two drifting apart again.
+ *
+ * The avatar is allowed to overflow its own button at the tightest tiers: the button
+ * is the tap target and must not overlap, while a few pixels of avatar spilling past
+ * its rounded corner is only cosmetic and costs no correctness.
+ *
+ * Known limit, recorded rather than hidden: past six opponents the button drops below
+ * the 48px floor in `docs/design-system.md`. Nine opponents leaves 27px of rail per
+ * seat on a 390px phone, and no choice of width fixes that -- ten 44px targets need
+ * more span than the screen has. Above seven players this arc needs to stop being an
+ * arc; that is a product decision, not a geometry one.
+ */
 export function railTier(count: number): { avatar: string; width: string } {
-  if (count <= 2) return { avatar: "size-16", width: "w-24" };
-  if (count <= 4) return { avatar: "size-14", width: "w-20" };
-  if (count <= 6) return { avatar: "size-12", width: "w-17" };
-  if (count <= 7) return { avatar: "size-11", width: "w-15" };
-  return { avatar: "size-10", width: "w-14" };
+  if (count <= 3) return { avatar: "size-16", width: "w-24" };
+  if (count <= 4) return { avatar: "size-14", width: "w-17" };
+  if (count <= 5) return { avatar: "size-10", width: "w-13" };
+  if (count <= 6) return { avatar: "size-8", width: "w-11" };
+  if (count <= 7) return { avatar: "size-6", width: "w-9" };
+  if (count <= 8) return { avatar: "size-6", width: "w-7" };
+  if (count <= 9) return { avatar: "size-6", width: "w-6" };
+  if (count <= 11) return { avatar: "size-5", width: "w-5" };
+  return { avatar: "size-4", width: "w-4" };
+}
+
+/** The drawn width of a tier, in px, for the test that checks it against the rail. */
+export function railTierWidthPx(count: number): number {
+  const step = Number(railTier(count).width.replace("w-", ""));
+  return step * 4;
+}
+
+/**
+ * The closest two adjacent seats come, horizontally, at `REFERENCE_WIDTH_PX`.
+ *
+ * Horizontal rather than straight-line on purpose: the pair that collides is always
+ * the one straddling the apex, where the rail is flat and the vertical offset is
+ * effectively zero, so the horizontal gap is the whole of the separation there.
+ */
+export function minAdjacentGapPx(count: number): number {
+  if (count < 2) return Number.POSITIVE_INFINITY;
+  const points = railPoints(railGeometry(count), count);
+  let closest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const here = Number.parseFloat(points[index].left);
+    const next = Number.parseFloat(points[index + 1].left);
+    closest = Math.min(closest, (Math.abs(next - here) / 100) * REFERENCE_WIDTH_PX);
+  }
+  return closest;
 }
