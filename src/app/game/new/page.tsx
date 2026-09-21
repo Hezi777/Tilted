@@ -31,7 +31,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
-import { AVATAR_KEYS } from "@/lib/avatar";
+import { MAX_SEATS } from "@/lib/seat-layout";
+import { clampRematchSeats } from "@/lib/rematch-prefill";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { agorot, formatILS, shekelsToAgorot } from "@/lib/money";
@@ -287,15 +288,19 @@ function NewGameForm() {
 
         // Anyone who has left the group since is dropped rather than seated as a
         // name the roster can no longer resolve. The host is never in `extraSeatedIds`.
+        // The seat cap moved down since some past nights were seated: a rematch of
+        // a bigger table cannot seat everyone. Clamp to what the table now holds
+        // (minus the host's own seat) and say in Hebrew who was dropped, instead of
+        // silently under-seating or leaving the person stuck on a dead submit
+        // button once the API rejects the full roster.
         const known = new Set(people.map((person) => person.id));
-        setExtraSeatedIds(
-          new Set(
-            seed.people
-              .map((person) => person.id)
-              .filter((id) => id !== hostPersonId && known.has(id))
-              .slice(0, AVATAR_KEYS.length - 1),
-          ),
-        );
+        const { seatedIds, droppedNames } = clampRematchSeats(seed.people, hostPersonId, known);
+        setExtraSeatedIds(new Set(seatedIds));
+        if (droppedNames.length > 0) {
+          toast.error(
+            `השולחן מוגבל ל-${MAX_SEATS} מקומות, אז לא הושיבו: ${droppedNames.join(", ")}`,
+          );
+        }
 
         const preset = BUY_IN_CHIPS.find(
           (chip) => shekelsToAgorot(Number(chip.amount)) === seed.buyIn,
@@ -429,7 +434,7 @@ function NewGameForm() {
     hostPersonId != null &&
     hostInRoster &&
     seated.size > 0 &&
-    seated.size <= AVATAR_KEYS.length &&
+    seated.size <= MAX_SEATS &&
     buyInAgorot !== null &&
     buyInAgorot > 0 &&
     rebuyAgorot !== null &&
@@ -440,8 +445,8 @@ function NewGameForm() {
       ? null
       : !hostInRoster
         ? "השם שבחרתם לא נמצא ברשימה. בחרו אותו מחדש במסך הבית"
-        : seated.size > AVATAR_KEYS.length
-          ? `אפשר להושיב עד ${AVATAR_KEYS.length} שחקנים בשולחן`
+        : seated.size > MAX_SEATS
+          ? `אפשר להושיב עד ${MAX_SEATS} שחקנים בשולחן`
         : buyInAgorot === null || buyInAgorot <= 0
           ? "הזינו סכום כניסה תקין"
           : rebuyAgorot === null || rebuyAgorot <= 0

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 import { AppHeader } from "@/components/AppHeader";
+import { XIcon } from "@/components/icons";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
@@ -149,14 +150,29 @@ export function GroupScreen() {
               <h2 id="group-people" className="section-label mb-2.5">
                 מי משחק
               </h2>
-              <Input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="חיפוש שחקן"
-                aria-label="חיפוש שחקן"
-                className="mb-3"
-              />
+              <div className="relative mb-3">
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="חיפוש שחקן"
+                  aria-label="חיפוש שחקן"
+                  className="h-12"
+                />
+                {query && (
+                  // Same explicit clear as the history filters -- the browser's own
+                  // search-field "x" is inconsistent across WebViews and easy to miss
+                  // one-handed.
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="ניקוי החיפוש"
+                    className="absolute inset-y-0 end-2 my-auto flex size-8 items-center justify-center text-[var(--text-2)] after:absolute after:-inset-2 hover:text-[var(--text-1)]"
+                  >
+                    <XIcon aria-hidden="true" className="size-4" />
+                  </button>
+                )}
+              </div>
               <ul className="row-list">
                 {members.map((member) => (
                   <li key={member.personId}>

@@ -4,11 +4,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BookMarkedIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon } from "@/components/icons";
+import { BookMarkedIcon, CheckIcon, Clock3Icon, CopyIcon, HistoryIcon, Link2OffIcon, LogOutIcon, RefreshCwIcon, Settings2Icon, Share2Icon, SlidersHorizontalIcon, SpadeIcon, TrendingUpIcon, UsersIcon } from "@/components/icons";
 import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, ApiError, type PersonSummary } from "@/lib/api";
+import { useViewer } from "@/components/ViewerProvider";
 import { agorot, formatILS } from "@/lib/money";
 import { useLiveGame } from "@/hooks/useLiveGame";
 import { isEligibleSuccessor } from "@/lib/roster-status";
@@ -20,6 +21,8 @@ import { ChipAvatar } from "@/components/ChipAvatar";
 import { ChipCounter } from "@/components/ChipCounter";
 import { type ChipCounts } from "@/lib/chips";
 import { HandRecorder } from "@/components/HandRecorder";
+import { HandRankingsSheet } from "@/components/HandRankingsSheet";
+import { OddsCalculator } from "@/components/OddsCalculator";
 import { MusicButton } from "@/components/MusicButton";
 import { GameRulesDialog } from "@/components/GameRulesDialog";
 import { PlayerCard } from "@/components/PlayerCard";
@@ -44,7 +47,7 @@ function elapsed(startedAt: string): string {
 
 export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const router = useRouter();
-  const { game, loading, error, addRebuy, undo, editRebuy, refresh } = useLiveGame(gameId);
+  const { game, error, addRebuy, undo, editRebuy, refresh } = useLiveGame(gameId);
   const [customPlayer, setCustomPlayer] = useState<{ id: string; name: string } | null>(null);
   const [customAmount, setCustomAmount] = useState<number | null>(null);
   const [deletePlayer, setDeletePlayer] = useState<{ id: string; name: string } | null>(null);
@@ -56,6 +59,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [earlyAmount, setEarlyAmount] = useState<number | null>(null);
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [oddsOpen, setOddsOpen] = useState(false);
   const [handRecorderOpen, setHandRecorderOpen] = useState(false);
   const [streaks, setStreaks] = useState<PlayerStreakMap>({});
   // Who is knocking. Host only -- the route answers everyone else with an empty list.
@@ -64,6 +68,16 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   >([]);
   const [answering, setAnswering] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
+  const viewer = useViewer();
+
+  // Item 9: `POST /api/game/[id]/seat-members` existed and was authorized correctly,
+  // but no screen called it, so nobody could actually create a shared seat. This is
+  // the affordance -- one control, and a picker of people already in this Person's
+  // group (`/api/people`, the same "regulars" the game-creation roster already uses).
+  const [attachFor, setAttachFor] = useState<{ id: string; name: string } | null>(null);
+  const [groupPeople, setGroupPeople] = useState<PersonSummary[] | null>(null);
+  const [attaching, setAttaching] = useState<string | null>(null);
+  const [detaching, setDetaching] = useState(false);
 
   // Host choice ("סיום לכולם" / "יציאה רק שלי") and the successor picker that
   // follows the second option. `successor` is also read by `saveEarlyExit` below to
@@ -179,6 +193,16 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     [seated],
   );
 
+  // A Person whose own id is not their seat's primary occupant is sitting there as
+  // an attached member (plan item 9) -- derived on the client from data both sides
+  // already have, rather than a new server field, since detach is self-only anyway.
+  const isAttachedMember =
+    you !== null && viewer !== null && you.personId !== null && you.personId !== viewer.id;
+  const attachCandidates = useMemo(
+    () => (groupPeople ?? []).filter((person) => !seated.some((player) => player.personId === person.id)),
+    [groupPeople, seated],
+  );
+
   // A chip table is always ready to submit: counting nothing is a real answer -- it
   // is what busting out looks like -- and the cash-out screen accepts a zero count
   // for the same reason. A shekel table has to have had a number typed into it.
@@ -228,6 +252,46 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       await refresh();
     } catch (reason) {
       toast.error(reason instanceof ApiError ? reason.message : "שחרור המכשיר נכשל");
+    }
+  }
+
+  function openAttach(target: { id: string; name: string }) {
+    setAttachFor(target);
+    if (groupPeople === null) {
+      apiFetch<{ people: PersonSummary[] }>("/api/people")
+        .then((data) => setGroupPeople(data.people))
+        .catch(() => setGroupPeople([]));
+    }
+  }
+
+  async function attachPerson(person: PersonSummary) {
+    if (!attachFor) return;
+    setAttaching(person.id);
+    try {
+      await apiFetch(`/api/game/${gameId}/seat-members`, {
+        method: "POST",
+        body: JSON.stringify({ playerId: attachFor.id, personId: person.id }),
+      });
+      toast.success(`${person.name} צורפו למקום`);
+      setAttachFor(null);
+      await refresh();
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "צירוף החשבון נכשל");
+    } finally {
+      setAttaching(null);
+    }
+  }
+
+  async function detachSelf() {
+    setDetaching(true);
+    try {
+      await apiFetch(`/api/game/${gameId}/seat-members`, { method: "DELETE" });
+      toast.success("השיוך למקום הוסר");
+      await refresh();
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "ההסרה נכשלה");
+    } finally {
+      setDetaching(false);
     }
   }
 
@@ -354,7 +418,15 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
     }
   }
 
-  if (loading && !game) {
+  // Item 10: this used to be `if (loading && !game)`, so `useLiveGame`'s first poll
+  // clearing `loading` -- which its `finally` does even when that request was aborted
+  // by React's dev-mode double effect mount, `error` staying null either way -- fell
+  // through to the branch below with nothing to show but the fallback "not found" text.
+  // A real 390px measurement (`pnpm dev` + Playwright, live-table first paint) put this
+  // at CLS 0.043 of a total 0.047: the whole table flashed as a missing game and then
+  // popped back in a frame later. Skeleton stays up for any `!game` with no real error;
+  // the error screen is now reserved for an error that actually exists.
+  if (!game && !error) {
     return (
       <main className="flex flex-1 flex-col">
         <AppHeader title="פותחים את השולחן…" backHref="/" backLabel="לדף הבית" />
@@ -586,6 +658,14 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
               )}
             </>
           )}
+          {/* One tap, not two behind the drawer: this is what settles a table
+              argument mid-hand, so it sits in the bar instead of inside
+              "פעולות נוספות" with everything cold. */}
+          <HandRankingsSheet>
+            <Button type="button" variant="secondary" size="icon" className="shrink-0" aria-label="סדר ידיים בפוקר">
+              <SpadeIcon aria-hidden="true" strokeWidth={1.75} />
+            </Button>
+          </HandRankingsSheet>
           <Button
             type="button"
             variant="secondary"
@@ -603,6 +683,24 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
         <DialogContent showCloseButton={false}>
           <DialogHeader><DialogTitle>הפעולות של {focusedPlayer?.name}</DialogTitle></DialogHeader>
           {focusedPlayer && <PlayerCard player={focusedPlayer} defaultAmount={game.rebuyAmount} canManage={game.isHost} onRebuy={addRebuy} onCustomRebuy={(item) => setCustomPlayer(item)} onUndo={(item) => { setFocusedPlayerId(null); setRebuysFor({ id: item.id, name: item.name }); setRebuysOpen(true); }} onDelete={(item) => setDeletePlayer({ id: item.id, name: item.name })} onRelease={(item) => void releasePlayer(item.id)} onEarlyExit={(item) => { setFocusedPlayerId(null); setEarlyExitFor({ id: item.id, name: item.name }); setEarlyChipCounts({}); setEarlyAmount(null); setEarlyExitOpen(true); }} />}
+          {/* The host may attach a shared occupant to any seat, not only their own
+              (item 9's authorization rule). `PlayerCard` is `tilted-tools`'s file, so
+              this sits beside it rather than inside it. */}
+          {focusedPlayer && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={() => {
+                const target = focusedPlayer;
+                setFocusedPlayerId(null);
+                openAttach({ id: target.id, name: target.name });
+              }}
+            >
+              <UsersIcon aria-hidden="true" strokeWidth={1.75} />
+              צירוף שותף למקום
+            </Button>
+          )}
           {/* Every other close-button-less dialog on this screen pairs that with an
               explicit way out. This one did not, and an installed PWA has no back
               gesture, so the undiscoverable backdrop tap was the only exit. */}
@@ -769,6 +867,47 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
               <CopyIcon aria-hidden="true" strokeWidth={1.75} />
               קישור צפייה בלבד
             </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={() => {
+                setMoreOpen(false);
+                setOddsOpen(true);
+              }}
+            >
+              <TrendingUpIcon aria-hidden="true" strokeWidth={1.75} />
+              מחשבון סיכויים
+            </Button>
+            {you && !isAttachedMember && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMoreOpen(false);
+                  openAttach({ id: you.id, name: you.name });
+                }}
+              >
+                <UsersIcon aria-hidden="true" strokeWidth={1.75} />
+                צירוף שותף למקום שלי
+              </Button>
+            )}
+            {isAttachedMember && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full justify-start"
+                disabled={detaching}
+                onClick={() => {
+                  setMoreOpen(false);
+                  void detachSelf();
+                }}
+              >
+                <Link2OffIcon aria-hidden="true" strokeWidth={1.75} />
+                עזיבת השיוך למקום
+              </Button>
+            )}
             {game.isHost && (
               <>
                 <Button
@@ -818,6 +957,12 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      {/* Mounted independently of the "more" drawer, not nested inside it -- its
+          trigger there closes that drawer immediately, and a calculator nested in
+          the closing drawer's content unmounts with it once the exit animation
+          finishes. */}
+      <OddsCalculator open={oddsOpen} onOpenChange={setOddsOpen} />
 
       <Dialog
         open={earlyExitOpen}
@@ -972,6 +1117,44 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setSuccessorPickerOpen(false)}>ביטול</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={attachFor !== null} onOpenChange={(open) => !open && setAttachFor(null)}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>מי מצטרף ל{attachFor?.name}?</DialogTitle>
+            <DialogDescription>
+              מי שמצטרף רואה ופועל על המקום הזה מהטלפון שלו, ויכול לעזוב את השיוך בעצמו
+              בכל שלב. רק מי שכבר שיחק איתכם מופיע כאן.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {groupPeople === null && (
+              <p className="t-caption text-[var(--text-2)]">טוענים…</p>
+            )}
+            {groupPeople !== null && attachCandidates.length === 0 && (
+              <p className="t-caption text-[var(--text-2)]">
+                כרגע כולם בקבוצה שלכם כבר יושבים בשולחן.
+              </p>
+            )}
+            {attachCandidates.map((person) => (
+              <Button
+                key={person.id}
+                type="button"
+                variant="secondary"
+                className="justify-start gap-3"
+                disabled={attaching !== null}
+                onClick={() => void attachPerson(person)}
+              >
+                <ChipAvatar avatarKey={person.avatarKey} personId={person.id} name={person.name} className="size-8" />
+                {person.nickname ?? person.name}
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setAttachFor(null)}>ביטול</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
