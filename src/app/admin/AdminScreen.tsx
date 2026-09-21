@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
+import { toWebpFile } from "@/lib/webp";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { Field, Section } from "@/components/FormSection";
@@ -775,6 +776,15 @@ function AdminAvatarsUpload({ count, onUploaded }: { count: number; onUploaded: 
   async function upload(formData: FormData) {
     setBusy(true);
     try {
+      // Converted here rather than on the server: the encoder is already in this
+      // browser, it costs no dependency and no function time, and it happens once per
+      // character instead of on every read. `toWebpFile` hands the original back
+      // untouched if anything fails, so this can only ever save bytes.
+      const picked = formData.get("image");
+      if (picked instanceof File && picked.size > 0) {
+        formData.set("image", await toWebpFile(picked));
+      }
+
       const response = await fetch("/api/admin/avatars", {
         method: "POST",
         body: formData,
