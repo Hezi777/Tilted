@@ -12,7 +12,33 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 A phone-first web app for tracking a home poker game between friends: who bought in, who
 rebought, who cashed out with what, and who owes whom at the end. A shared expense ledger,
-not a gambling product — no odds, no betting engine, no money moves inside the app.
+not a gambling product — no betting engine, no money moves inside the app.
+
+This line used to read "no odds" as well. The product owner retired that on 2026-09-19 and
+the app now ships a hand-rankings sheet and an odds calculator (`src/lib/hand-ranking.ts`,
+`src/lib/hand-eval.ts`, `src/lib/equity.ts`). The boundary that actually matters survived
+and is the one to keep: **those tools are private, per-player, and read-only.** They take
+no game data, write nothing to shared state, and never touch money. A feature that would
+put an odds number into the ledger, or into anything another player sees, is still out.
+
+## Seats may be shared
+
+A seat is one `players` row, one stack, one settlement line. `seat_members` attaches more
+than one Person to it (two friends playing as one). Two rules make it safe, and both have
+already been broken once each in review:
+
+- **`seat_members` confers seat ownership and never `players.is_host`.** Resolve a member
+  through the seat's Player row and they inherit the seat's real host flag, and with it
+  game rules, mismatch resolution, close/reopen/cancel and marking any transfer paid.
+  `resolveSeatActor` returns `isHost: false` for a non-primary member, always.
+- **Every member resolves to the same `players.id`**, so a player id can never identify
+  *which* member did something, and `actor.id === playerId` is not a test for "this is the
+  seat's owner". Attribution uses a Person (`cash_outs.entered_by_person_id`), and any rule
+  meant for the primary occupant must compare against `players.person_id`.
+
+A shared seat is also excluded from both members' personal money statistics — profile net,
+wins, win rate, best and worst night, streak and head-to-head. It is how two people play a
+night without it landing on either record. The ledger is unaffected: the seat still pays.
 
 ## Which document wins
 
