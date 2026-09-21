@@ -4,8 +4,8 @@ import { createGame, getGamesForDevice } from "@/db/queries";
 import { getVisibleChipSet } from "@/db/chip-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { requireViewer } from "@/lib/auth/session";
-import { AVATAR_KEYS } from "@/lib/avatar";
 import { MAX_AGOROT } from "@/lib/money";
+import { MAX_SEATS } from "@/lib/seat-layout";
 
 const createGameSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -14,7 +14,7 @@ const createGameSchema = z.object({
   buyIn: z.number().int().positive().max(MAX_AGOROT),
   rebuyAmount: z.number().int().positive().max(MAX_AGOROT),
   plannedEndAt: z.string().datetime(),
-  personIds: z.array(z.string().uuid()).min(1).max(AVATAR_KEYS.length),
+  personIds: z.array(z.string().uuid()).min(1).max(MAX_SEATS),
   chipSetId: z.string().uuid().nullable().optional(),
   resultEntry: z.enum(["host_only", "players"]).optional(),
 });

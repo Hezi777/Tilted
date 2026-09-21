@@ -19,10 +19,12 @@ import {
   hands,
   people,
   players,
+  seatMembers,
   transfers,
 } from "@/db/schema";
 import { generateRoomCode } from "@/lib/codes";
-import { AVATAR_KEYS, avatarKeyForPlayer } from "@/lib/avatar";
+import { avatarKeyForPlayer } from "@/lib/avatar";
+import { MAX_SEATS } from "@/lib/seat-layout";
 import { getActorForGame } from "@/db/cashout-queries";
 import { getPeopleWhoPlayedWith } from "@/db/identity-queries";
 import { AuthzError, requireHost } from "@/lib/authz";
@@ -222,8 +224,11 @@ export async function createGame(
   input: CreateGameInput,
   deviceId: string,
 ): Promise<string> {
-  if (input.personIds.length > AVATAR_KEYS.length) {
-    throw new Error("A table cannot have more character slots than available avatars");
+  if (input.personIds.length > MAX_SEATS) {
+    // docs/2026-09-audit.md open item 8: the cap belongs to what the table can
+    // actually render (MAX_SEATS), not to how many avatar faces exist -- 28 avatars
+    // would let creation admit a table the arc cannot draw a tenth tap target for.
+    throw new Error("A table cannot have more seats than the table allows");
   }
   const selectedPeople = await db
     .select({ id: people.id, name: people.name, avatarKey: people.avatarKey })
@@ -297,6 +302,15 @@ export async function createGame(
       opId: randomUUID(),
       createdByDevice: player.deviceId,
     }));
+    // Every seat's primary occupant gets a `seat_members` row too (plan item 9) --
+    // that is what makes `unique(game_id, person_id)` on that table alone sufficient
+    // to stop one Person holding two seats at one table.
+    const seatMemberRows = playerRows.map((player) => ({
+      id: randomUUID(),
+      gameId,
+      playerId: player.id,
+      personId: player.personId,
+    }));
 
     try {
       await db.batch([
@@ -317,6 +331,7 @@ export async function createGame(
         }),
         db.insert(players).values(playerRows),
         db.insert(buyIns).values(buyInRows),
+        db.insert(seatMembers).values(seatMemberRows),
       ]);
       return gameId;
     } catch (error) {
@@ -349,6 +364,11 @@ export interface GameOwnership {
  * one answers "who may write here" and deliberately needs a *claimed* seat; a seat the
  * host made and the invitee has not opened yet has `device_id` NULL, and the invite
  * notification links them straight to the game screen. Reading is not writing.
+ *
+ * Also true for a Person attached to someone else's seat as a shared member (plan
+ * item 9): they hold no `players` row of their own, but they can see and act on the
+ * seat they are attached to, and a read gate that rejected them before anything else
+ * ran would make that seat unreachable to them entirely.
  */
 export async function isSeatedInGame(
   gameId: string,
@@ -365,7 +385,21 @@ export async function isSeatedInGame(
       ),
     )
     .limit(1);
-  return row !== undefined;
+  if (row) return true;
+
+  const [member] = await db
+    .select({ id: seatMembers.id })
+    .from(seatMembers)
+    .innerJoin(players, eq(players.id, seatMembers.playerId))
+    .where(
+      and(
+        eq(seatMembers.gameId, gameId),
+        eq(seatMembers.personId, personId),
+        isNull(players.deletedAt),
+      ),
+    )
+    .limit(1);
+  return member !== undefined;
 }
 
 export async function getGameOwnership(
@@ -521,6 +555,10 @@ export async function purgeGame(gameId: string): Promise<void> {
     db.delete(handPlayers).where(inArray(handPlayers.handId, handIds)),
     db.delete(hands).where(eq(hands.gameId, gameId)),
     db.update(games).set({ mismatchPlayerId: null }).where(eq(games.id, gameId)),
+    // `seat_members_player_game_fk` and its FK to `games` are both ON DELETE NO
+    // ACTION -- this must go before the players and games deletes below or the
+    // whole batch rolls back with a foreign-key violation.
+    db.delete(seatMembers).where(eq(seatMembers.gameId, gameId)),
     db.delete(players).where(eq(players.gameId, gameId)),
     db.delete(games).where(eq(games.id, gameId)),
   ]);

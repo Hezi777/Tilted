@@ -50,7 +50,8 @@ export type AuthzCode =
   | "initial_buy_in"
   | "already_deleted"
   | "invalid_successor"
-  | "rebuy_above_limit";
+  | "rebuy_above_limit"
+  | "host_cannot_remove_self";
 
 const STATUS: Record<AuthzCode, number> = {
   no_device: 401,
@@ -64,6 +65,7 @@ const STATUS: Record<AuthzCode, number> = {
   already_deleted: 409,
   invalid_successor: 409,
   rebuy_above_limit: 400,
+  host_cannot_remove_self: 409,
 };
 
 /** Hebrew because these surface directly in a toast. */
@@ -79,6 +81,8 @@ const MESSAGE: Record<AuthzCode, string> = {
   already_deleted: "השורה כבר נמחקה",
   invalid_successor: "אי אפשר להעביר את הניהול לשחקן הזה",
   rebuy_above_limit: "הסכום גדול מהריביי של הערב",
+  host_cannot_remove_self:
+    "אי אפשר למחוק את המושב של המארח. יש להעביר קודם את הניהול לשחקן אחר",
 };
 
 export class AuthzError extends Error {
@@ -231,11 +235,28 @@ export function assertCanSettle(status: GameStatus, actor: ActorPlayer): void {
   requireHost(actor);
 }
 
-/** Adding, removing or releasing a seat is host-only, and only while active. */
+/** Adding or releasing a seat is host-only, and only while active. */
 export function assertCanManageRoster(
   status: GameStatus,
   actor: ActorPlayer,
 ): void {
   requireActiveGame(status);
+  requireHost(actor);
+}
+
+/**
+ * Removing a seat is host-only, in `active` **and** `settling`.
+ *
+ * Deleting a seat is a "money in the game" decision, not a roster-composition one:
+ * a seat that has not counted out can still turn out to have been a mistake once the
+ * table has moved to counting, and the host needs to be able to correct it from
+ * wherever settling actually put them. `deleteLivePlayer` itself still refuses a seat
+ * that has already produced a `cash_outs` row, in the statement, regardless of status.
+ */
+export function assertCanRemoveRoster(
+  status: GameStatus,
+  actor: ActorPlayer,
+): void {
+  assert(status === "active" || status === "settling", "game_not_active");
   requireHost(actor);
 }

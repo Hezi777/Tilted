@@ -88,6 +88,30 @@ export function railPoints(rail: Rail, count: number): { left: string; top: stri
 }
 
 /**
+ * The hard ceiling on how many seats a table may ever hold.
+ *
+ * `docs/2026-09-audit.md` open item 8: the cap used to exist only in `createGame`, so
+ * a table could grow past it through the door (`approveJoinRequest`) or by the host's
+ * own hand (`addPlayerToGame`) -- both funnel through `addPlayerToGame`, which is
+ * where the cap is actually enforced now. Ten, not `AVATAR_KEYS.length` (28): open
+ * item 7 is that the arc itself cannot carry a tenth seat's tap target at 390px no
+ * matter how it is drawn, so the product limit is the smaller of the two, not the
+ * number of avatar faces that happen to exist.
+ */
+export const MAX_SEATS = 10;
+
+/**
+ * The most opponents the arc itself may draw.
+ *
+ * `docs/2026-09-audit.md` open item 7, confirmed: past six opponents (seven seats at
+ * the table) the per-seat button drops below the 48px floor no matter what width it
+ * is given -- the rail has run out of arc length, not out of styling room. Above this
+ * count `PokerTableArc` stops trying to be an arc and renders the same seats as a
+ * two-column list on the same felt instead.
+ */
+export const ARC_MAX_OPPONENTS = 6;
+
+/**
  * The narrowest screen this table is drawn on.
  *
  * `railPoints` returns percentages, and a percentage gap only becomes a tap target

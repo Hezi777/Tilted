@@ -12,12 +12,18 @@ const idSchema = z.string().uuid();
  * Read-only, and gated by the same rule as reading the game itself (`GET
  * /api/game/[id]`): a seat at that table, current membership aside. A guessed id
  * with no seat gets the same 403 a stranger gets trying to open the game.
+ *
+ * Lives under `[code]`, not `[id]`, purely because Next.js requires every dynamic
+ * segment at `/api/games/<dynamic>` to share one param name across the whole route
+ * tree -- `/api/games/[code]` (room-code lookup, join) already claimed it. The value
+ * passed here is still a game id (a uuid), never a room code; only the folder name
+ * had to change.
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ code: string }> },
 ) {
-  const id = idSchema.safeParse((await params).id);
+  const id = idSchema.safeParse((await params).code);
   if (!id.success) {
     return NextResponse.json<ApiErrorBody>({ error: "משחק לא תקין" }, { status: 400 });
   }
