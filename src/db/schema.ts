@@ -210,6 +210,13 @@ export const players = pgTable(
     // `seatOrder`, which is the creation order the pot and settlement depend on and
     // must not be reshuffled to match the room.
     tableSeat: integer("table_seat"),
+    // v2: the seat's own record of "I have finished counting" (plan item 5), separate
+    // from the `cash_outs` row it is always written alongside in the same statement.
+    // Never a substitute for that row -- it is the intent, not the contract. Cleared
+    // whenever the count is edited, and by `reopenSettlingGame` for any seat that was
+    // not settled early; an early exit's frozen result sets this and it is never
+    // cleared afterward, because the player who left cannot come back to reconfirm.
+    countDoneAt: timestamp("count_done_at", { withTimezone: true }),
   },
   (table) => [
     index("players_game_id_idx").on(table.gameId),
@@ -288,6 +295,14 @@ export const cashOuts = pgTable(
     // Mismatch correction, kept separate from the raw counted `amount` so the honest
     // count survives (spec 5.5 / resolution #4).
     adjustment: integer("adjustment").notNull().default(0),
+    // v2: who actually typed this number (plan item 3). A Person, never a Player --
+    // every member of a shared seat (plan item 9) resolves to the same `players.id`,
+    // so a player id here would equal `player_id` and attribution would go silent the
+    // moment a seat had more than one occupant. Nullable only because it cannot be
+    // backfilled for rows written before this column existed.
+    enteredByPersonId: uuid("entered_by_person_id").references(
+      (): AnyPgColumn => people.id,
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -640,5 +655,53 @@ export const joinRequests = pgTable(
       table.personId,
     ),
     index("join_requests_game_id_idx").on(table.gameId),
+  ],
+);
+
+/**
+ * A seat shared by more than one Person (plan item 9): a couple splitting one stack,
+ * both able to see and act on it. `seat_members` confers seat ownership and NEVER
+ * `players.is_host` -- an actor resolved through this table must always be treated as
+ * `isHost: false`, regardless of whose seat it is. Host remains the seat's primary
+ * occupant alone.
+ *
+ * The seat's primary occupant (`players.person_id`) gets a row here too, at the same
+ * moment the seat is created. That is deliberate, and it is what makes
+ * `unique(game_id, person_id)` sufficient to stop one Person holding two seats at one
+ * table: without the primary occupant's own row, the constraint would have to span
+ * both `players.person_id` and this table at once, which two independent indexes
+ * cannot express.
+ *
+ * `game_id` sits on the row (not derived through a join) because it is half of the
+ * composite foreign key to `players` below -- the same shape `buy_ins` and `cash_outs`
+ * already use to keep a row's player and its game in agreement.
+ */
+export const seatMembers = pgTable(
+  "seat_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => games.id),
+    playerId: uuid("player_id").notNull(),
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => people.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.playerId, table.gameId],
+      foreignColumns: [players.id, players.gameId],
+      name: "seat_members_player_game_fk",
+    }),
+    // One Person holds at most one seat -- their own or a shared one -- per game.
+    uniqueIndex("seat_members_game_id_person_id_unique").on(
+      table.gameId,
+      table.personId,
+    ),
+    index("seat_members_player_id_idx").on(table.playerId),
   ],
 );
