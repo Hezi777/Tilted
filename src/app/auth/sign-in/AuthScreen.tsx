@@ -27,9 +27,11 @@ const INITIAL: AuthActionState = { error: null };
 export function AuthScreen({
   nextPath = "/",
   unavailable = false,
+  googleError,
 }: {
   nextPath?: string;
   unavailable?: boolean;
+  googleError?: string;
 }) {
   const reduceMotion = useReducedMotion();
   // Somebody arriving from a room link is almost always new -- an existing player
@@ -102,6 +104,21 @@ export function AuthScreen({
         >
           לא הצלחנו להגיע לשירות ההתחברות כרגע. נסו שוב בעוד רגע.
         </p>
+      )}
+
+      {googleError && (
+        <div role="alert" className="surface-card t-body rounded-[20px] px-4 py-3">
+          <p>
+            {googleError === "account_not_linked"
+              ? "כדי לחבר את Google לחשבון הקיים, צריך לאמת קודם את האימייל באמצעות קוד. החשבון והערבים שלכם יישמרו."
+              : "ההתחברות עם Google לא הושלמה. נסו שוב או התחברו באימייל ובסיסמה."}
+          </p>
+          {googleError === "account_not_linked" && (
+            <Link href={`/auth/reset?next=${encodeURIComponent(nextPath)}`} className="mt-2 inline-block text-accent underline">
+              אימות האימייל והגדרת סיסמה
+            </Link>
+          )}
+        </div>
       )}
 
       <motion.form
@@ -228,6 +245,14 @@ export function AuthScreen({
           המשך עם Google
         </Button>
       </form>
+
+      <p className="t-caption ink-2 text-center">
+        השתמשו באותו אימייל כדי לשמור את הכול באותו חשבון.
+        {" "}
+        <Link href={`/auth/reset?next=${encodeURIComponent(nextPath)}`} className="text-accent underline">
+          התחלתם עם Google? הגדירו סיסמה עם קוד באימייל
+        </Link>
+      </p>
 
       <Button
         type="button"

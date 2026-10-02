@@ -45,11 +45,11 @@ export function ResetScreen({ nextPath = "/" }: { nextPath?: string }) {
   return (
     <main className="flex flex-1 flex-col justify-center gap-7 px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-10">
       <header className="text-center">
-        <h1 className="t-display-l">שכחתם סיסמה?</h1>
+        <h1 className="t-display-l">הגדרת סיסמה</h1>
         <p className="t-body ink-2 mt-2">
           {sent
             ? `שלחנו קוד בן שש ספרות ל${email}. הוא תקף לזמן קצר.`
-            : "נשלח לכם קוד באימייל ותבחרו סיסמה חדשה."}
+            : "נשלח לכם קוד לאימות האימייל ותבחרו סיסמה. גם אם התחלתם עם Google, זה אותו חשבון וכל הערבים נשמרים."}
         </p>
       </header>
 

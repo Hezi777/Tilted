@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; unavailable?: string }>;
+  searchParams: Promise<{ next?: string; unavailable?: string; google?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const nextPath = safeNextPath(params.next ?? null);
@@ -27,5 +27,11 @@ export default async function SignInPage({
   }
   if (signedIn) redirect(nextPath);
 
-  return <AuthScreen nextPath={nextPath} unavailable={unavailable} />;
+  return (
+    <AuthScreen
+      nextPath={nextPath}
+      unavailable={unavailable}
+      googleError={params.error ?? (params.google === "failed" ? "failed" : undefined)}
+    />
+  );
 }

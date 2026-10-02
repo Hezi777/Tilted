@@ -3,8 +3,7 @@
 /**
  * Sign-in, sign-up and sign-out as server actions (build plan M10).
  *
- * Email and password only, by the product owner's decision: it needs no OAuth consent
- * screen and no email sender, so nothing in the runtime path costs money.
+ * Email/password and Google use the same Neon Auth user and Person.
  *
  * These exist so the screens can be ours. `@neondatabase/auth-ui` would have supplied
  * them as vendor components, which AGENTS.md forbids and whose RTL behaviour is
@@ -60,7 +59,15 @@ export async function signUpAction(
   }
 
   const { error, data } = await auth.signUp.email(parsed.data);
-  if (error) return { error: error.message ?? "ההרשמה נכשלה" };
+  if (error) {
+    return {
+      error:
+        error.code === "user_already_exists" || error.code === "email_exists" ||
+        (error.status === 422 && error.message?.toLowerCase().includes("already exists"))
+          ? "כבר קיים חשבון עם האימייל הזה. התחברו עם Google או עם הסיסמה, או הגדירו סיסמה באמצעות קוד באימייל."
+          : error.message ?? "ההרשמה נכשלה",
+    };
+  }
 
   // The roster is now made of accounts, so the Person exists from the first second.
   if (data?.user) await ensurePersonForUser(data.user.id, parsed.data.name);
@@ -126,11 +133,8 @@ async function authService(path: string, body: unknown): Promise<string | null> 
 /**
  * Google sign-in.
  *
- * Uses the OAuth credentials Neon Auth already provides on this project as a "shared"
- * provider, so there is no Google Cloud project to create and nothing to configure or
- * keep alive. The visible cost of that: the consent screen names Neon rather than
- * Tilted. For a table of friends who were sent the link personally that is a fair
- * trade for never having to run a client secret.
+ * The SDK forwards the request origin and writes the OAuth challenge cookies. The
+ * middleware exchanges that challenge for an app session when Google returns.
  *
  * No Person has to be created here. `requireViewer`/`getViewer` call
  * `ensurePersonForUser` on the first authenticated request, so a Google account lands
@@ -146,20 +150,21 @@ export async function signInWithGoogleAction(formData: FormData): Promise<void> 
   if (!baseUrl) redirect("/auth/sign-in?unavailable=1");
 
   const nextPath = safeNextPath(formData.get("next"));
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/sign-in/social`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const callbackURL = new URL(nextPath, appUrl).toString();
+  const errorURL = new URL("/auth/sign-in", appUrl);
+  errorURL.searchParams.set("next", nextPath);
+  errorURL.searchParams.set("google", "failed");
+  const result = await auth.signIn
+    .social({
       provider: "google",
-      callbackURL: new URL(nextPath, appUrl).toString(),
-    }),
-  }).catch(() => null);
+      callbackURL,
+      newUserCallbackURL: callbackURL,
+      errorCallbackURL: errorURL.toString(),
+    })
+    .catch(() => null);
 
-  const payload = (await response?.json().catch(() => null)) as
-    | { url?: string }
-    | null;
-  if (!payload?.url) redirect("/auth/sign-in?unavailable=1");
-  redirect(payload.url);
+  if (result?.error || !result?.data?.url) redirect(errorURL.toString());
+  redirect(result.data.url);
 }
 
 const emailOnly = z.object({
