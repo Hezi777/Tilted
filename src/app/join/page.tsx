@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { motionSafe, rise, stagger } from "@/lib/motion";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { ChipAvatar } from "@/components/ChipAvatar";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ export default function JoinPage() {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
+  const invite = useSearchParams().get("invite");
   const identity = useIdentity();
   const autoJoinStarted = useRef(false);
   const [code, setCode] = useState("");
@@ -215,7 +216,7 @@ export default function JoinPage() {
     try {
       const standing = await apiFetch<{ state: string; gameId: string }>(
         `/api/games/${game.code}/join`,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ invite: invite ?? undefined }) },
       );
       if (standing.state === "seated") {
         router.replace(`/game/${standing.gameId}`);
@@ -384,7 +385,9 @@ export default function JoinPage() {
                   <CardContent className="flex flex-col gap-3">
                     <p className="t-body text-[var(--text-2)]">
                       {game.status === "active"
-                        ? "השולחן פתוח. שולחים בקשה למארח, והוא מאשר אתכם פנימה."
+                        ? invite
+                          ? "השולחן פתוח. ההזמנה הזו מאפשרת להצטרף מיד."
+                          : "השולחן פתוח. שולחים בקשה למארח, והוא מאשר אתכם פנימה."
                         : "השולחן כבר לא מקבל שחקנים חדשים."}
                     </p>
                     {game.status === "active" && (
@@ -393,7 +396,7 @@ export default function JoinPage() {
                         disabled={takingSeat}
                         onClick={() => void takeSeat()}
                       >
-                        {takingSeat ? "שולחים בקשה..." : "בקשו להצטרף"}
+                        {takingSeat ? "מצטרפים..." : invite ? "הצטרפו לשולחן" : "בקשו להצטרף"}
                       </Button>
                     )}
                   </CardContent>

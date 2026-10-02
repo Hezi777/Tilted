@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,16 @@ import {
 type Mode = "sign-in" | "sign-up";
 
 const INITIAL: AuthActionState = { error: null };
+
+function GoogleButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" size="lg" disabled={pending} className="w-full">
+      <GoogleIcon aria-hidden="true" />
+      {pending ? "מתחברים..." : "המשך עם Google"}
+    </Button>
+  );
+}
 
 /**
  * The gate. Every screen behind it needs an account now, so this is the first thing a
@@ -38,7 +49,7 @@ export function AuthScreen({
   // already has the app on their home screen. Opening on the sign-in tab sent the most
   // common arrival of all to the wrong half of the form.
   const invited = nextPath.startsWith("/join");
-  const [mode, setMode] = useState<Mode>(invited ? "sign-up" : "sign-in");
+  const [mode, setMode] = useState<Mode>(invited && !googleError ? "sign-up" : "sign-in");
   const [showPassword, setShowPassword] = useState(false);
   const [signInState, runSignIn, signingIn] = useActionState(
     signInAction,
@@ -87,7 +98,7 @@ export function AuthScreen({
           </h1>
           <p className="t-body ink-2 max-w-[30ch]">
             {invited
-              ? "עוד חשבון אחד ואתם בפנים. הכניסות, הריביים והחשבון מסתדרים לבד."
+              ? "בחרו איך להתחבר ואתם בפנים. הכניסות, הריביים והחשבון מסתדרים לבד."
               : isSignUp
                 ? "החשבון שומר את הערבים, הרצפים והחשבון שלכם."
                 : "ברוכים השבים לשולחן."}
@@ -107,19 +118,23 @@ export function AuthScreen({
       )}
 
       {googleError && (
-        <div role="alert" className="surface-card t-body rounded-[20px] px-4 py-3">
-          <p>
+        <p role="alert" className="surface-card t-body rounded-[20px] px-4 py-3">
             {googleError === "account_not_linked"
-              ? "כדי לחבר את Google לחשבון הקיים, צריך לאמת קודם את האימייל באמצעות קוד. החשבון והערבים שלכם יישמרו."
+              ? "Google לא הצליח להתחבר לחשבון הקיים. אפשר להתחבר באימייל ובסיסמה."
               : "ההתחברות עם Google לא הושלמה. נסו שוב או התחברו באימייל ובסיסמה."}
-          </p>
-          {googleError === "account_not_linked" && (
-            <Link href={`/auth/reset?next=${encodeURIComponent(nextPath)}`} className="mt-2 inline-block text-accent underline">
-              אימות האימייל והגדרת סיסמה
-            </Link>
-          )}
-        </div>
+        </p>
       )}
+
+      <form action={signInWithGoogleAction}>
+        <input type="hidden" name="next" value={nextPath} />
+        <GoogleButton />
+      </form>
+
+      <div className="flex items-center gap-3" aria-hidden>
+        <span className="h-px flex-1 bg-[var(--glass-1)]" />
+        <span className="t-caption ink-3">או באימייל ובסיסמה</span>
+        <span className="h-px flex-1 bg-[var(--glass-1)]" />
+      </div>
 
       <motion.form
         key={mode}
@@ -219,7 +234,7 @@ export function AuthScreen({
           </p>
         )}
 
-        <Button type="submit" size="lg" disabled={pending} className="w-full">
+        <Button type="submit" variant="secondary" size="lg" disabled={pending} className="w-full">
           {pending
             ? isSignUp
               ? "פותחים חשבון..."
@@ -229,30 +244,6 @@ export function AuthScreen({
               : "התחברו"}
         </Button>
       </motion.form>
-
-      {/* One tap, no password to forget, and the same account whichever button was
-          used last time -- the address is what identifies a person, not the method. */}
-      <div className="flex items-center gap-3" aria-hidden>
-        <span className="h-px flex-1 bg-[var(--glass-1)]" />
-        <span className="t-caption ink-3">או</span>
-        <span className="h-px flex-1 bg-[var(--glass-1)]" />
-      </div>
-
-      <form action={signInWithGoogleAction}>
-        <input type="hidden" name="next" value={nextPath} />
-        <Button type="submit" variant="secondary" size="lg" className="w-full">
-          <GoogleIcon aria-hidden="true" />
-          המשך עם Google
-        </Button>
-      </form>
-
-      <p className="t-caption ink-2 text-center">
-        השתמשו באותו אימייל כדי לשמור את הכול באותו חשבון.
-        {" "}
-        <Link href={`/auth/reset?next=${encodeURIComponent(nextPath)}`} className="text-accent underline">
-          התחלתם עם Google? הגדירו סיסמה עם קוד באימייל
-        </Link>
-      </p>
 
       <Button
         type="button"

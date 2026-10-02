@@ -27,6 +27,7 @@ import { MusicButton } from "@/components/MusicButton";
 import { GameRulesDialog } from "@/components/GameRulesDialog";
 import { PlayerCard } from "@/components/PlayerCard";
 import { PokerTableArc } from "@/components/PokerTableArc";
+import { ShareInviteDialog } from "@/components/ShareInviteDialog";
 import { PokerTableArcSkeleton } from "@/components/PokerTableArcSkeleton";
 import { RebuyButton } from "@/components/RebuyButton";
 import { YourResultCard } from "@/components/YourResultCard";
@@ -59,6 +60,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
   const [earlyAmount, setEarlyAmount] = useState<number | null>(null);
   const [savingEarlyExit, setSavingEarlyExit] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [oddsOpen, setOddsOpen] = useState(false);
   const [handRecorderOpen, setHandRecorderOpen] = useState(false);
   const [streaks, setStreaks] = useState<PlayerStreakMap>({});
@@ -316,27 +318,6 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
       toast.success("קישור הצפייה הועתק");
     } catch {
       toast.error("ההעתקה נכשלה");
-    }
-  }
-
-  async function shareInvite() {
-    if (!game) return;
-    const url = new URL(`/join/${game.code}`, window.location.origin).toString();
-    const data = {
-      title: `${game.name ?? "ערב פוקר"} | Tilted Poker`,
-      text: `השולחן פתוח. מצטרפים דרך ההזמנה:`,
-      url,
-    };
-    try {
-      if (navigator.share) {
-        await navigator.share(data);
-      } else {
-        await navigator.clipboard.writeText(`${data.text} ${url}`);
-        toast.success("קישור ההזמנה הועתק");
-      }
-    } catch (reason) {
-      if (reason instanceof DOMException && reason.name === "AbortError") return;
-      toast.error("שיתוף ההזמנה נכשל");
     }
   }
 
@@ -849,7 +830,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
               className="w-full justify-start"
               onClick={() => {
                 setMoreOpen(false);
-                void shareInvite();
+                setInviteOpen(true);
               }}
             >
               <Share2Icon aria-hidden="true" strokeWidth={1.75} />
@@ -957,6 +938,7 @@ export default function LiveGameScreen({ gameId }: { gameId: string }) {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+      <ShareInviteDialog game={game} open={inviteOpen} onOpenChange={setInviteOpen} />
 
       {/* Mounted independently of the "more" drawer, not nested inside it -- its
           trigger there closes that drawer immediately, and a calculator nested in

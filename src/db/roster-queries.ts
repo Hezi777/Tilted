@@ -155,8 +155,7 @@ export async function claimPlayer(
  * Seats the signed-in account at a table it was never added to (spec 5.3: a guest
  * "picks their name from the roster, or adds it if the host has not").
  *
- * Self-service, so there is no host guard -- knowing the four-character code is the
- * whole entitlement, which is what makes a share link work. Everything else is the
+ * Self-service after the route verifies a host-signed instant-join link. Everything else is the
  * same seat `addPlayerToGame` makes: a Player bound to this Person and the next seat
  * around the felt, plus its initial buy-in, written immediately because there is
  * nothing left to accept. A seat the host already made is a different story -- it
@@ -165,11 +164,13 @@ export async function claimPlayer(
 export async function joinGameByCode(
   code: string,
   actorPersonId: string,
+  expectedGameId?: string,
 ): Promise<{ gameId: string; playerId: string }> {
   const [game] = await db
     .select({ id: games.id, buyIn: games.buyIn })
     .from(games)
-    .where(and(eq(games.code, code), eq(games.status, "active")))
+    .where(and(eq(games.code, code), eq(games.status, "active"),
+      expectedGameId ? eq(games.id, expectedGameId) : undefined))
     .limit(1);
   if (!game) throw new RosterConflictError("המשחק לא נמצא או שכבר נסגר");
 
@@ -201,6 +202,8 @@ export async function joinGameByCode(
     }
     return { gameId: game.id, playerId: existing.id };
   }
+
+  if (seated.length >= MAX_SEATS) throw new RosterConflictError(`השולחן מוגבל ל-${MAX_SEATS} מקומות`);
 
   const avatarKey = avatarKeyForPlayer(
     person.avatarKey,
@@ -234,6 +237,8 @@ export async function joinGameByCode(
             AND occupied.avatar_key = ${avatarKey}
             AND occupied.deleted_at IS NULL
         )
+        AND (SELECT count(*) FROM ${players} live
+          WHERE live.game_id = g.id AND live.deleted_at IS NULL) < ${MAX_SEATS}
       RETURNING id, game_id
     ), inserted_buyin AS (
       INSERT INTO ${buyIns}
@@ -250,6 +255,10 @@ export async function joinGameByCode(
       INSERT INTO seat_members (id, game_id, player_id, person_id)
       SELECT ${randomUUID()}::uuid, p.game_id, p.id, ${person.id}::uuid
       FROM inserted_player p
+    ), cleared_request AS (
+      DELETE FROM join_requests
+      WHERE game_id = ${game.id}::uuid AND person_id = ${person.id}::uuid
+        AND EXISTS (SELECT 1 FROM inserted_player)
     )
     SELECT player_id FROM inserted_buyin
   `);

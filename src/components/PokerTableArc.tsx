@@ -149,6 +149,8 @@ export function PokerTableArc({
   const youRow = you && (
     <motion.div
       variants={seatVariants}
+      initial={false}
+      animate="show"
       custom={{ settled: you.isSettled, waiting: false, selected: false }}
       className={cn(
         "flex items-end justify-center",
@@ -203,6 +205,8 @@ export function PokerTableArc({
                   aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}${player.isWaiting ? ", ממתין" : ""}`}
                   aria-pressed={onSeatSelect ? selected : undefined}
                   variants={seatVariants}
+                  initial={false}
+                  animate="show"
                   custom={{ settled: player.isSettled, waiting: player.isWaiting, selected }}
                   whileTap={
                     onSeatSelect && !reduceMotion
@@ -319,6 +323,8 @@ export function PokerTableArc({
               aria-label={`${player.name}, ${formatILS(agorot(player.totalIn))}${player.isSettled ? ", נסגר" : ""}${player.isWaiting ? ", ממתין" : ""}`}
               aria-pressed={onSeatSelect ? selected : undefined}
               variants={seatVariants}
+              initial={false}
+              animate="show"
               custom={{ settled: player.isSettled, waiting: player.isWaiting, selected }}
               whileTap={
                 onSeatSelect && !reduceMotion

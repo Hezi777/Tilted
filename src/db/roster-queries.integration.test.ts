@@ -146,4 +146,51 @@ describe.skipIf(!hasIntegrationDb)("claimInvitedSeat (integration)", () => {
 
     expect(await liveBuyIns(seat.guestPlayer)).toHaveLength(1);
   });
+
+  it("cannot use an instant-join grant for a different game with this room code", async () => {
+    const seat = await seedUnclaimedSeat(false);
+    const { randomUUID } = await import("node:crypto");
+    await expect(roster.joinGameByCode(seat.code, seat.guestPerson, randomUUID())).rejects.toThrow();
+    expect(await liveBuyIns(seat.guestPlayer)).toHaveLength(0);
+  });
+
+  it("accepts a grant bound to this game without charging twice", async () => {
+    const seat = await seedUnclaimedSeat(false);
+    await roster.joinGameByCode(seat.code, seat.guestPerson, seat.gameId);
+    await roster.joinGameByCode(seat.code, seat.guestPerson, seat.gameId);
+    expect(await liveBuyIns(seat.guestPlayer)).toHaveLength(1);
+  });
+
+  it("instantly seats a new arrival with their character, one buy-in and no pending request", async () => {
+    const seat = await seedUnclaimedSeat(false);
+    const { db } = await import("@/db");
+    const { players, seatMembers, joinRequests } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db.delete(players).where(eq(players.id, seat.guestPlayer));
+    await db.insert(joinRequests).values({ gameId: seat.gameId, personId: seat.guestPerson });
+
+    const joined = await roster.joinGameByCode(seat.code, seat.guestPerson, seat.gameId);
+    await roster.joinGameByCode(seat.code, seat.guestPerson, seat.gameId);
+
+    const [player] = await db.select().from(players).where(eq(players.id, joined.playerId));
+    expect(player.avatarKey).toBeTruthy();
+    expect(player.deviceId).toBe(seat.guestPerson);
+    expect(player.isHost).toBe(false);
+    expect(await liveBuyIns(joined.playerId)).toHaveLength(1);
+    expect(await db.select().from(seatMembers).where(eq(seatMembers.playerId, joined.playerId))).toHaveLength(1);
+    expect(await db.select().from(joinRequests).where(eq(joinRequests.gameId, seat.gameId))).toHaveLength(0);
+  });
+
+  it("does not let instant links exceed the table capacity", async () => {
+    const seat = await seedUnclaimedSeat(false);
+    const { db } = await import("@/db");
+    const { people, players } = await import("@/db/schema");
+    const { randomUUID } = await import("node:crypto");
+    const extraPeople = Array.from({ length: 9 }, (_, i) => ({ id: randomUUID(), userId: randomUUID(), name: `Capacity ${i}` }));
+    await db.insert(people).values(extraPeople);
+    await db.insert(players).values(extraPeople.slice(0, 8).map((person, i) => ({
+      gameId: seat.gameId, personId: person.id, name: person.name, seatOrder: i + 2,
+    })));
+    await expect(roster.joinGameByCode(seat.code, extraPeople[8].id, seat.gameId)).rejects.toThrow("10");
+  });
 });

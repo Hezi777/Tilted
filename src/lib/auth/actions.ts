@@ -3,7 +3,7 @@
 /**
  * Sign-in, sign-up and sign-out as server actions (build plan M10).
  *
- * Email/password and Google use the same Neon Auth user and Person.
+ * Email/password and Google are handled by Neon Managed Auth.
  *
  * These exist so the screens can be ours. `@neondatabase/auth-ui` would have supplied
  * them as vendor components, which AGENTS.md forbids and whose RTL behaviour is
@@ -64,7 +64,7 @@ export async function signUpAction(
       error:
         error.code === "user_already_exists" || error.code === "email_exists" ||
         (error.status === 422 && error.message?.toLowerCase().includes("already exists"))
-          ? "כבר קיים חשבון עם האימייל הזה. התחברו עם Google או עם הסיסמה, או הגדירו סיסמה באמצעות קוד באימייל."
+          ? "כבר קיים חשבון עם האימייל הזה. עברו להתחברות."
           : error.message ?? "ההרשמה נכשלה",
     };
   }

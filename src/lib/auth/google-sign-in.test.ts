@@ -45,7 +45,7 @@ describe("Google sign-in through the Neon SDK", () => {
     form.set("password", "test-password");
 
     await expect(signUpAction({ error: null }, form)).resolves.toEqual({
-      error: "כבר קיים חשבון עם האימייל הזה. התחברו עם Google או עם הסיסמה, או הגדירו סיסמה באמצעות קוד באימייל.",
+      error: "כבר קיים חשבון עם האימייל הזה. עברו להתחברות.",
     });
   });
 

@@ -84,6 +84,13 @@ It also closes the hole M1 leaves behind: chip-set ownership currently trusts a
 client-supplied `personId`, because outside a game there is no device-to-person mapping to
 check against. A real server-side session replaces that check rather than patching it.
 
+**2026-10-02 — per-link instant joining.** Ordinary links and room codes still require
+host approval. When sharing, the actual host can turn approval off for that link only.
+The server signs an invitation bound to the game's UUID; possessing a room code or
+changing a query flag cannot grant instant access. The recipient must sign in, the game
+must still be active, and the normal seat limit and one-initial-buy-in rule still apply.
+Shared-seat members cannot issue these links on behalf of the host.
+
 ## Terminology (item 6), settled
 
 Hebrew UI, English code stays the rule. The interface terms:

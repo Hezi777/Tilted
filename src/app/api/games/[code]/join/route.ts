@@ -1,23 +1,25 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { RosterConflictError } from "@/db/roster-queries";
+import { joinGameByCode, RosterConflictError } from "@/db/roster-queries";
 import { getJoinStanding, requestToJoin } from "@/db/join-request-queries";
 import type { ApiErrorBody } from "@/lib/api";
 import { isValidRoomCode, normalizeRoomCode } from "@/lib/codes";
 import { requireViewer } from "@/lib/auth/session";
+import { verifyInstantJoinToken } from "@/lib/instant-join";
 
 const codeSchema = z.string().transform(normalizeRoomCode).refine(isValidRoomCode);
 
 /**
- * Knocks at an open table.
+ * Knocks at an open table, or joins through a host-signed instant invitation.
  *
  * The code used to be the whole entitlement -- it seated you immediately. It now asks
- * the host, who sees the request on the live screen and lets you in or does not. Four
+ * the host, who sees the request on the live screen and lets you in or does not. A
+ * host-signed invitation explicitly grants instant access to its one game. Four
  * characters is 923k codes and no rate limit, and a seat reads the table's phone
  * numbers and can move the pot, so the link gets you to the door rather than through it.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ code: string }> },
 ) {
   const viewer = await requireViewer();
@@ -28,7 +30,17 @@ export async function POST(
     return NextResponse.json<ApiErrorBody>({ error: "קוד חדר לא תקין" }, { status: 400 });
   }
 
+  const body = z.object({ invite: z.string().max(100).optional() })
+    .safeParse(await request.json().catch(() => ({})));
+  if (!body.success) return NextResponse.json({ error: "קלט לא תקין" }, { status: 400 });
+
   try {
+    if (body.data.invite) {
+      const gameId = verifyInstantJoinToken(body.data.invite);
+      if (!gameId) return NextResponse.json({ error: "קישור ההזמנה לא תקין" }, { status: 403 });
+      const joined = await joinGameByCode(parsedCode.data, viewer.person.id, gameId);
+      return NextResponse.json({ state: "seated", gameId: joined.gameId });
+    }
     const standing = await requestToJoin(parsedCode.data, viewer.person.id);
     return NextResponse.json(standing, { status: standing.state === "seated" ? 200 : 202 });
   } catch (error) {
